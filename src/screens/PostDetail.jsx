@@ -1,0 +1,147 @@
+import { useState } from "react";
+import { Car, Heart } from "lucide-react";
+import { T } from "../theme";
+import { timeAgo, hueForId } from "../lib/utils";
+import { Avatar, TextInput, SectionLabel } from "../components/ui";
+import { PostMenu } from "../components/PostMenu";
+
+export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, addComment, addReply, actions, onGone }) {
+  const [text, setText] = useState("");
+  const [pop, setPop] = useState(false);
+  const liked = post.likes.includes(me);
+  const hue = hueForId(post.id);
+  const doLike = () => { toggleLike(post.id); if (!liked) { setPop(true); setTimeout(() => setPop(false), 350); } };
+  return (
+    <div style={{ paddingTop: 18, paddingBottom: 10 }}>
+      {post.archived && (
+        <div style={{ fontSize: 12.5, color: T.accentWarm, background: "rgba(242,184,75,0.12)", borderRadius: 12, padding: "8px 12px", marginBottom: 12 }}>
+          Archived — only you can see this post.
+        </div>
+      )}
+      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
+        <button onClick={() => openProfile(post.authorUsername)} style={{ background: "none", border: "none", padding: 0 }}>
+          <Avatar username={post.authorUsername} size={34} />
+        </button>
+        <div>
+          <button onClick={() => openProfile(post.authorUsername)} style={{ background: "none", border: "none", padding: 0, color: T.text, fontSize: 14, fontWeight: 600 }}>
+            {post.authorUsername}
+          </button>
+          {car && (
+            <div>
+              <button onClick={() => openCar(car.id)} style={{ background: "none", border: "none", padding: 0, color: T.accent, fontSize: 12 }}>
+                {car.make} {car.model} '{car.year}
+              </button>
+            </div>
+          )}
+        </div>
+        <div style={{ flex: 1 }} />
+        {actions && <PostMenu post={post} me={me} actions={actions} onDeleted={onGone} />}
+      </div>
+
+      {post.photoUrl ? (
+        <div style={{ borderRadius: 18, overflow: "hidden", marginBottom: 12, background: "#000", aspectRatio: post.photoAspect ? String(post.photoAspect) : undefined }}>
+          <img src={post.photoUrl} alt="" style={{ width: "100%", height: "100%", maxHeight: "75vh", objectFit: "contain", display: "block" }} />
+        </div>
+      ) : (
+        <div style={{
+          height: 220, borderRadius: 18, overflow: "hidden", background: `linear-gradient(135deg, hsl(${hue},45%,22%), hsl(${hue},35%,12%))`,
+          display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12,
+        }}>
+          <Car size={36} color="rgba(245,244,242,0.4)" />
+        </div>
+      )}
+
+      {post.caption && <div style={{ color: T.text, fontSize: 14.5, lineHeight: 1.4, marginBottom: 12, whiteSpace: "pre-wrap" }}>{post.caption}</div>}
+      <div style={{ fontSize: 11.5, color: T.textDim, marginBottom: 12 }}>{timeAgo(post.date)}{post.editedAt ? " · Edited" : ""}</div>
+
+      <div style={{ display: "flex", gap: 16, paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${T.lineDark}` }}>
+        <button onClick={doLike} style={{ background: "none", border: "none", display: "flex", alignItems: "center", gap: 5, padding: 0 }}>
+          <Heart size={18} color={liked ? T.accent : T.textDim} fill={liked ? T.accent : "none"} className={pop ? "heart-pop" : ""} />
+          <span style={{ fontSize: 13, color: T.textDim }}>{post.likes.length} likes</span>
+        </button>
+      </div>
+
+      <SectionLabel>Comments</SectionLabel>
+      {post.comments.length === 0 && <div style={{ color: T.textDim, fontSize: 13, marginBottom: 14 }}>No comments yet.</div>}
+      {post.comments.map((c) => (
+        <CommentRow key={c.id} comment={c} postId={post.id} addReply={addReply} />
+      ))}
+
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <div style={{ flex: 1 }}>
+          <TextInput value={text} onChange={setText} placeholder="Add a comment…" maxLength={220} />
+        </div>
+        <button
+          disabled={!text.trim()}
+          onClick={() => { addComment(post.id, text); setText(""); }}
+          style={{ padding: "0 16px", borderRadius: 16, border: "none", background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim, fontWeight: 600 }}
+        >
+          Post
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function CommentRow({ comment, postId, addReply }) {
+  const [replying, setReplying] = useState(false);
+  const [showReplies, setShowReplies] = useState(false);
+  const [text, setText] = useState("");
+  const replies = comment.replies || [];
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", gap: 9 }}>
+        <Avatar username={comment.author} size={26} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, color: T.text }}>
+            <span style={{ fontWeight: 600 }}>{comment.author}</span> {comment.text}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 3 }}>
+            <span style={{ fontSize: 10.5, color: T.textDim }}>{timeAgo(comment.date)}</span>
+            <button onClick={() => setReplying((r) => !r)} className="press" style={{ background: "none", border: "none", padding: 0, fontSize: 11, color: T.textDim, fontWeight: 600 }}>
+              Reply
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {replying && (
+        <div className="fade-in" style={{ display: "flex", gap: 8, marginTop: 8, marginLeft: 35 }}>
+          <div style={{ flex: 1 }}>
+            <TextInput value={text} onChange={setText} placeholder={`Reply to ${comment.author}…`} maxLength={220} />
+          </div>
+          <button disabled={!text.trim()} className="press"
+            onClick={() => { addReply(postId, comment.id, text); setText(""); setReplying(false); setShowReplies(true); }}
+            style={{ padding: "0 14px", borderRadius: 16, border: "none", background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim, fontWeight: 600, fontSize: 12.5 }}>
+            Send
+          </button>
+        </div>
+      )}
+
+      {replies.length > 0 && (
+        <div style={{ marginLeft: 35, marginTop: 8 }}>
+          <button onClick={() => setShowReplies((s) => !s)} className="press" style={{ background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", gap: 5, color: T.accent2, fontSize: 11.5, fontWeight: 600 }}>
+            <div style={{ width: 20, height: 1, background: T.lineDark }} />
+            {showReplies ? "Hide" : "View"} {replies.length} {replies.length === 1 ? "reply" : "replies"}
+          </button>
+          {showReplies && (
+            <div className="fade-in" style={{ marginTop: 10 }}>
+              {replies.map((r) => (
+                <div key={r.id} style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  <Avatar username={r.author} size={21} />
+                  <div>
+                    <div style={{ fontSize: 12.5, color: T.text }}>
+                      <span style={{ fontWeight: 600 }}>{r.author}</span> {r.text}
+                    </div>
+                    <div style={{ fontSize: 10, color: T.textDim, marginTop: 2 }}>{timeAgo(r.date)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

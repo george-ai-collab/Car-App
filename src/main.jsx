@@ -12,8 +12,8 @@ if (Capacitor.isNativePlatform()) {
   CapApp.addListener("backButton", () => {
     const backdrop = document.querySelector("[data-sheet-backdrop]");
     if (backdrop) return backdrop.click();
-    const back = document.querySelector("[data-nav-back]");
-    if (back) return back.click();
+    // Go back one page; on the Feed there's nowhere to go, so leave the app.
+    if (window.__carfoolyBack && window.__carfoolyBack()) return;
     CapApp.minimizeApp();
   });
 }

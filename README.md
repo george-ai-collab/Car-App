@@ -1,9 +1,8 @@
 # Carfooly — Android app
 
-The Carfooly beta frontend, unchanged, wrapped as a native Android app with
-[Capacitor](https://capacitorjs.com). `src/App.jsx` is the exact beta code; the
-only additions are two invisible `data-` attributes so Android's back gesture
-behaves like the in-app back arrow.
+Carfooly is a car-culture social app: every car gets its own permanent page,
+plus a feed, spotting, communities, meets and news. It's a React app wrapped
+as a native Android app with [Capacitor](https://capacitorjs.com).
 
 ## Get the APK (no Android setup needed)
 
@@ -33,37 +32,43 @@ npm run android:open     # opens Android Studio → Run ▶ on your phone
 
 After changing the UI: `npm run android:sync`.
 
-## How it works
+## How changes get made
 
-| Piece | What it does |
+1. Changes go on a branch and open a **pull request** (never straight to `main`).
+2. GitHub builds an APK for the PR and comments the download link (or the error).
+3. Install it, test, then merge the PR when it's good.
+
+## Where things live
+
+| Folder / file | What's in it |
 |---|---|
-| `src/App.jsx` | The beta UI, as-is |
-| `src/storage.js` | Replaces the chat preview's `window.storage` with on-phone IndexedDB |
+| `src/App.jsx` | Starts the app: loading → sign-up → main app |
+| `src/Shell.jsx` | Decides which screen shows, the back arrow and the bottom nav |
+| `src/nav/useNav.js` | Page history. Back always goes one page back; from a tab it goes to the Feed; on the Feed it leaves the app |
+| `src/store/useStore.js` | All data and actions (posts, cars, meets…). The only place that saves |
+| `src/storage.js` | Saves to the phone (IndexedDB). This is what Supabase replaces next |
+| `src/screens/` | One file per area: Feed, Profile, Cars, Meets, Discover, Settings… |
+| `src/components/` | Shared pieces: sheets, menus, photo editor, date picker, map |
+| `src/theme.js` | Colours, fonts |
 | `src/main.jsx` | Boots the app and wires the Android back button |
-| `scripts/patch-android.mjs` | Adds camera permission and locks portrait |
+| `scripts/patch-android.mjs` | Adds camera + location permission and locks portrait |
 | `.github/workflows/build-apk.yml` | Builds the APK on GitHub's servers |
 
-## Known limits of this first build
+## Outside services (fine for the beta, need a plan before launch)
 
-- **Data stays on each phone.** Posts, cars, follows etc. are saved locally, so
-  two phones won't see each other's content until the backend exists. Testers
-  will each be in their own empty world.
-- **Debug-signed APK.** Fine for sideloading to testers; the Play Store needs a
-  release-signed build (a later step).
-- **Fonts** fall back to the phone's system fonts, the same way they did in the
-  chat preview. Bundle the font files if you want them pinned.
+- **Map tiles**: CARTO dark style (OpenStreetMap data). Needs a paid tile plan for a public launch.
+- **Place search**: Photon (komoot). Fair-use only; swap for a paid geocoder at launch.
+- **Directions** open Google Maps with the meet's pin.
 
-## Backend plan (Azure)
+## Known limits
 
-`src/storage.js` is the single swap point. The rest of the app never talks to
-storage directly, so moving to a real backend means rewriting that one file to
-call an API.
+- **Data stays on each phone** until the Supabase backend is in. To test likes and
+  comments notifications, use Settings → Switch account to act as a second person.
+- **Debug-signed APK.** Fine for testers; the Play Store needs a release-signed AAB.
+- **Fonts** fall back to the phone's system fonts.
 
-Suggested Azure pieces:
+## Backend plan (Supabase)
 
-- **Azure Container Apps or App Service** — the API server
-- **Azure Database for PostgreSQL** — users, cars, posts, follows, meets
-- **Azure Blob Storage** — photos (instead of storing them inside records)
-- **Microsoft Entra External ID** — sign-up / log-in with unique handles
-- **Notification Hubs** — push notifications for likes, spots, comments
-- **Azure AI Vision** — later: automatic plate blurring and spot verification
+`src/storage.js` (and `src/store/useStore.js`) are the swap points. Next round:
+Postgres tables for users/cars/posts/meets, Supabase Auth (email + Google),
+Storage for photos, and row-level security so people can only edit their own things.

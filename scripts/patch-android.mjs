@@ -1,5 +1,6 @@
 // Runs after `npx cap add android`. Adds what the Carfooly UI needs on Android:
 //  - CAMERA permission, so "Take a photo" in Spot / New Post opens the camera
+//  - location permission, for "Use my location" when posting a meet
 //  - portrait lock, since every screen is designed for a portrait phone
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
@@ -14,6 +15,9 @@ let xml = readFileSync(manifestPath, "utf8");
 const additions = [
   '<uses-permission android:name="android.permission.CAMERA" />',
   '<uses-feature android:name="android.hardware.camera" android:required="false" />',
+  '<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',
+  '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />',
+  '<uses-feature android:name="android.hardware.location.gps" android:required="false" />',
 ];
 for (const line of additions) {
   if (!xml.includes(line)) xml = xml.replace("</manifest>", `    ${line}\n</manifest>`);
@@ -24,4 +28,4 @@ if (!xml.includes('android:screenOrientation=')) {
 }
 
 writeFileSync(manifestPath, xml);
-console.log("patch-android: camera permission + portrait lock applied");
+console.log("patch-android: camera + location permissions and portrait lock applied");
