@@ -1,0 +1,10 @@
+{
+  "appId": "com.carfooly.app",
+  "appName": "Carfooly",
+  "webDir": "dist",
+  "backgroundColor": "#0A0A0B",
+  "android": {
+    "backgroundColor": "#0A0A0B",
+    "adjustMarginsForEdgeToEdge": "auto"
+  }
+}
