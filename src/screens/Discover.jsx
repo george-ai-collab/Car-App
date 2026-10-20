@@ -87,7 +87,7 @@ export function SearchScreen({ me, cars, users, communities, openCar, openProfil
   });
 
   const matchedUsers = query ? [...allUsernames].filter((u) => u && u.toLowerCase().includes(query)) : [];
-  const matchedCars = query ? Object.values(cars).filter((c) => `${c.make} ${c.model} ${c.year}`.toLowerCase().includes(query)) : [];
+  const matchedCars = query ? Object.values(cars).filter((c) => (c.hasPage !== false || c.ownerUsername === me) && `${c.make} ${c.model} ${c.year}`.toLowerCase().includes(query)) : [];
   const matchedCommunities = query ? Object.values(communities).filter((c) => c.name.toLowerCase().includes(query)) : [];
   const noResults = query && matchedUsers.length === 0 && matchedCars.length === 0 && matchedCommunities.length === 0;
 

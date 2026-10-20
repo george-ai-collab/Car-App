@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings } from "lucide-react";
+import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus } from "lucide-react";
 import { T } from "../theme";
 import { computeBadges, nextBadgeProgress } from "../lib/badges";
-import { Avatar, IconTab, IconBadge, EmptyState, BottomSheet, MiniStat } from "../components/ui";
+import { Avatar, FollowAvatar, IconTab, IconBadge, EmptyState, BottomSheet, MiniStat } from "../components/ui";
 import { CarCard, SightingCard } from "./Cars";
 
-export function Profile({ username, me, cars, posts, users, sightings, tab = "posts", setTab, onToggleFollow, openCar, openPost, onBrowseCars, onOpenSettings }) {
+export function Profile({ username, me, cars, posts, users, sightings, tab = "posts", setTab, onToggleFollow, openCar, openPost, onAddCar, onOpenSettings }) {
   const [showBadges, setShowBadges] = useState(false);
   const user = users[username] || { name: username, joinedAt: null, followers: [], following: [] };
   const isMe = username === me;
@@ -21,7 +21,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
   return (
     <div style={{ paddingTop: 40, paddingBottom: 10 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 22 }}>
-        <Avatar username={username} size={72} />
+        <FollowAvatar username={username} size={76} showFollow={!isMe} following={iFollow} onFollow={onToggleFollow} />
         <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
           <div className="display" style={{ fontSize: 20, color: T.text, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name || username}</div>
           <div className="plate" style={{ fontSize: 11.5, color: T.textDim, marginTop: 2 }}>@{username}</div>
@@ -39,16 +39,6 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
             <Settings size={17} color={T.text} />
-          </button>
-        )}
-        {!isMe && (
-          <button onClick={onToggleFollow} className="press" style={{
-            padding: "8px 16px", borderRadius: 999, border: `1px solid ${iFollow ? T.lineDark : T.accent}`,
-            background: iFollow ? "transparent" : T.accent, color: iFollow ? T.text : "#fff",
-            fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
-            boxShadow: iFollow ? "none" : T.shadowAccent,
-          }}>
-            {iFollow && <Check size={12} />} {iFollow ? "Following" : "Follow"}
           </button>
         )}
       </div>
@@ -83,13 +73,13 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
       )}
       {tab === "cars" && (
         <div>
-          {isMe && (
-            <button onClick={onBrowseCars} style={{ width: "100%", marginBottom: 14, padding: "10px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              Browse every car on Carfooly <ExternalLink size={14} color={T.textDim} />
+          {isMe && onAddCar && (
+            <button onClick={onAddCar} className="press" style={{ width: "100%", marginBottom: 14, padding: "10px 14px", borderRadius: 16, border: `1px dashed ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Plus size={14} /> Add a car
             </button>
           )}
           {myCars.length === 0 ? <EmptyState icon={<Car size={20} color={T.textDim} />} title="No cars added" body="" /> :
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{myCars.map((c) => <CarCard key={c.id} car={c} onOpen={openCar} />)}</div>}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{myCars.map((c) => <CarCard key={c.id} car={c} onOpen={openCar} showPrivate={isMe} />)}</div>}
         </div>
       )}
       {tab === "spotted" && (

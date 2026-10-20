@@ -176,7 +176,7 @@ export function ManageCars({ me, cars, posts, onEdit, onDelete, onOpen }) {
                 </div>
                 <div>
                   <div style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{c.nickname || `${c.make} ${c.model}`}</div>
-                  <div className="plate" style={{ color: T.textDim, fontSize: 10.5, marginTop: 2 }}>{c.year} · {c.make} {c.model}</div>
+                  <div className="plate" style={{ color: T.textDim, fontSize: 10.5, marginTop: 2 }}>{c.year} · {c.make} {c.model}{c.hasPage === false ? " · no page" : ""}</div>
                 </div>
               </button>
               <button aria-label="Edit car" onClick={() => onEdit(c.id)} className="press" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface2, display: "flex", alignItems: "center", justifyContent: "center" }}>

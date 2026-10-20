@@ -33,12 +33,15 @@ export function CarsView({ cars, onOpen, onAdd }) {
   );
 }
 
-export function CarCard({ car, onOpen }) {
+export function CarCard({ car, onOpen, showPrivate }) {
   const hue = hueForId(car.id);
   return (
     <button onClick={() => onOpen(car.id)} className="press" style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 20, overflow: "hidden", textAlign: "left", padding: 0, boxShadow: T.shadowCard }}>
-      <div style={{ height: 96, background: car.photoUrl ? `url(${car.photoUrl}) center/cover` : `linear-gradient(135deg, hsl(${hue},45%,22%), hsl(${hue},35%,14%))`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "relative", height: 96, background: car.photoUrl ? `url(${car.photoUrl}) center/cover` : `linear-gradient(135deg, hsl(${hue},45%,22%), hsl(${hue},35%,14%))`, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {!car.photoUrl && <Car size={26} color="rgba(245,244,242,0.5)" />}
+        {showPrivate && car.hasPage === false && (
+          <span className="plate" style={{ position: "absolute", top: 6, left: 6, background: "rgba(0,0,0,0.6)", color: T.textDim, fontSize: 9, padding: "3px 7px", borderRadius: 999 }}>No page</span>
+        )}
       </div>
       <div style={{ padding: "10px 12px" }}>
         <div style={{ color: T.text, fontSize: 13.5, fontWeight: 600, lineHeight: 1.3 }}>{car.make} {car.model}</div>
@@ -82,6 +85,7 @@ export function AddCarForm({ onSubmit, initial }) {
   const [gearbox, setGearbox] = useState(v("gearbox")); const [weight, setWeight] = useState(v("weight")); const [wheels, setWheels] = useState(v("wheels"));
   const [zeroToSixty, setZeroToSixty] = useState(v("zeroToSixty")); const [topSpeed, setTopSpeed] = useState(v("topSpeed"));
   const [note, setNote] = useState(""); const [noteDetail, setNoteDetail] = useState("");
+  const [hasPage, setHasPage] = useState(editing ? initial.hasPage !== false : false);
   const [showSpecs, setShowSpecs] = useState(editing && !!(initial.engine || initial.power || initial.gearbox || initial.weight || initial.wheels || initial.zeroToSixty || initial.topSpeed));
   const [busy, setBusy] = useState(false);
   const valid = make.trim() && model.trim() && year.trim();
@@ -118,11 +122,14 @@ export function AddCarForm({ onSubmit, initial }) {
         </div>
       )}
 
+      <Toggle on={hasPage} onChange={setHasPage} label="Give this car its own page"
+        sub={hasPage ? "Anyone can open it, follow the build and spot it." : "Off: it just sits in your garage. Only you can open it."} />
+
       {!editing && <Field label="First build log entry (optional)"><TextInput value={note} onChange={setNote} placeholder="e.g. Stage 2 tune" maxLength={60} /></Field>}
       {!editing && note.trim() && <Field label="Details (optional)"><TextInput value={noteDetail} onChange={setNoteDetail} placeholder="Notes, part numbers…" maxLength={150} /></Field>}
 
       <button disabled={!valid || busy} className="press"
-        onClick={async () => { setBusy(true); await onSubmit({ make, model, year, nickname, photoUrl, engine, power, gearbox, weight, wheels, zeroToSixty, topSpeed, note, noteDetail }); setBusy(false); }}
+        onClick={async () => { setBusy(true); await onSubmit({ make, model, year, nickname, photoUrl, engine, power, gearbox, weight, wheels, zeroToSixty, topSpeed, note, noteDetail, hasPage }); setBusy(false); }}
         style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", marginTop: 8, background: valid ? T.accent : T.surface2, color: valid ? "#fff" : T.textDim, fontWeight: 600, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
         {busy ? "Saving…" : editing ? "Save changes" : "Add to Carfooly"}
       </button>
@@ -130,7 +137,24 @@ export function AddCarForm({ onSubmit, initial }) {
   );
 }
 
-export function CarPage({ car, me, onAddMod, onSpot, onFollowBuild, openProfile, onEdit }) {
+export function Toggle({ on, onChange, label, sub }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)} className="press" style={{
+      width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", marginBottom: 16, borderRadius: 16,
+      border: `1px solid ${on ? "rgba(230,56,70,0.5)" : T.lineDark}`, background: T.surface, textAlign: "left",
+    }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{label}</div>
+        {sub && <div style={{ color: T.textDim, fontSize: 12, marginTop: 3, lineHeight: 1.4 }}>{sub}</div>}
+      </div>
+      <div style={{ width: 46, height: 28, borderRadius: 999, background: on ? T.accent : T.surface2, position: "relative", flexShrink: 0, transition: "background .15s ease" }}>
+        <div style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 22, height: 22, borderRadius: 999, background: "#fff", transition: "left .15s ease" }} />
+      </div>
+    </button>
+  );
+}
+
+export function CarPage({ car, me, onAddMod, onSpot, onFollowBuild, openProfile, onEdit, onTogglePage }) {
   const [modName, setModName] = useState(""); const [modNote, setModNote] = useState(""); const [addingMod, setAddingMod] = useState(false);
   const isOwner = car.ownerUsername === me;
   const alreadySpotted = car.spotterUsernames.includes(me);
@@ -151,6 +175,12 @@ export function CarPage({ car, me, onAddMod, onSpot, onFollowBuild, openProfile,
       </div>
 
       <div style={{ background: T.paper, margin: "-14px 0 0", borderRadius: "26px 26px 0 0", padding: "18px 16px 20px", position: "relative", zIndex: 2, boxShadow: "0 -4px 16px rgba(0,0,0,0.25)" }}>
+        {isOwner && car.hasPage === false && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.paper2, borderRadius: 14, padding: "10px 12px", marginBottom: 12 }}>
+            <div style={{ flex: 1, fontSize: 12.5, color: T.inkMuted, lineHeight: 1.4 }}>Only you can see this. It doesn't have a public page.</div>
+            {onTogglePage && <button onClick={onTogglePage} className="press" style={{ border: "none", borderRadius: 999, padding: "7px 12px", background: T.accent, color: "#fff", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>Make page</button>}
+          </div>
+        )}
         <div className="plate" style={{ fontSize: 11, color: T.inkMuted, marginBottom: 3 }}>{car.year} · {car.make} {car.model}</div>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
           <div className="display" style={{ fontSize: 23, color: T.ink }}>{car.nickname || `${car.make} ${car.model}`}</div>

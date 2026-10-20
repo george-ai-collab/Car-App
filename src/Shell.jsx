@@ -2,20 +2,20 @@ import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { T } from "./theme";
 import { useNav } from "./nav/useNav";
 import { useKeyboardOffset } from "./lib/keyboard";
-import { TopBar, SheetContext } from "./components/ui";
+import { SheetContext } from "./components/ui";
 import { BottomNav } from "./components/BottomNav";
 import { Feed } from "./screens/Feed";
 import { InboxView } from "./screens/Inbox";
 import { PostDetail } from "./screens/PostDetail";
 import { DiscoverView, SearchScreen, CommunitiesScreen, MeetsScreen, NewsScreen } from "./screens/Discover";
 import { CommunityPage, CreateCommunityForm } from "./screens/Communities";
-import { CarsView, AddCarForm, CarPage } from "./screens/Cars";
+import { AddCarForm, CarPage } from "./screens/Cars";
 import { Profile } from "./screens/Profile";
 import { AddMeetForm } from "./screens/Meets";
 import { AddChoiceScreen, NewPostForm, SpotForm } from "./screens/Add";
 import { SettingsScreen, EditProfile, ManageCars, ArchivedPosts } from "./screens/Settings";
 
-const ADD_VIEWS = ["addChoice", "newPost", "quickSpot"];
+const ADD_VIEWS = ["addChoice", "newPost", "quickSpot", "addCar"];
 
 export function Shell({ store, toast }) {
   const { me, cars, posts, users, news, meets, communities, notifications, sightings, actions: a } = store;
@@ -51,11 +51,15 @@ export function Shell({ store, toast }) {
     if (cur.view === "profile" && p.username === username) return;
     go("profile", { username });
   };
-  const openCar = (id) => go("car", { id });
+  // Cars without a public page can only be opened by their owner.
+  const openCar = (id) => {
+    const car = cars[id];
+    if (car && car.hasPage === false && car.ownerUsername !== me) { store.flash("This car doesn't have a public page"); return; }
+    go("car", { id });
+  };
   const openPost = (id) => go("postDetail", { id });
   const openCommunity = (id) => go("communityPage", { id });
 
-  const showBack = !cur.root;
   const unread = (notifications[me] || []).filter((n) => !n.read).length;
 
   let page = null;
@@ -102,11 +106,14 @@ export function Shell({ store, toast }) {
     case "createCommunity":
       page = <CreateCommunityForm onSubmit={async (data) => { const id = await a.createCommunity(data); if (id) replace("communityPage", { id }); }} />;
       break;
-    case "cars":
-      page = <CarsView cars={cars} onOpen={openCar} onAdd={() => go("addCar")} />;
-      break;
     case "addCar":
-      page = <AddCarForm onSubmit={async (data) => { const id = await a.addCar(data); if (id) replace("car", { id }); }} />;
+      page = <AddCarForm onSubmit={async (data) => {
+        const id = await a.addCar(data);
+        if (!id) return;
+        // Came from the + menu: land on the car, with back going home. From the profile: back returns to the profile.
+        if (stack[stack.length - 2]?.view === "addChoice") { reset(); go("car", { id }); }
+        else replace("car", { id });
+      }} />;
       break;
     case "editCar":
       page = cars[p.id] && <AddCarForm initial={cars[p.id]} onSubmit={async (data) => { await a.editCar(p.id, data); back(); }} />;
@@ -116,7 +123,7 @@ export function Shell({ store, toast }) {
         onSubmit={async (data) => { const id = await a.createPost(data); if (id) reset(); }} onNeedCar={() => go("addCar")} />;
       break;
     case "addChoice":
-      page = <AddChoiceScreen onNewPost={() => go("newPost")} onSpot={() => go("quickSpot")} />;
+      page = <AddChoiceScreen onNewPost={() => go("newPost")} onSpot={() => go("quickSpot")} onAddCar={() => go("addCar")} />;
       break;
     case "quickSpot":
       page = <SpotForm onSubmit={async (data) => { await a.logSighting(data); reset(); }} />;
@@ -124,13 +131,13 @@ export function Shell({ store, toast }) {
     case "car":
       page = cars[p.id] && <CarPage car={cars[p.id]} me={me} onAddMod={(n, note) => a.addMod(p.id, n, note)}
         onSpot={() => a.spotCar(p.id)} onFollowBuild={() => a.toggleFollowCar(p.id)} openProfile={openProfile}
-        onEdit={() => go("editCar", { id: p.id })} />;
+        onEdit={() => go("editCar", { id: p.id })} onTogglePage={() => a.editCar(p.id, { hasPage: true })} />;
       break;
     case "profile":
       page = p.username && <Profile username={p.username} me={me} cars={cars} posts={posts} users={users} sightings={sightings}
         tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })}
         onToggleFollow={() => a.toggleFollow(p.username)} openCar={openCar} openPost={openPost}
-        onBrowseCars={() => go("cars")} onOpenSettings={() => go("settings")} />;
+        onAddCar={() => go("addCar")} onOpenSettings={() => go("settings")} />;
       break;
     case "postDetail": {
       const post = posts[p.id];
@@ -168,8 +175,9 @@ export function Shell({ store, toast }) {
   return (
     <SheetContext.Provider value={sheetDelta}>
       <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", position: "relative", paddingBottom: 96 + kb, overflowX: "clip" }}>
-        <TopBar onBack={showBack ? back : null} />
-        <div key={cur.key} className="fade-in" data-view={cur.view} style={cur.view === "feed" ? { padding: 0 } : { padding: "0 16px" }}>
+        {/* No on-screen back arrow: the phone's back gesture/button goes back (see main.jsx). */}
+        <div key={cur.key} className="fade-in" data-view={cur.view} style={
+          cur.view === "feed" ? { padding: 0 } : cur.view === "car" ? { padding: "0 16px" } : { padding: "18px 16px 0" }}>
           {page}
         </div>
 

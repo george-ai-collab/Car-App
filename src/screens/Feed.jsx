@@ -2,7 +2,7 @@ import { useState, useRef, useLayoutEffect } from "react";
 import { Car, Compass, Heart, MessageCircle, Search, Bell } from "lucide-react";
 import { T } from "../theme";
 import { hueForId } from "../lib/utils";
-import { Avatar, EmptyState, TextInput, BottomSheet } from "../components/ui";
+import { Avatar, FollowAvatar, EmptyState, TextInput, BottomSheet } from "../components/ui";
 import { CommentRow } from "./PostDetail";
 import { PostMenu } from "../components/PostMenu";
 
@@ -149,26 +149,16 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
       </div>
 
       <div style={{ position: "relative", zIndex: 2, padding: "0 72px 22px 14px", width: "100%" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <button onClick={() => openProfile(post.authorUsername)} style={{ background: "none", border: "none", padding: 0, display: "flex" }}>
-            <Avatar username={post.authorUsername} size={30} />
-          </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
+          <FollowAvatar username={post.authorUsername} size={34} onOpen={() => openProfile(post.authorUsername)}
+            showFollow={post.authorUsername !== me && !!onFollow} following={following} onFollow={() => onFollow(post.authorUsername)} />
           <button onClick={() => openProfile(post.authorUsername)} style={{ background: "none", border: "none", padding: 0, color: "#fff", fontSize: 14, fontWeight: 700, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
             {post.authorUsername}
           </button>
-          {post.authorUsername !== me && onFollow && (
-            <button data-testid="feed-follow" onClick={() => onFollow(post.authorUsername)} className="press" style={{
-              marginLeft: 2, padding: "4px 11px", borderRadius: 999, fontSize: 12, fontWeight: 700,
-              border: `1px solid ${following ? "rgba(255,255,255,0.45)" : "#fff"}`,
-              background: following ? "rgba(0,0,0,0.25)" : "rgba(255,255,255,0.12)", color: "#fff",
-              backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
-            }}>
-              {following ? "Following" : "Follow"}
-            </button>
-          )}
         </div>
         {car && (
           <button onClick={() => openCar(car.id)} style={{
+            cursor: car.hasPage === false ? "default" : "pointer",
             background: "rgba(230,56,70,0.9)", border: "none", borderRadius: 999, padding: "4px 10px",
             color: "#fff", fontSize: 11.5, fontWeight: 700, marginBottom: 8,
           }}>

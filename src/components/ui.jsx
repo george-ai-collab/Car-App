@@ -8,7 +8,7 @@ export function GlobalStyle() {
   return (
     <style>{`
       * { box-sizing: border-box; }
-      html, body { margin: 0; max-width: 100%; overflow-x: hidden; overscroll-behavior-x: none; }
+      html, body { margin: 0; overscroll-behavior-x: none; }
       *::-webkit-scrollbar { display: none; }
       * { scrollbar-width: none; -ms-overflow-style: none; }
       button { font-family: inherit; cursor: pointer; }
@@ -270,5 +270,28 @@ export function ConfirmDialog({ open, title, body, confirmLabel = "Delete", onCo
         <button onClick={() => { onClose(); onConfirm(); }} className="press" style={{ flex: 1, padding: "13px", borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>{confirmLabel}</button>
       </div>
     </BottomSheet>
+  );
+}
+
+// Avatar with a small round follow badge under it (+ to follow, ✓ when following; tap to toggle).
+export function FollowAvatar({ username, size, showFollow, following, onFollow, onOpen }) {
+  const b = Math.max(18, Math.round(size * 0.32));
+  return (
+    <div style={{ position: "relative", flexShrink: 0, width: size, height: size + (showFollow ? b / 2 : 0) }}>
+      <button onClick={onOpen} aria-label={`Open ${username}`} style={{ background: "none", border: "none", padding: 0, display: "flex" }} disabled={!onOpen}>
+        <Avatar username={username} size={size} />
+      </button>
+      {showFollow && (
+        <button data-testid="follow-badge" aria-label={following ? "Unfollow" : "Follow"} onClick={onFollow} className="press" style={{
+          position: "absolute", left: "50%", top: size - b / 2, transform: "translateX(-50%)",
+          width: b, height: b, borderRadius: 999, padding: 0, border: `2px solid ${T.bg}`,
+          background: following ? "#fff" : T.accent, color: following ? T.accent : "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: b * 0.7, fontWeight: 800, lineHeight: 1,
+        }}>
+          {following ? "✓" : "+"}
+        </button>
+      )}
+    </div>
   );
 }

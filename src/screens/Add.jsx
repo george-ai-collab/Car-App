@@ -5,7 +5,7 @@ import { CameraCapture } from "../components/photo/CameraCapture";
 import { PhotoEditor, bakePhoto, newPhoto } from "../components/photo/PhotoEditor";
 import { IconBadge, EmptyState, Field, TextInput, TextArea } from "../components/ui";
 
-export function AddChoiceScreen({ onNewPost, onSpot }) {
+export function AddChoiceScreen({ onNewPost, onSpot, onAddCar }) {
   return (
     <div style={{ paddingTop: 18 }}>
       <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>Add to Carfooly</div>
@@ -25,7 +25,7 @@ export function AddChoiceScreen({ onNewPost, onSpot }) {
       </button>
 
       <button onClick={onSpot} className="press" style={{
-        width: "100%", display: "flex", alignItems: "center", gap: 14, padding: 18,
+        width: "100%", display: "flex", alignItems: "center", gap: 14, padding: 18, marginBottom: 12,
         background: `linear-gradient(135deg, ${T.surface2}, ${T.surface})`, border: `1px solid ${T.lineDark}`,
         borderRadius: 20, boxShadow: T.shadowCard, textAlign: "left",
       }}>
@@ -36,12 +36,27 @@ export function AddChoiceScreen({ onNewPost, onSpot }) {
         </div>
         <ChevronRight size={18} color={T.textDim} />
       </button>
+
+      {onAddCar && (
+        <button onClick={onAddCar} className="press" style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 14, padding: 18,
+          background: `linear-gradient(135deg, ${T.surface2}, ${T.surface})`, border: `1px solid ${T.lineDark}`,
+          borderRadius: 20, boxShadow: T.shadowCard, textAlign: "left",
+        }}>
+          <IconBadge size={48} tone="warm"><Car size={22} color={T.accentWarm} /></IconBadge>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: T.text, fontSize: 15.5, fontWeight: 700, marginBottom: 2 }}>Add a car</div>
+            <div style={{ color: T.textDim, fontSize: 12.5, lineHeight: 1.4 }}>Put one of your cars in your garage.</div>
+          </div>
+          <ChevronRight size={18} color={T.textDim} />
+        </button>
+      )}
     </div>
   );
 }
 
 export function NewPostForm({ me, cars, communities, onSubmit, onNeedCar }) {
-  const carList = Object.values(cars).sort((a, b) => a.make.localeCompare(b.make));
+  const carList = Object.values(cars).filter((c) => c.ownerUsername === me || c.hasPage !== false).sort((a, b) => a.make.localeCompare(b.make));
   const joinedCommunities = Object.values(communities || {}).filter((c) => c.members.includes(me));
   const [carId, setCarId] = useState(carList[0]?.id || "");
   const [communityId, setCommunityId] = useState("");

@@ -71,10 +71,24 @@ export function useStore(flash) {
   const now = () => new Date().toISOString();
 
   // Notifications skip your own actions on purpose (same as Instagram/TikTok).
+  // Repeat actions (follow, unfollow, follow again) replace the old notification instead of piling up.
+  const sameEvent = (a, b) => a.type === b.type && a.from === b.from && (a.carId || null) === (b.carId || null)
+    && (a.type === "like" ? a.postId === b.postId : true);
+  const DEDUPE = ["follow", "followBuild", "like"];
   const pushNotif = async (to, notif) => {
     if (!to || to === me) return;
     const all = get().notifications;
-    await save("notifications", { ...all, [to]: [{ id: uid("n"), date: now(), read: false, ...notif }, ...(all[to] || [])] }, true);
+    const full = { from: me, ...notif };
+    const rest = (all[to] || []).filter((n) => !(DEDUPE.includes(full.type) && sameEvent(n, full)));
+    await save("notifications", { ...all, [to]: [{ id: uid("n"), date: now(), read: false, ...full }, ...rest] }, true);
+  };
+  // Un-doing something (unfollow, unlike) quietly removes its notification.
+  const dropNotif = async (to, notif) => {
+    if (!to || to === me) return;
+    const all = get().notifications;
+    const full = { from: me, ...notif };
+    if (!(all[to] || []).some((n) => sameEvent(n, full))) return;
+    await save("notifications", { ...all, [to]: all[to].filter((n) => !sameEvent(n, full)) }, true);
   };
 
   // ---------- account ----------
@@ -168,6 +182,7 @@ export function useStore(flash) {
       engine: f.engine.trim(), power: f.power.trim(), gearbox: f.gearbox.trim(), weight: f.weight.trim(), wheels: f.wheels.trim(),
       zeroToSixty: f.zeroToSixty.trim(), topSpeed: f.topSpeed.trim(),
       ownerUsername: me, photoUrl: (f.photoUrl || "").trim() || null, createdAt: t,
+      hasPage: !!f.hasPage, // public car page is opt-in
       mods, timeline, spotterUsernames: [], followerUsernames: [],
     };
     await save("cars", { ...get().cars, [id]: car });
@@ -193,6 +208,7 @@ export function useStore(flash) {
     const updated = { ...car };
     fields.forEach((k) => { if (typeof f[k] === "string") updated[k] = f[k].trim(); });
     if (typeof f.photoUrl === "string") updated.photoUrl = f.photoUrl.trim() || null;
+    if (typeof f.hasPage === "boolean") updated.hasPage = f.hasPage;
     await save("cars", { ...get().cars, [carId]: updated });
     flash("Car updated");
   };
@@ -233,6 +249,7 @@ export function useStore(flash) {
     const following = fans.includes(me);
     await save("cars", { ...get().cars, [carId]: { ...car, followerUsernames: following ? fans.filter((u) => u !== me) : [...fans, me] } });
     if (!following) await pushNotif(car.ownerUsername, { type: "followBuild", from: me, carId });
+    else await dropNotif(car.ownerUsername, { type: "followBuild", carId });
   };
 
   const spotCar = async (carId) => {
@@ -252,7 +269,7 @@ export function useStore(flash) {
     const id = uid("sighting");
     const t = now();
     const cars = get().cars;
-    const matched = Object.values(cars).find((c) =>
+    const matched = Object.values(cars).find((c) => c.hasPage !== false &&
       c.make.toLowerCase() === make.trim().toLowerCase() &&
       c.model.toLowerCase() === model.trim().toLowerCase() &&
       c.year.trim() === year.trim());
@@ -328,6 +345,7 @@ export function useStore(flash) {
     const has = post.likes.includes(me);
     await save("posts", { ...get().posts, [postId]: { ...post, likes: has ? post.likes.filter((u) => u !== me) : [...post.likes, me] } });
     if (!has) await pushNotif(post.authorUsername, { type: "like", from: me, postId });
+    else await dropNotif(post.authorUsername, { type: "like", postId });
   };
 
   const addComment = async (postId, text) => {
@@ -361,6 +379,7 @@ export function useStore(flash) {
       [target]: { ...themRec, followers: isFollowing ? themRec.followers.filter((u) => u !== me) : [...themRec.followers, me] },
     });
     if (!isFollowing) await pushNotif(target, { type: "follow", from: me });
+    else await dropNotif(target, { type: "follow" });
   };
 
   // ---------- news / meets / communities ----------
@@ -430,7 +449,7 @@ export function useStore(flash) {
   };
 
   return {
-    me, loading, ...data,
+    me, loading, flash, ...data,
     actions: {
       claimUsername, updateProfile, logout, deleteAccount,
       addCar, editCar, deleteCar, addMod, toggleFollowCar, spotCar, logSighting,
