@@ -4,6 +4,7 @@ import { T } from "../theme";
 import { timeAgo, hueForId } from "../lib/utils";
 import { Avatar, TextInput, SectionLabel } from "../components/ui";
 import { PostMenu } from "../components/PostMenu";
+import { ReportSheet, useSafety } from "../components/Safety";
 
 export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, addComment, addReply, actions, onGone }) {
   const [text, setText] = useState("");
@@ -33,9 +34,10 @@ export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, ad
               </button>
             </div>
           )}
+          {!car && post.carLabel && <div style={{ color: T.textDim, fontSize: 12 }}>{post.carLabel}</div>}
         </div>
         <div style={{ flex: 1 }} />
-        {actions && <PostMenu post={post} me={me} actions={actions} onDeleted={onGone} />}
+        {actions && <PostMenu post={post} me={me} actions={actions} onDeleted={onGone} carName={car ? `${car.make} ${car.model}` : post.carLabel} />}
       </div>
 
       {post.photoUrl ? (
@@ -83,11 +85,29 @@ export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, ad
   );
 }
 
+// Small "Delete" (yours) or "Report" (others) link under a comment or reply.
+function CommentAction({ author, onDelete, kind, id }) {
+  const safety = useSafety();
+  const [reporting, setReporting] = useState(false);
+  if (!safety) return null;
+  const linkStyle = { background: "none", border: "none", padding: 0, fontSize: 11, color: T.textDim, fontWeight: 600 };
+  if (author === safety.me) return <button onClick={onDelete} className="press" style={linkStyle}>Delete</button>;
+  return (
+    <>
+      <button onClick={() => setReporting(true)} className="press" style={linkStyle}>Report</button>
+      <ReportSheet open={reporting} onClose={() => setReporting(false)} what={kind} onSend={(reason, note) => safety.actions.report({ kind, id, reason, note })} />
+    </>
+  );
+}
+
 export function CommentRow({ comment, postId, addReply }) {
+  const safety = useSafety();
   const [replying, setReplying] = useState(false);
   const [showReplies, setShowReplies] = useState(false);
   const [text, setText] = useState("");
-  const replies = comment.replies || [];
+  const blocked = safety?.prefs.blocked || [];
+  const replies = (comment.replies || []).filter((r) => !blocked.includes(r.author));
+  if (blocked.includes(comment.author)) return null;
 
   return (
     <div style={{ marginBottom: 14 }}>
@@ -102,6 +122,7 @@ export function CommentRow({ comment, postId, addReply }) {
             <button onClick={() => setReplying((r) => !r)} className="press" style={{ background: "none", border: "none", padding: 0, fontSize: 11, color: T.textDim, fontWeight: 600 }}>
               Reply
             </button>
+            <CommentAction author={comment.author} kind="comment" id={comment.id} onDelete={() => safety.actions.deleteComment(postId, comment.id)} />
           </div>
         </div>
       </div>
@@ -134,7 +155,10 @@ export function CommentRow({ comment, postId, addReply }) {
                     <div style={{ fontSize: 12.5, color: T.text }}>
                       <span style={{ fontWeight: 600 }}>{r.author}</span> {r.text}
                     </div>
-                    <div style={{ fontSize: 10, color: T.textDim, marginTop: 2 }}>{timeAgo(r.date)}</div>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 10, color: T.textDim, marginTop: 2 }}>
+                      {timeAgo(r.date)}
+                      <CommentAction author={r.author} kind="reply" id={r.id} onDelete={() => safety.actions.deleteComment(postId, comment.id, r.id)} />
+                    </div>
                   </div>
                 </div>
               ))}

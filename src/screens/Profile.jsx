@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useSwipe } from "../lib/useSwipe";
+import { MoreMenu, useSafety } from "../components/Safety";
 import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus } from "lucide-react";
 import { T } from "../theme";
 import { computeBadges, nextBadgeProgress } from "../lib/badges";
@@ -8,6 +9,8 @@ import { CarCard, SightingCard } from "./Cars";
 
 export function Profile({ username, me, cars, posts, users, sightings, tab = "posts", setTab, onToggleFollow, openCar, openPost, onAddCar, onOpenSettings }) {
   const [showBadges, setShowBadges] = useState(false);
+  const safety = useSafety();
+  const blocked = !!safety?.prefs.blocked.includes(username);
   const tabs = ["posts", "cars", "spotted"];
   const sw = useSwipe({
     onLeft: () => setTab(tabs[Math.min(2, tabs.indexOf(tab) + 1)]),
@@ -27,7 +30,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
   return (
     <div {...sw.bind} style={{ ...sw.bind.style, paddingTop: 40, paddingBottom: 10, minHeight: "75vh" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 22 }}>
-        <FollowAvatar username={username} size={76} showFollow={!isMe} following={iFollow} onFollow={onToggleFollow} />
+        <FollowAvatar username={username} size={76} showFollow={!isMe && !blocked} following={iFollow} onFollow={onToggleFollow} />
         <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
           <div className="display" style={{ fontSize: 20, color: T.text, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name || username}</div>
           <div className="plate" style={{ fontSize: 11.5, color: T.textDim, marginTop: 2 }}>@{username}</div>
@@ -47,7 +50,22 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
             <Settings size={17} color={T.text} />
           </button>
         )}
+        {!isMe && safety && (
+          <MoreMenu label="Profile options" testid="profile-menu" flash={safety.flash}
+            share={{ title: "Carfooly", text: `Check out @${username} on Carfooly` }}
+            report={{ what: "account", onSend: (reason, note) => safety.actions.report({ kind: "user", id: username, reason, note }) }}
+            block={{ handle: username, blocked, onToggle: () => safety.actions.toggleBlock(username) }} />
+        )}
       </div>
+
+      {blocked && (
+        <div style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 18, padding: 16, textAlign: "center", marginBottom: 14 }}>
+          <div style={{ color: T.text, fontWeight: 700, fontSize: 14.5 }}>You blocked @{username}</div>
+          <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 4 }}>You won't see their posts, comments or discussions.</div>
+          <button onClick={() => safety.actions.toggleBlock(username)} className="press" style={{ marginTop: 12, padding: "8px 16px", borderRadius: 999, border: `1px solid ${T.lineDark}`, background: "transparent", color: T.text, fontWeight: 600, fontSize: 13 }}>Unblock</button>
+        </div>
+      )}
+      {!blocked && <>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "center", gap: 10 }}>
@@ -96,6 +114,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         </div>
       )}
 
+      </>}
       <BottomSheet open={showBadges} onClose={() => setShowBadges(false)} title="Badges">
         {badges.length === 0 ? (
           <EmptyState icon={<Award size={20} color={T.textDim} />} title="No badges yet" body="Spot cars to start earning them." />

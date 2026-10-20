@@ -3,6 +3,7 @@ import { T } from "./theme";
 import { useNav } from "./nav/useNav";
 import { useKeyboardOffset } from "./lib/keyboard";
 import { SheetContext } from "./components/ui";
+import { SafetyContext } from "./components/Safety";
 import { BottomNav } from "./components/BottomNav";
 import { Feed } from "./screens/Feed";
 import { InboxView } from "./screens/Inbox";
@@ -69,7 +70,7 @@ export function Shell({ store, toast }) {
     case "feed":
       page = <Feed me={me} cars={cars} posts={posts} users={users} tab={p.feedTab || "foryou"} setTab={(t) => patch({ feedTab: t })}
         openCar={openCar} openProfile={openProfile} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
-        openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} />;
+        openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
       break;
     case "inbox":
       page = <InboxView me={me} notifications={notifications[me] || []} posts={posts} cars={cars} discussions={discussions}
@@ -94,12 +95,13 @@ export function Shell({ store, toast }) {
       page = communities[p.id] && <CommunityPage community={communities[p.id]} me={me} users={users} cars={cars} posts={posts} discussions={discussions}
         onToggle={a.toggleCommunityMembership} openPost={openPost} openProfile={openProfile} openThread={openThread}
         onNewThread={() => go("newThread", { communityId: p.id })} onNewPost={() => go("newPost", { communityId: p.id })}
-        tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })} />;
+        tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })}
+        onEdit={a.editCommunity} onDelete={async (id) => { await a.deleteCommunity(id); back(); }} />;
       break;
     case "thread": {
       const t = discussions[p.id];
       page = t && <ThreadPage thread={t} community={communities[t.communityId]} me={me} onReply={a.replyThread} onLike={a.toggleThreadLike}
-        onDelete={a.deleteThread} openProfile={openProfile} onGone={back} />;
+        onDelete={a.deleteThread} openProfile={openProfile} onGone={back} onEdit={a.editThread} onDeleteReply={a.deleteThreadReply} />;
       break;
     }
     case "newThread":
@@ -112,7 +114,8 @@ export function Shell({ store, toast }) {
       break;
     case "meet":
       page = meets[p.id] && <MeetDetail meet={meets[p.id]} me={me} users={users} onToggleGoing={a.toggleGoing}
-        onEdit={(id) => go("addMeet", { id })} onDelete={async (id) => { await a.deleteMeet(id); back(); }} openProfile={openProfile} />;
+        onEdit={(id) => go("addMeet", { id })} onDelete={async (id) => { await a.deleteMeet(id); back(); }} openProfile={openProfile}
+        onSetRole={a.setMeetRole} onSetCaps={a.setMeetCaps} />;
       break;
     case "newsList":
       page = <NewsScreen me={me} news={news} onLike={a.toggleNewsLike} />;
@@ -191,6 +194,7 @@ export function Shell({ store, toast }) {
   }
 
   return (
+    <SafetyContext.Provider value={{ me, prefs: store.prefs, actions: a, flash: store.flash }}>
     <SheetContext.Provider value={sheetDelta}>
       <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", position: "relative", paddingBottom: 96 + kb, overflowX: "clip" }}>
         {/* No on-screen back arrow: the phone's back gesture/button goes back (see main.jsx). */}
@@ -208,5 +212,6 @@ export function Shell({ store, toast }) {
         <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0} />
       </div>
     </SheetContext.Provider>
+    </SafetyContext.Provider>
   );
 }

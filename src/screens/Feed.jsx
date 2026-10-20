@@ -15,9 +15,10 @@ const railBtn = { width: 52, background: "none", border: "none", padding: 0, dis
 const railCount = { color: "#fff", fontSize: 12, fontWeight: 600, textShadow: "0 1px 3px rgba(0,0,0,0.5)" };
 const topIcon = { width: 46, height: 46, border: "none", borderRadius: 999, pointerEvents: "auto", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 };
 
-export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile, toggleLike, addComment, addReply, openSearch, openInbox, unreadCount, actions, scrollKey, onFollow }) {
+export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile, toggleLike, addComment, addReply, openSearch, openInbox, unreadCount, actions, scrollKey, onFollow, prefs }) {
   const following = (users[me]?.following) || [];
-  let list = Object.values(posts).filter((p) => !p.archived).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const hidden = prefs?.hidden || [], blocked = prefs?.blocked || [];
+  let list = Object.values(posts).filter((p) => !p.archived && !hidden.includes(p.id) && !blocked.includes(p.authorUsername)).sort((a, b) => new Date(b.date) - new Date(a.date));
   if (tab === "following") list = list.filter((p) => following.includes(p.authorUsername));
   const [commentsPostId, setCommentsPostId] = useState(null);
   const commentsPost = commentsPostId ? posts[commentsPostId] : null;
@@ -157,7 +158,7 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
           <MessageCircle size={29} color="#fff" style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }} />
           <span style={railCount}>{post.comments.length}</span>
         </button>
-        {actions && <PostMenu post={post} me={me} actions={actions} overlay />}
+        {actions && <PostMenu post={post} me={me} actions={actions} overlay carName={car ? `${car.make} ${car.model}` : post.carLabel} />}
       </div>
 
       <div style={{ position: "relative", zIndex: 2, padding: "0 72px 22px 14px", width: "100%" }}>
@@ -176,6 +177,11 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
           }}>
             {car.make} {car.model} '{car.year}
           </button>
+        )}
+        {!car && post.carLabel && (
+          <div style={{ display: "inline-block", background: "rgba(255,255,255,0.16)", backdropFilter: "blur(8px)", borderRadius: 999, padding: "4px 10px", color: "#fff", fontSize: 11.5, fontWeight: 700, marginBottom: 8 }}>
+            {post.carLabel}
+          </div>
         )}
         {post.caption && (
           <div style={{

@@ -3,6 +3,28 @@ import { Camera } from "lucide-react";
 import { T } from "../../theme";
 import { IconBadge } from "../ui";
 
+// Shrinks a picked photo so it isn't huge. Resolves to { src, w, h }.
+export function readPhoto(file, maxDim = 1440, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve({ src: canvas.toDataURL("image/jpeg", quality), w: canvas.width, h: canvas.height });
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 // Picks or takes a photo, shrinks it, and returns (dataUrl, {w, h}).
 export function CameraCapture({ value, onChange, allowLibrary, maxDim = 1440, quality = 0.8, label }) {
   const inputRef = useRef(null);

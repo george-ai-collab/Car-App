@@ -26,9 +26,10 @@ export function Onboarding({ onSubmit, users = {} }) {
           />
           <div className="plate" style={{ fontSize: 11, color: T.inkMuted, marginBottom: 8 }}>Your handle</div>
           <input
-            value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="e.g. george_q" maxLength={24}
+            value={handle} onChange={(e) => setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_.]/g, ""))} placeholder="e.g. george_q" maxLength={24} autoCapitalize="none" autoCorrect="off"
             style={{ width: "100%", padding: "12px 14px", borderRadius: 16, border: `1px solid ${T.linePaper}`, background: "#fff", color: T.ink, fontSize: 15, marginBottom: 14, outline: "none" }}
           />
+          <div style={{ fontSize: 11.5, color: T.inkMuted, marginTop: -8, marginBottom: 14 }}>Lowercase letters, numbers, _ and . only</div>
           <p style={{ fontSize: 12.5, color: T.inkMuted, lineHeight: 1.5, marginBottom: 16 }}>
             This is a beta. Posts, cars, likes, and follows you add are visible to everyone else testing it — nothing private yet.
           </p>

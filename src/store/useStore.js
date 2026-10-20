@@ -16,6 +16,7 @@ export const KEYS = {
   notifications: "carfooly-notifications",
   sightings: "carfooly-sightings",
   discussions: "carfooly-discussions",
+  reports: "carfooly-reports",
   me: "carfooly-me",
 };
 
@@ -37,6 +38,18 @@ export function useStore(flash) {
   const [data, setData] = useState({
     cars: {}, posts: {}, users: {}, news: {}, meets: {}, communities: {}, notifications: {}, sightings: {}, discussions: {},
   });
+  // Private to the signed-in person: posts they hid ("not interested") and people they blocked.
+  const [prefs, setPrefs] = useState({ hidden: [], blocked: [] });
+  const prefsKey = (h) => `carfooly-prefs:${h}`;
+  useEffect(() => {
+    if (!me) return;
+    window.storage.get(prefsKey(me), false).then((r) => setPrefs(r ? { hidden: [], blocked: [], ...JSON.parse(r.value) } : { hidden: [], blocked: [] })).catch(() => {});
+  }, [me]);
+  const savePrefs = async (next) => {
+    setPrefs(next);
+    try { await window.storage.set(prefsKey(me), JSON.stringify(next), false); } catch { /* not critical */ }
+  };
+
   // Always-fresh copy of data, so actions that change several things in a row don't overwrite each other.
   const ref = useRef(data);
   ref.current = data;
@@ -93,9 +106,10 @@ export function useStore(flash) {
   };
 
   // ---------- account ----------
+  // Handles are always lowercase, so "George_Q" and "george_q" can never be two different people.
   const claimUsername = async (handle, displayName) => {
-    const clean = handle.trim().replace(/^@/, "");
-    if (!clean) return;
+    const clean = handle.trim().replace(/^@/, "").toLowerCase();
+    if (!/^[a-z0-9_.]{2,24}$/.test(clean)) { flash("Handles use 2–24 letters, numbers, _ or ."); return; }
     try {
       await window.storage.set(KEYS.me, clean, false);
       const users = get().users;
@@ -196,7 +210,7 @@ export function useStore(flash) {
     // Every new make gets its own brand community, and the owner joins it.
     const brand = f.make.trim();
     const communities = get().communities;
-    const existing = Object.values(communities).find((c) => c.kind === "brand" && c.name.toLowerCase() === brand.toLowerCase());
+    const existing = Object.values(communities).find((c) => c.name.trim().toLowerCase() === brand.toLowerCase()); // one community per name
     if (existing) {
       if (!existing.members.includes(me)) await save("communities", { ...communities, [existing.id]: { ...existing, members: [...existing.members, me] } });
     } else if (brand) {
@@ -294,20 +308,26 @@ export function useStore(flash) {
   };
 
   // ---------- posts ----------
-  const createPost = async ({ carId, photoUrl, photoAspect, caption, communityId }) => {
-    const car = get().cars[carId];
-    if (!car) return;
+  // A post can be about one of your cars, a car you spotted, or any car (free-text tag, no page).
+  const createPost = async ({ carId, carLabel, photoUrl, photoAspect, caption, communityId }) => {
+    const car = carId ? get().cars[carId] : null;
+    if (!photoUrl && !caption.trim()) return null;
     const id = uid("post");
     const t = now();
     await save("posts", {
       ...get().posts,
-      [id]: { id, carId, authorUsername: me, photoUrl: (photoUrl || "").trim() || null, photoAspect: photoAspect || null, caption: caption.trim(), date: t, likes: [], comments: [], communityId: communityId || null },
+      [id]: {
+        id, carId: car ? carId : null, carLabel: car ? "" : (carLabel || "").trim().slice(0, 50), authorUsername: me,
+        photoUrl: (photoUrl || "").trim() || null, photoAspect: photoAspect || null, caption: caption.trim(), date: t, likes: [], comments: [], communityId: communityId || null,
+      },
     });
-    let updatedCar = { ...car, timeline: [...car.timeline, { id: uid("t"), type: "post", by: me, date: t, detail: caption.trim(), postId: id }] };
-    if (car.ownerUsername !== me && !car.spotterUsernames.includes(me)) {
-      updatedCar = { ...updatedCar, spotterUsernames: [...updatedCar.spotterUsernames, me], timeline: [...updatedCar.timeline, { id: uid("t"), type: "spot", by: me, date: t }] };
+    if (car) {
+      let updatedCar = { ...car, timeline: [...car.timeline, { id: uid("t"), type: "post", by: me, date: t, detail: caption.trim(), postId: id }] };
+      if (car.ownerUsername !== me && !car.spotterUsernames.includes(me)) {
+        updatedCar = { ...updatedCar, spotterUsernames: [...updatedCar.spotterUsernames, me], timeline: [...updatedCar.timeline, { id: uid("t"), type: "spot", by: me, date: t }] };
+      }
+      await save("cars", { ...get().cars, [carId]: updatedCar });
     }
-    await save("cars", { ...get().cars, [carId]: updatedCar });
     flash("Posted");
     return id;
   };
@@ -396,6 +416,7 @@ export function useStore(flash) {
     await save("news", { ...get().news, [id]: { ...item, likes: has ? item.likes.filter((u) => u !== me) : [...item.likes, me] } });
   };
 
+  const capNum = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? Math.min(n, 9999) : null; };
   // A meet: what, when, where (with city/country for Near you), cover photo, sponsors, details.
   const submitMeet = async (f, editingId) => {
     if (!f.title.trim() || !f.location.trim() || !f.when) return null;
@@ -404,6 +425,7 @@ export function useStore(flash) {
       city: (f.city || "").trim(), country: (f.country || "").trim(),
       when: f.when, note: (f.note || "").trim(), cover: f.cover || null,
       sponsors: (f.sponsors || []).map((x) => x.trim()).filter(Boolean).slice(0, 8),
+      caps: { driver: capNum(f.caps?.driver), attendee: capNum(f.caps?.attendee) },
     };
     const meets = get().meets;
     if (editingId) {
@@ -427,23 +449,75 @@ export function useStore(flash) {
     flash("Meet removed");
   };
 
+  // RSVP. Only organizers can make someone an organizer; Driving/Attending can have a cap.
+  const isOrganizer = (meet, u) => meet.submittedBy === u || meet.attendees.some((a) => a.username === u && a.role === "organizer");
   const toggleGoing = async (id, role) => {
     const item = get().meets[id];
     if (!item) return;
+    if (role === "organizer" && !isOrganizer(item, me)) return;
     const existing = item.attendees.find((a) => a.username === me);
-    let attendees;
-    if (existing && existing.role === role) attendees = item.attendees.filter((a) => a.username !== me);
-    else if (existing) attendees = item.attendees.map((a) => (a.username === me ? { ...a, role } : a));
-    else attendees = [...item.attendees, { username: me, role }];
+    if (existing && existing.role === role) {
+      if (item.submittedBy === me && role === "organizer") return; // the creator always stays on the organizing list
+      await save("meets", { ...get().meets, [id]: { ...item, attendees: item.attendees.filter((a) => a.username !== me) } });
+      return;
+    }
+    const cap = item.caps?.[role];
+    if (cap && item.attendees.filter((a) => a.role === role).length >= cap) { flash(`${role === "driver" ? "Driving" : "Attending"} is full`); return; }
+    const attendees = existing
+      ? item.attendees.map((a) => (a.username === me ? { ...a, role } : a))
+      : [...item.attendees, { username: me, role }];
     await save("meets", { ...get().meets, [id]: { ...item, attendees } });
   };
 
+  // Organizer tools: move someone to another list, or take them off.
+  const setMeetRole = async (meetId, username, role) => {
+    const item = get().meets[meetId];
+    if (!item || !isOrganizer(item, me) || username === item.submittedBy) return;
+    const attendees = role
+      ? item.attendees.map((a) => (a.username === username ? { ...a, role } : a))
+      : item.attendees.filter((a) => a.username !== username);
+    await save("meets", { ...get().meets, [meetId]: { ...item, attendees } });
+  };
+  const setMeetCaps = async (meetId, caps) => {
+    const item = get().meets[meetId];
+    if (!item || !isOrganizer(item, me)) return;
+    const clean = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? Math.min(n, 9999) : null; };
+    await save("meets", { ...get().meets, [meetId]: { ...item, caps: { driver: clean(caps.driver), attendee: clean(caps.attendee) } } });
+    flash("Limits saved");
+  };
+
+  const nameTaken = (name, exceptId) => Object.values(get().communities).some((c) => c.id !== exceptId && c.name.trim().toLowerCase() === name.trim().toLowerCase());
+
   const createCommunity = async ({ name, description }) => {
     if (!name.trim()) return null;
+    if (nameTaken(name)) { flash("A community with that name already exists"); return null; }
     const id = uid("community");
     await save("communities", { ...get().communities, [id]: { id, name: name.trim(), description: description.trim(), kind: "custom", createdBy: me, members: [me], createdAt: now() } });
     flash("Community created");
     return id;
+  };
+
+  const editCommunity = async (id, { name, description }) => {
+    const c = get().communities[id];
+    if (!c || c.createdBy !== me || !name.trim()) return false;
+    if (nameTaken(name, id)) { flash("A community with that name already exists"); return false; }
+    await save("communities", { ...get().communities, [id]: { ...c, name: name.trim(), description: (description || "").trim() } });
+    flash("Community updated");
+    return true;
+  };
+
+  // Deleting a community keeps the posts (they just leave the community) and removes its discussions.
+  const deleteCommunity = async (id) => {
+    const d = get();
+    const c = d.communities[id];
+    if (!c || c.createdBy !== me) return;
+    const { [id]: _gone, ...communities } = d.communities;
+    const posts = {};
+    Object.values(d.posts).forEach((p) => { posts[p.id] = p.communityId === id ? { ...p, communityId: null } : p; });
+    const discussions = {};
+    Object.values(d.discussions).forEach((t) => { if (t.communityId !== id) discussions[t.id] = t; });
+    await save("communities", communities); await save("posts", posts); await save("discussions", discussions);
+    flash("Community deleted");
   };
 
   const toggleCommunityMembership = async (id) => {
@@ -492,6 +566,59 @@ export function useStore(flash) {
     flash("Discussion deleted");
   };
 
+  const editThread = async (threadId, { title, body }) => {
+    const t = get().discussions[threadId];
+    if (!t || t.author !== me || !title.trim()) return;
+    await save("discussions", { ...get().discussions, [threadId]: { ...t, title: title.trim(), body: (body || "").trim(), editedAt: now() } });
+    flash("Discussion updated");
+  };
+  const deleteThreadReply = async (threadId, replyId) => {
+    const t = get().discussions[threadId];
+    if (!t) return;
+    await save("discussions", { ...get().discussions, [threadId]: { ...t, replies: t.replies.filter((r) => !(r.id === replyId && r.author === me)) } });
+  };
+  const deleteComment = async (postId, commentId, replyId) => {
+    const p = get().posts[postId];
+    if (!p) return;
+    const comments = replyId
+      ? p.comments.map((c) => (c.id === commentId ? { ...c, replies: (c.replies || []).filter((r) => !(r.id === replyId && r.author === me)) } : c))
+      : p.comments.filter((c) => !(c.id === commentId && c.author === me));
+    await save("posts", { ...get().posts, [postId]: { ...p, comments } });
+  };
+
+  // ---------- safety: report, not interested, block ----------
+  const report = async ({ kind, id, reason, note }) => {
+    const rid = uid("report");
+    const all = (await readShared(KEYS.reports)) || {};
+    const next = { ...all, [rid]: { id: rid, kind, targetId: id, reason, note: (note || "").trim(), by: me, date: now(), status: "open" } };
+    try { await window.storage.set(KEYS.reports, JSON.stringify(next), true); } catch { /* ignore */ }
+    flash("Thanks. We'll take a look.");
+  };
+  const hidePost = async (postId) => {
+    if (prefs.hidden.includes(postId)) return;
+    await savePrefs({ ...prefs, hidden: [...prefs.hidden, postId] });
+    flash("Got it. You'll see fewer posts like this.");
+  };
+  const undoHide = async (postId) => savePrefs({ ...prefs, hidden: prefs.hidden.filter((x) => x !== postId) });
+  const toggleBlock = async (handle) => {
+    if (!handle || handle === me) return;
+    const blocked = prefs.blocked.includes(handle);
+    await savePrefs({ ...prefs, blocked: blocked ? prefs.blocked.filter((x) => x !== handle) : [...prefs.blocked, handle] });
+    if (!blocked) {
+      // Blocking also unfollows both ways.
+      const users = get().users;
+      const mine = users[me], theirs = users[handle];
+      if (mine && theirs) {
+        await save("users", {
+          ...users,
+          [me]: { ...mine, following: mine.following.filter((u) => u !== handle), followers: mine.followers.filter((u) => u !== handle) },
+          [handle]: { ...theirs, following: theirs.following.filter((u) => u !== me), followers: theirs.followers.filter((u) => u !== me) },
+        });
+      }
+    }
+    flash(blocked ? `Unblocked @${handle}` : `Blocked @${handle}`);
+  };
+
   const markNotificationsRead = async () => {
     const all = get().notifications;
     const mine = all[me] || [];
@@ -500,14 +627,16 @@ export function useStore(flash) {
   };
 
   return {
-    me, loading, flash, ...data,
+    me, loading, flash, prefs, ...data,
     actions: {
       claimUsername, updateProfile, logout, deleteAccount,
       addCar, editCar, deleteCar, addMod, toggleFollowCar, spotCar, logSighting,
       createPost, editPost, setArchived, deletePost, toggleLike, addComment, addReply,
       toggleFollow, toggleNewsLike, submitMeet, deleteMeet, toggleGoing,
       createCommunity, toggleCommunityMembership, markNotificationsRead,
-      createThread, replyThread, toggleThreadLike, deleteThread,
+      createThread, replyThread, toggleThreadLike, deleteThread, editThread, deleteThreadReply, deleteComment,
+      setMeetRole, setMeetCaps, editCommunity, deleteCommunity,
+      report, hidePost, undoHide, toggleBlock,
     },
   };
 }

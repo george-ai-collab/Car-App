@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { Car, MapPin, Image as ImageIcon, ChevronRight } from "lucide-react";
+import { Car, MapPin, Image as ImageIcon, ChevronRight, SlidersHorizontal, Tag, Search } from "lucide-react";
 import { T } from "../theme";
-import { CameraCapture } from "../components/photo/CameraCapture";
 import { PhotoEditor, bakePhoto, newPhoto } from "../components/photo/PhotoEditor";
-import { IconBadge, EmptyState, Field, TextInput, TextArea } from "../components/ui";
+import { IconBadge, TextInput, TextArea, Section, ChipPicker } from "../components/ui";
+import { PhotoPicker } from "../components/photo/PhotoPicker";
 
 export function AddChoiceScreen({ onNewPost, onSpot, onAddCar }) {
   return (
-    <div style={{ paddingTop: 18 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>Add to Carfooly</div>
+    <div>
+      <div className="display" style={{ fontSize: 24, color: T.text, marginBottom: 4 }}>Add to Carfooly</div>
       <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 20 }}>What do you want to do?</div>
 
       <button onClick={onNewPost} className="press" style={{
@@ -55,107 +55,129 @@ export function AddChoiceScreen({ onNewPost, onSpot, onAddCar }) {
   );
 }
 
-export function NewPostForm({ me, cars, communities, onSubmit, onNeedCar, initialCommunityId }) {
-  // Only your own cars, plus public cars you've spotted. Other accounts' garages never show up here.
+// New post: the photo is the star. Editing tools sit under it, then the details.
+export function NewPostForm({ me, cars, communities, onSubmit, initialCommunityId }) {
   const byName = (a, b) => a.make.localeCompare(b.make);
   const myCars = Object.values(cars).filter((c) => c.ownerUsername === me).sort(byName);
   const spotted = Object.values(cars).filter((c) => c.ownerUsername !== me && c.hasPage !== false && c.spotterUsernames.includes(me)).sort(byName);
-  const carList = [...myCars, ...spotted];
   const joinedCommunities = Object.values(communities || {}).filter((c) => c.members.includes(me) || c.id === initialCommunityId);
-  const [carId, setCarId] = useState(carList[0]?.id || "");
+  const [carId, setCarId] = useState(myCars[0]?.id || (spotted[0] ? spotted[0].id : "other"));
+  const [carLabel, setCarLabel] = useState("");
   const [communityId, setCommunityId] = useState(initialCommunityId || "");
-  const [photo, setPhoto] = useState(null); const [caption, setCaption] = useState("");
+  const [photo, setPhoto] = useState(null);
+  const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
+  const canPost = (photo || caption.trim()) && !busy;
 
-  if (carList.length === 0) {
-    return (
-      <div style={{ paddingTop: 18 }}>
-        <EmptyState icon={<Car size={22} color={T.textDim} />} title="No cars to post about yet" body="Add a car first, then you can post updates and photos of it." />
-        <button onClick={onNeedCar} style={{ width: "100%", marginTop: 14, padding: "13px 16px", borderRadius: 16, border: "none", background: T.accent, color: T.ink, fontWeight: 600, fontSize: 15 }}>
-          Add a car
-        </button>
-      </div>
-    );
-  }
+  const carOptions = [
+    ...myCars.map((c) => ({ id: c.id, label: c.nickname || `${c.make} ${c.model}`, sub: `Your car · '${c.year}` })),
+    ...spotted.map((c) => ({ id: c.id, label: `${c.make} ${c.model}`, sub: `Spotted · @${c.ownerUsername}` })),
+    { id: "other", label: "Another car", sub: "Type what it is" },
+    { id: "none", label: "No car tag", sub: "Just the photo" },
+  ];
+  const submit = async () => {
+    setBusy(true);
+    const baked = photo ? await bakePhoto(photo) : null;
+    const real = carId !== "other" && carId !== "none" ? carId : null;
+    await onSubmit({ carId: real, carLabel: carId === "other" ? carLabel : "", photoUrl: baked?.url || "", photoAspect: baked?.aspect || null, caption, communityId });
+    setBusy(false);
+  };
 
   return (
-    <div style={{ paddingTop: 18, paddingBottom: 10 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>New post</div>
-      <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 20 }}>Shows up in the feed and stays on the car's page for good.</div>
+    <div style={{ paddingBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 14 }}>
+        <div className="display" style={{ fontSize: 24, color: T.text, flex: 1 }}>New post</div>
+        <button disabled={!canPost} onClick={submit} className="press" style={{
+          padding: "9px 20px", borderRadius: 999, border: "none", fontWeight: 700, fontSize: 14,
+          background: canPost ? T.accent : T.surface2, color: canPost ? "#fff" : T.textDim, boxShadow: canPost ? T.shadowAccent : "none",
+        }}>
+          {busy ? "Posting…" : "Post"}
+        </button>
+      </div>
 
-      <Field label="Which car">
-        <select value={carId} onChange={(e) => setCarId(e.target.value)}
-          style={{ width: "100%", padding: "11px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 14.5, outline: "none" }}>
-          {myCars.length > 0 && <optgroup label="Your cars">{myCars.map((c) => <option key={c.id} value={c.id}>{c.nickname || `${c.make} ${c.model}`} '{c.year}</option>)}</optgroup>}
-          {spotted.length > 0 && <optgroup label="Cars you've spotted">{spotted.map((c) => <option key={c.id} value={c.id}>{c.make} {c.model} '{c.year} · @{c.ownerUsername}</option>)}</optgroup>}
-        </select>
-      </Field>
-      {joinedCommunities.length > 0 && (
-        <Field label="Post to a community (optional)">
-          <select value={communityId} onChange={(e) => setCommunityId(e.target.value)}
-            style={{ width: "100%", padding: "11px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 14.5, outline: "none" }}>
-            <option value="">None</option>
-            {joinedCommunities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </Field>
+      {/* 1. The photo */}
+      {photo ? (
+        <Section title="Edit photo" icon={<SlidersHorizontal size={16} color={T.accent} />}
+          right={<button onClick={() => setPhoto(null)} className="press" style={{ background: "none", border: "none", color: T.textDim, fontSize: 12.5, fontWeight: 600, padding: 0 }}>Remove</button>}>
+          <PhotoEditor photo={photo} onChange={setPhoto} />
+        </Section>
+      ) : (
+        <div style={{ marginBottom: 14 }}>
+          <PhotoPicker onPick={(src, size) => setPhoto(newPhoto(src, size))} title="Add a photo" hint="Portrait, square or landscape. You can crop and cover plates next." />
+        </div>
       )}
-      <Field label="Photo (optional)">
-        {photo ? (
-          <div>
-            <PhotoEditor photo={photo} onChange={setPhoto} />
-            <button onClick={() => setPhoto(null)} className="press" style={{ marginTop: 8, background: "none", border: "none", color: T.accent, fontSize: 12, fontWeight: 600, padding: 0 }}>
-              Remove photo
-            </button>
-          </div>
-        ) : (
-          <CameraCapture value={null} onChange={(src, size) => setPhoto(newPhoto(src, size))} allowLibrary />
+
+      {/* 2. The details */}
+      <Section title="Details" icon={<Tag size={16} color={T.accent2} />} testid="post-details">
+        <div className="plate" style={{ fontSize: 10.5, color: T.textDim, marginBottom: 8 }}>Which car</div>
+        <ChipPicker testid="car-chips" value={carId} onChange={setCarId} options={carOptions} />
+        {carId === "other" && (
+          <div style={{ marginTop: 10 }}><TextInput value={carLabel} onChange={setCarLabel} placeholder="e.g. Porsche 911 GT3 RS" maxLength={50} /></div>
         )}
-      </Field>
-      <Field label="Caption"><TextArea value={caption} onChange={setCaption} placeholder="What's going on with it?" maxLength={280} rows={3} /></Field>
-
-      <button disabled={busy}
-        onClick={async () => {
-          setBusy(true);
-          const baked = photo ? await bakePhoto(photo) : null;
-          await onSubmit({ carId, photoUrl: baked?.url || "", photoAspect: baked?.aspect || null, caption, communityId });
-          setBusy(false);
-        }}
-        style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", marginTop: 8, background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
-        {busy ? "Posting…" : "Post"}
-
-      </button>
+        {joinedCommunities.length > 0 && (
+          <>
+            <div className="plate" style={{ fontSize: 10.5, color: T.textDim, margin: "16px 0 8px" }}>Community (optional)</div>
+            <ChipPicker testid="community-chips" value={communityId} onChange={setCommunityId}
+              options={[{ id: "", label: "None" }, ...joinedCommunities.map((c) => ({ id: c.id, label: c.name }))]} />
+          </>
+        )}
+        <div className="plate" style={{ fontSize: 10.5, color: T.textDim, margin: "16px 0 8px" }}>Caption</div>
+        <TextArea value={caption} onChange={setCaption} placeholder="What's going on with it?" maxLength={280} rows={3} />
+      </Section>
     </div>
   );
 }
 
+// Spot: feels like a camera. Snap first, then say what it is.
 export function SpotForm({ onSubmit }) {
   const [photo, setPhoto] = useState(null);
   const [make, setMake] = useState(""); const [model, setModel] = useState("");
   const [year, setYear] = useState(""); const [trim, setTrim] = useState("");
   const [busy, setBusy] = useState(false);
   const valid = photo && make.trim() && model.trim() && year.trim();
+  const corner = (pos) => ({ position: "absolute", width: 34, height: 34, borderColor: "rgba(255,255,255,0.8)", borderStyle: "solid", borderWidth: 0, ...pos });
 
   return (
-    <div style={{ paddingTop: 18, paddingBottom: 10 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>Log a spot</div>
-      <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 20 }}>What did you find? A photo helps others recognize it.</div>
+    <div style={{ paddingBottom: 10 }}>
+      <div className="display" style={{ fontSize: 24, color: T.text }}>Spot a car</div>
+      <div style={{ fontSize: 13, color: T.textDim, marginBottom: 14 }}>Saw something good? Snap it and log it.</div>
 
-      <div style={{ marginBottom: 16 }}><CameraCapture value={photo} onChange={setPhoto} maxDim={1080} quality={0.72} /></div>
+      {photo ? (
+        <div style={{ position: "relative", borderRadius: 24, overflow: "hidden", marginBottom: 14 }}>
+          <img src={photo} alt="" style={{ width: "100%", maxHeight: "50vh", objectFit: "cover", display: "block" }} />
+          <button onClick={() => setPhoto(null)} className="glass press" style={{ position: "absolute", right: 12, bottom: 12, border: "none", padding: "8px 14px", borderRadius: 999, color: "#fff", fontSize: 12.5, fontWeight: 600 }}>Retake</button>
+          <span className="plate" style={{ position: "absolute", left: 12, top: 12, background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 10, padding: "4px 9px", borderRadius: 999 }}>Spotted</span>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 14 }}>
+          <PhotoPicker testid="spot-picker" onPick={(src) => setPhoto(src)} aspect={3 / 4} maxDim={1080} quality={0.72} title="Point and shoot" hint="Get the whole car in frame.">
+            <div style={corner({ top: 18, left: 18, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 10 })} />
+            <div style={corner({ top: 18, right: 18, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 10 })} />
+            <div style={corner({ bottom: 84, left: 18, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 10 })} />
+            <div style={corner({ bottom: 84, right: 18, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 10 })} />
+          </PhotoPicker>
+        </div>
+      )}
 
-      <Field label="Make"><TextInput value={make} onChange={setMake} placeholder="Nissan" maxLength={30} /></Field>
-      <Field label="Model"><TextInput value={model} onChange={setModel} placeholder="Skyline GT-R" maxLength={40} /></Field>
-      <Field label="Year"><TextInput value={year} onChange={setYear} placeholder="1999" maxLength={4} /></Field>
-      <Field label="Trim (optional)"><TextInput value={trim} onChange={setTrim} placeholder="V-Spec" maxLength={30} /></Field>
-
-      <div style={{ fontSize: 11.5, color: T.textDim, lineHeight: 1.5, marginBottom: 14 }}>
-        Spots are marked unverified until we can confirm the photo matches — that needs a backend we haven't built yet.
-      </div>
+      <Section title="What is it?" icon={<Search size={16} color={T.accent2} />}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div><div className="plate" style={miniLabel}>Make</div><TextInput value={make} onChange={setMake} placeholder="Nissan" maxLength={30} /></div>
+          <div><div className="plate" style={miniLabel}>Model</div><TextInput value={model} onChange={setModel} placeholder="Skyline GT-R" maxLength={40} /></div>
+          <div><div className="plate" style={miniLabel}>Year</div><TextInput value={year} onChange={(v) => setYear(v.replace(/[^0-9]/g, ""))} placeholder="1999" maxLength={4} /></div>
+          <div><div className="plate" style={miniLabel}>Trim (optional)</div><TextInput value={trim} onChange={setTrim} placeholder="V-Spec" maxLength={30} /></div>
+        </div>
+        <div style={{ fontSize: 11.5, color: T.textDim, lineHeight: 1.5, marginTop: 12 }}>
+          If it matches a car with a page, the owner gets a "spotted" notification. Spots are marked unverified for now.
+        </div>
+      </Section>
 
       <button disabled={!valid || busy} className="press"
         onClick={async () => { setBusy(true); await onSubmit({ make, model, year, trim, photoUrl: photo }); setBusy(false); }}
-        style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", background: valid ? T.accent : T.surface2, color: valid ? "#fff" : T.textDim, fontWeight: 600, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
-        {busy ? "Logging…" : "Log spot"}
+        style={{ width: "100%", padding: "14px 16px", borderRadius: 16, border: "none", background: valid ? T.accent2 : T.surface2, color: valid ? "#fff" : T.textDim, fontWeight: 700, fontSize: 15, opacity: busy ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        <MapPin size={16} /> {busy ? "Logging…" : "Log spot"}
       </button>
     </div>
   );
 }
+
+const miniLabel = { fontSize: 10, color: T.textDim, marginBottom: 6 };

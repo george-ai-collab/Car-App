@@ -2,7 +2,7 @@
 //  - CAMERA permission, so "Take a photo" in Spot / New Post opens the camera
 //  - location permission, for "Use my location" when posting a meet
 //  - portrait lock, since every screen is designed for a portrait phone
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 
 const manifestPath = "android/app/src/main/AndroidManifest.xml";
 if (!existsSync(manifestPath)) {
@@ -28,4 +28,39 @@ if (!xml.includes('android:screenOrientation=')) {
 }
 
 writeFileSync(manifestPath, xml);
-console.log("patch-android: camera + location permissions and portrait lock applied");
+
+// Hide the WebView's own scrollbar and turn off its edge bounce/stretch, so every page
+// stops dead at the top and bottom (the app draws its own look).
+const findFile = (dir, name) => {
+  for (const f of readdirSync(dir)) {
+    const p = `${dir}/${f}`;
+    if (statSync(p).isDirectory()) { const r = findFile(p, name); if (r) return r; }
+    else if (f === name) return p;
+  }
+  return null;
+};
+const activity = findFile("android/app/src/main/java", "MainActivity.java");
+if (activity) {
+  const src = readFileSync(activity, "utf8");
+  if (!src.includes("OVER_SCROLL_NEVER")) {
+    const pkg = (src.match(/^package\s+[\w.]+;/m) || ["package com.carfooly.app;"])[0];
+    writeFileSync(activity, `${pkg}
+
+import android.view.View;
+import android.webkit.WebView;
+import com.getcapacitor.BridgeActivity;
+
+public class MainActivity extends BridgeActivity {
+    @Override
+    public void onStart() {
+        super.onStart();
+        WebView webView = getBridge().getWebView();
+        webView.setVerticalScrollBarEnabled(false);
+        webView.setHorizontalScrollBarEnabled(false);
+        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+    }
+}
+`);
+  }
+}
+console.log("patch-android: permissions, portrait lock, no scrollbar/bounce applied");

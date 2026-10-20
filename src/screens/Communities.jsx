@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2 } from "lucide-react";
+import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2, Pencil } from "lucide-react";
 import { T } from "../theme";
 import { hueForId, timeAgo } from "../lib/utils";
 import { useSwipe } from "../lib/useSwipe";
-import { Avatar, EmptyState, Field, TextInput, TextArea, SectionLabel, Segmented, ConfirmDialog } from "../components/ui";
+import { MoreMenu, ReportSheet, useSafety } from "../components/Safety";
+import { Avatar, EmptyState, Field, TextInput, TextArea, SectionLabel, Segmented, ConfirmDialog, BottomSheet } from "../components/ui";
 
 export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
   const joined = community.members.includes(me);
@@ -83,15 +84,20 @@ export function CommunityPostRow({ post, car, onOpenPost, onOpenCar, onOpenProfi
 // Engagement decides tile size in the Posts mosaic (likes + comments count double).
 const score = (p) => p.likes.length + 2 * p.comments.length;
 
-export function CommunityPage({ community, me, users, cars, posts, discussions, onToggle, openPost, openProfile, openThread, onNewThread, onNewPost, tab = "posts", setTab }) {
+export function CommunityPage({ community, me, users, cars, posts, discussions, onToggle, openPost, openProfile, openThread, onNewThread, onNewPost, tab = "posts", setTab, onEdit, onDelete }) {
   const joined = community.members.includes(me);
+  const safety = useSafety();
+  const [editing, setEditing] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const isOwner = community.kind === "custom" && community.createdBy === me;
+  const hidden = safety?.prefs.hidden || [], blocked = safety?.prefs.blocked || [];
   const order = ["posts", "discuss", "people"];
   const sw = useSwipe({
     onLeft: () => setTab(order[Math.min(order.length - 1, order.indexOf(tab) + 1)]),
     onRight: () => setTab(order[Math.max(0, order.indexOf(tab) - 1)]),
   });
-  const cPosts = Object.values(posts).filter((p) => p.communityId === community.id && !p.archived).sort((a, b) => new Date(b.date) - new Date(a.date));
-  const threads = Object.values(discussions || {}).filter((t) => t.communityId === community.id)
+  const cPosts = Object.values(posts).filter((p) => p.communityId === community.id && !p.archived && !hidden.includes(p.id) && !blocked.includes(p.authorUsername)).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const threads = Object.values(discussions || {}).filter((t) => t.communityId === community.id && !blocked.includes(t.author))
     .sort((a, b) => new Date(b.replies.at(-1)?.date || b.date) - new Date(a.replies.at(-1)?.date || a.date));
 
   return (
@@ -110,8 +116,20 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
         }}>
           {joined && <Check size={12} />} {joined ? "Joined" : "Join"}
         </button>
+        {safety && (
+          <MoreMenu label="Community options" testid="community-menu" flash={safety.flash}
+            share={{ title: community.name, text: `Join ${community.name} on Carfooly` }}
+            items={isOwner ? [
+              { label: "Edit community", icon: <Pencil size={17} />, onClick: () => setEditing(true) },
+              { label: "Delete community", icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },
+            ] : []}
+            report={isOwner ? null : { what: "community", onSend: (reason, note) => safety.actions.report({ kind: "community", id: community.id, reason, note }) }} />
+        )}
       </div>
       {community.description && <div style={{ color: T.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }}>{community.description}</div>}
+      {isOwner && <EditCommunitySheet open={editing} onClose={() => setEditing(false)} community={community} onSave={onEdit} />}
+      <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title={`Delete ${community.name}?`}
+        body="Its discussions are removed. Posts stay on people's profiles and the feed, just without this community." onConfirm={() => onDelete(community.id)} />
 
       <Segmented testid="community-tabs" value={tab} onChange={setTab} options={[["posts", "Posts"], ["discuss", "Discuss"], ["people", "People"]]} />
 
@@ -142,6 +160,18 @@ const dashedBtn = {
   width: "100%", marginBottom: 14, padding: "11px 14px", borderRadius: 16, border: `1px dashed ${T.lineDark}`,
   background: T.surface, color: T.text, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
 };
+
+function EditCommunitySheet({ open, onClose, community, onSave }) {
+  const [name, setName] = useState(community.name);
+  const [description, setDescription] = useState(community.description || "");
+  return (
+    <BottomSheet open={open} onClose={onClose} title="Edit community" maxHeight="80vh">
+      <Field label="Name"><TextInput value={name} onChange={setName} maxLength={40} /></Field>
+      <Field label="Description"><TextArea value={description} onChange={setDescription} maxLength={150} rows={3} /></Field>
+      <button disabled={!name.trim()} onClick={async () => { if (await onSave(community.id, { name, description })) onClose(); }} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>Save</button>
+    </BottomSheet>
+  );
+}
 
 // Instagram-explore style grid: the most-liked/commented posts get big tiles.
 function Mosaic({ posts, openPost }) {
@@ -233,9 +263,15 @@ function People({ community, users, posts, threads, openProfile }) {
 }
 
 // A single discussion with its replies.
-export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, openProfile, onGone }) {
+export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, openProfile, onGone, onEdit, onDeleteReply }) {
   const [text, setText] = useState("");
   const [confirm, setConfirm] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(thread.title);
+  const [body, setBody] = useState(thread.body || "");
+  const [reportReply, setReportReply] = useState(null);
+  const safety = useSafety();
+  const blocked = safety?.prefs.blocked || [];
   const liked = thread.likes.includes(me);
   return (
     <div style={{ paddingBottom: 10 }}>
@@ -253,16 +289,29 @@ export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, o
         </button>
         <span style={{ display: "flex", alignItems: "center", gap: 6, color: T.textDim, fontSize: 13 }}><MessageCircle size={18} /> {thread.replies.length}</span>
         <span style={{ flex: 1 }} />
-        {thread.author === me && (
-          <button onClick={() => setConfirm(true)} aria-label="Delete discussion" style={{ background: "none", border: "none", padding: 0, display: "flex" }}><Trash2 size={16} color={T.accent} /></button>
+        {safety && (
+          <MoreMenu label="Discussion options" testid="thread-menu" flash={safety.flash}
+            share={{ title: thread.title, text: `"${thread.title}" in ${community?.name || "a community"} on Carfooly` }}
+            items={thread.author === me ? [
+              { label: "Edit discussion", icon: <Pencil size={17} />, onClick: () => { setTitle(thread.title); setBody(thread.body || ""); setEditing(true); } },
+              { label: "Delete discussion", icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },
+            ] : []}
+            report={thread.author === me ? null : { what: "discussion", onSend: (reason, note) => safety.actions.report({ kind: "thread", id: thread.id, reason, note }) }}
+            block={thread.author === me ? null : { handle: thread.author, blocked: blocked.includes(thread.author), onToggle: () => safety.actions.toggleBlock(thread.author) }} />
         )}
       </div>
       {thread.replies.length === 0 && <div style={{ color: T.textDim, fontSize: 13, marginBottom: 14 }}>No replies yet. Start it off.</div>}
-      {thread.replies.map((r) => (
+      {thread.replies.filter((r) => !blocked.includes(r.author)).map((r) => (
         <div key={r.id} data-testid="thread-reply" style={{ display: "flex", gap: 10, marginBottom: 14 }}>
           <button onClick={() => openProfile(r.author)} style={{ background: "none", border: "none", padding: 0 }}><Avatar username={r.author} size={30} /></button>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 12.5 }}><span style={{ color: T.text, fontWeight: 700 }}>{r.author}</span> <span style={{ color: T.textDim }}>· {timeAgo(r.date)}</span></div>
+            <div style={{ fontSize: 12.5, display: "flex", gap: 6, alignItems: "baseline" }}>
+              <span style={{ color: T.text, fontWeight: 700 }}>{r.author}</span> <span style={{ color: T.textDim }}>· {timeAgo(r.date)}</span>
+              <span style={{ flex: 1 }} />
+              {r.author === me
+                ? <button onClick={() => onDeleteReply(thread.id, r.id)} style={{ background: "none", border: "none", padding: 0, color: T.textDim, fontSize: 11, fontWeight: 600 }}>Delete</button>
+                : <button onClick={() => setReportReply(r.id)} style={{ background: "none", border: "none", padding: 0, color: T.textDim, fontSize: 11, fontWeight: 600 }}>Report</button>}
+            </div>
             <div style={{ color: T.text, fontSize: 14, lineHeight: 1.45, marginTop: 2, whiteSpace: "pre-wrap" }}>{r.text}</div>
           </div>
         </div>
@@ -274,6 +323,12 @@ export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, o
           Reply
         </button>
       </div>
+      {safety && <ReportSheet open={!!reportReply} onClose={() => setReportReply(null)} what="reply" onSend={(reason, note) => safety.actions.report({ kind: "threadReply", id: reportReply, reason, note })} />}
+      <BottomSheet open={editing} onClose={() => setEditing(false)} title="Edit discussion" maxHeight="85vh">
+        <Field label="Title"><TextInput value={title} onChange={setTitle} maxLength={100} /></Field>
+        <Field label="Details"><TextArea value={body} onChange={setBody} maxLength={1000} rows={5} /></Field>
+        <button disabled={!title.trim()} onClick={async () => { await onEdit(thread.id, { title, body }); setEditing(false); }} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>Save</button>
+      </BottomSheet>
       <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title="Delete this discussion?" body="The discussion and all its replies will be removed." onConfirm={async () => { await onDelete(thread.id); onGone(); }} />
     </div>
   );

@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Car, Plus, MapPin, Wrench, Check, ChevronRight, Pencil } from "lucide-react";
+import { Car, Plus, MapPin, Wrench, Check, Pencil, Gauge } from "lucide-react";
 import { T } from "../theme";
 import { fmtDate, hueForId, verbPhrase } from "../lib/utils";
-import { Avatar, EmptyState, Field, TextInput, Stat, SectionLabel } from "../components/ui";
-import { CameraCapture } from "../components/photo/CameraCapture";
+import { Avatar, EmptyState, TextInput, Stat, SectionLabel, Section } from "../components/ui";
+import { PhotoPicker } from "../components/photo/PhotoPicker";
+import { MoreMenu, useSafety } from "../components/Safety";
 
 export function CarsView({ cars, onOpen, onAdd }) {
   const list = Object.values(cars).sort((a, b) => {
@@ -74,7 +75,7 @@ export function SightingCard({ sighting }) {
   );
 }
 
-// Used for both adding a new car and editing one (pass `initial`).
+// Add / edit a car. Looks like a garage card: cover photo + name up top, then a spec sheet.
 export function AddCarForm({ onSubmit, initial }) {
   const editing = !!initial;
   const v = (k) => (initial && initial[k]) || "";
@@ -86,56 +87,75 @@ export function AddCarForm({ onSubmit, initial }) {
   const [zeroToSixty, setZeroToSixty] = useState(v("zeroToSixty")); const [topSpeed, setTopSpeed] = useState(v("topSpeed"));
   const [note, setNote] = useState(""); const [noteDetail, setNoteDetail] = useState("");
   const [hasPage, setHasPage] = useState(editing ? initial.hasPage !== false : false);
-  const [showSpecs, setShowSpecs] = useState(editing && !!(initial.engine || initial.power || initial.gearbox || initial.weight || initial.wheels || initial.zeroToSixty || initial.topSpeed));
   const [busy, setBusy] = useState(false);
-  const valid = make.trim() && model.trim() && year.trim();
-  return (
-    <div style={{ paddingTop: 18, paddingBottom: 10 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>{editing ? "Edit car" : "Add a car"}</div>
-      <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 20 }}>{editing ? "Change any details. The build log stays as it is." : "Yours, or one you're into. It gets its own permanent page."}</div>
-      <Field label="Make"><TextInput value={make} onChange={setMake} placeholder="BMW" maxLength={30} /></Field>
-      <Field label="Model"><TextInput value={model} onChange={setModel} placeholder="M4" maxLength={40} /></Field>
-      <Field label="Year"><TextInput value={year} onChange={(x) => setYear(x.replace(/[^0-9]/g, ""))} placeholder="2024" maxLength={4} /></Field>
-      <Field label="Build nickname (optional)"><TextInput value={nickname} onChange={setNickname} placeholder="e.g. Coilover Miata" maxLength={40} /></Field>
-      <Field label="Cover photo (optional)">
-        <CameraCapture value={photoUrl || null} onChange={(src) => setPhotoUrl(src || "")} allowLibrary />
-        {photoUrl && (
-          <button onClick={() => setPhotoUrl("")} style={{ background: "none", border: "none", color: T.textDim, fontSize: 12.5, padding: "8px 0 0" }}>Remove photo</button>
-        )}
-      </Field>
+  const valid = make.trim() && model.trim() && year.trim().length === 4;
+  const spec = [
+    ["Engine", engine, setEngine, "1.8 BP-ZE", 40], ["Power", power, setPower, "131 hp", 20],
+    ["Gearbox", gearbox, setGearbox, "5-spd manual", 30], ["Weight", weight, setWeight, "990 kg", 20],
+    ["0-60", zeroToSixty, setZeroToSixty, "7.2s", 15], ["Top speed", topSpeed, setTopSpeed, "120 mph", 20],
+  ];
 
-      <button onClick={() => setShowSpecs((s) => !s)} className="press" style={{
-        background: "none", border: "none", color: T.accent, fontSize: 12.5, fontWeight: 600, padding: "4px 0 14px",
-        display: "flex", alignItems: "center", gap: 4,
-      }}>
-        {showSpecs ? "Hide" : "Add"} spec details <ChevronRight size={13} style={{ transform: showSpecs ? "rotate(90deg)" : "none", transition: "transform .15s ease" }} />
-      </button>
-      {showSpecs && (
-        <div className="fade-in">
-          <Field label="Engine"><TextInput value={engine} onChange={setEngine} placeholder="1.8 BP-ZE" maxLength={40} /></Field>
-          <Field label="Power"><TextInput value={power} onChange={setPower} placeholder="131 hp" maxLength={20} /></Field>
-          <Field label="Gearbox"><TextInput value={gearbox} onChange={setGearbox} placeholder="5-spd manual" maxLength={30} /></Field>
-          <Field label="Weight"><TextInput value={weight} onChange={setWeight} placeholder="990 kg" maxLength={20} /></Field>
-          <Field label="Wheels"><TextInput value={wheels} onChange={setWheels} placeholder="15x8 Watanabe" maxLength={40} /></Field>
-          <Field label="0-60"><TextInput value={zeroToSixty} onChange={setZeroToSixty} placeholder="7.2s" maxLength={15} /></Field>
-          <Field label="Top Speed"><TextInput value={topSpeed} onChange={setTopSpeed} placeholder="120 mph" maxLength={20} /></Field>
+  return (
+    <div style={{ paddingBottom: 10 }}>
+      <div className="display" style={{ fontSize: 24, color: T.text, marginBottom: 14 }}>{editing ? "Edit car" : "Add to your garage"}</div>
+
+      {/* Garage card */}
+      <div data-testid="garage-card" style={{ borderRadius: 24, overflow: "hidden", border: `1px solid ${T.lineDark}`, background: T.surface, marginBottom: 14, boxShadow: T.shadowRaised }}>
+        {photoUrl ? (
+          <div style={{ position: "relative" }}>
+            <img src={photoUrl} alt="" style={{ width: "100%", aspectRatio: "16 / 10", objectFit: "cover", display: "block" }} />
+            <button onClick={() => setPhotoUrl("")} className="glass press" style={{ position: "absolute", right: 10, top: 10, border: "none", padding: "7px 12px", borderRadius: 999, color: "#fff", fontSize: 12, fontWeight: 600 }}>Change photo</button>
+          </div>
+        ) : (
+          <div style={{ padding: 12 }}>
+            <PhotoPicker onPick={(src) => setPhotoUrl(src)} aspect={16 / 10} maxDim={1440} title="Cover photo" hint="The main shot of your car (optional)" testid="car-photo" />
+          </div>
+        )}
+        <div style={{ background: T.paper, padding: "16px 16px 14px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 78px", gap: 8 }}>
+            <div><div className="plate" style={paperLabel}>Make</div><input value={make} onChange={(e) => setMake(e.target.value)} placeholder="BMW" maxLength={30} style={paperInput} /></div>
+            <div><div className="plate" style={paperLabel}>Model</div><input value={model} onChange={(e) => setModel(e.target.value)} placeholder="M4" maxLength={40} style={paperInput} /></div>
+            <div><div className="plate" style={paperLabel}>Year</div><input value={year} onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, ""))} placeholder="2024" maxLength={4} inputMode="numeric" style={paperInput} /></div>
+          </div>
+          <div className="plate" style={{ ...paperLabel, marginTop: 10 }}>Build nickname (optional)</div>
+          <input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="e.g. Coilover Miata" maxLength={40} style={{ ...paperInput, fontFamily: "inherit" }} />
         </div>
+      </div>
+
+      {/* Spec sheet */}
+      <Section title="Spec sheet" icon={<Gauge size={16} color={T.accent} />} hint="Fill in what you know. It shows on the car's page.">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          {spec.map(([label, val, set, ph, max]) => (
+            <div key={label}><div className="plate" style={{ fontSize: 10, color: T.textDim, marginBottom: 6 }}>{label}</div><TextInput value={val} onChange={set} placeholder={ph} maxLength={max} /></div>
+          ))}
+        </div>
+        <div style={{ marginTop: 10 }}><div className="plate" style={{ fontSize: 10, color: T.textDim, marginBottom: 6 }}>Wheels</div><TextInput value={wheels} onChange={setWheels} placeholder="15x8 Watanabe" maxLength={40} /></div>
+      </Section>
+
+      {!editing && (
+        <Section title="First build log entry" icon={<Wrench size={16} color={T.accentWarm} />} hint="Optional. Start the car's story.">
+          <TextInput value={note} onChange={setNote} placeholder="e.g. Stage 2 tune" maxLength={60} />
+          {note.trim() && <div style={{ marginTop: 10 }}><TextInput value={noteDetail} onChange={setNoteDetail} placeholder="Notes, part numbers…" maxLength={150} /></div>}
+        </Section>
       )}
 
       <Toggle on={hasPage} onChange={setHasPage} label="Give this car its own page"
         sub={hasPage ? "Anyone can open it, follow the build and spot it." : "Off: it just sits in your garage. Only you can open it."} />
 
-      {!editing && <Field label="First build log entry (optional)"><TextInput value={note} onChange={setNote} placeholder="e.g. Stage 2 tune" maxLength={60} /></Field>}
-      {!editing && note.trim() && <Field label="Details (optional)"><TextInput value={noteDetail} onChange={setNoteDetail} placeholder="Notes, part numbers…" maxLength={150} /></Field>}
-
       <button disabled={!valid || busy} className="press"
         onClick={async () => { setBusy(true); await onSubmit({ make, model, year, nickname, photoUrl, engine, power, gearbox, weight, wheels, zeroToSixty, topSpeed, note, noteDetail, hasPage }); setBusy(false); }}
-        style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", marginTop: 8, background: valid ? T.accent : T.surface2, color: valid ? "#fff" : T.textDim, fontWeight: 600, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
+        style={{ width: "100%", padding: "14px 16px", borderRadius: 16, border: "none", background: valid ? T.accent : T.surface2, color: valid ? "#fff" : T.textDim, fontWeight: 700, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
         {busy ? "Saving…" : editing ? "Save changes" : "Add to Carfooly"}
       </button>
     </div>
   );
 }
+
+const paperLabel = { fontSize: 9.5, color: T.inkMuted, marginBottom: 4 };
+const paperInput = {
+  width: "100%", padding: "9px 10px", borderRadius: 12, border: `1px solid ${T.linePaper}`, background: "#fff", color: T.ink,
+  fontSize: 15, fontWeight: 700, outline: "none", fontFamily: "'IBM Plex Mono', ui-monospace, monospace", textTransform: "none",
+};
 
 export function Toggle({ on, onChange, label, sub }) {
   return (
@@ -155,6 +175,7 @@ export function Toggle({ on, onChange, label, sub }) {
 }
 
 export function CarPage({ car, me, onAddMod, onSpot, onFollowBuild, openProfile, onEdit, onTogglePage }) {
+  const safety = useSafety();
   const [modName, setModName] = useState(""); const [modNote, setModNote] = useState(""); const [addingMod, setAddingMod] = useState(false);
   const isOwner = car.ownerUsername === me;
   const alreadySpotted = car.spotterUsernames.includes(me);
@@ -169,7 +190,14 @@ export function CarPage({ car, me, onAddMod, onSpot, onFollowBuild, openProfile,
   ].filter(([, v]) => v);
 
   return (
-    <div style={{ paddingBottom: 10 }} className="fade-in">
+    <div style={{ paddingBottom: 10, position: "relative" }} className="fade-in">
+      {safety && (
+        <div style={{ position: "absolute", right: 0, top: 12, zIndex: 5, borderRadius: 999, background: "rgba(0,0,0,0.35)" }}>
+          <MoreMenu label="Car options" testid="car-menu" flash={safety.flash}
+            share={{ title: "Carfooly", text: `${car.nickname || `${car.make} ${car.model}`} (${car.year}), kept by @${car.ownerUsername} on Carfooly` }}
+            report={car.ownerUsername === me ? null : { what: "car", onSend: (reason, note) => safety.actions.report({ kind: "car", id: car.id, reason, note }) }} />
+        </div>
+      )}
       <div style={{ height: "38vh", minHeight: 280, margin: "0 -16px 0", background: car.photoUrl ? `url(${car.photoUrl}) center/cover` : `linear-gradient(135deg, hsl(${hue},45%,22%), hsl(${hue},35%,12%))`, display: "flex", alignItems: "center", justifyContent: "center" }}>
         {!car.photoUrl && <Car size={64} color="rgba(245,244,242,0.4)" />}
       </div>

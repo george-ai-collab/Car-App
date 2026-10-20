@@ -8,7 +8,8 @@ export function GlobalStyle() {
   return (
     <style>{`
       * { box-sizing: border-box; }
-      html, body { margin: 0; overscroll-behavior-x: none; }
+      html, body { margin: 0; overscroll-behavior: none; }
+      * { overscroll-behavior: none; }
       *::-webkit-scrollbar { display: none; }
       * { scrollbar-width: none; -ms-overflow-style: none; }
       button { font-family: inherit; cursor: pointer; }
@@ -309,6 +310,43 @@ export function Segmented({ value, onChange, options, testid }) {
           }}>
             {label}
             <span style={{ position: "absolute", left: 0, right: 0, bottom: -1, height: 2.5, borderRadius: 2, background: on ? T.accent : "transparent", transition: "background .15s ease" }} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// A titled card that groups related fields, so a form reads in clear parts.
+export function Section({ title, icon, hint, children, right, testid }) {
+  return (
+    <div data-testid={testid} style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 22, padding: 16, marginBottom: 14, boxShadow: T.shadowCard }}>
+      {(title || right) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: hint ? 4 : 14 }}>
+          {icon}
+          <div style={{ color: T.text, fontSize: 15, fontWeight: 700, flex: 1 }}>{title}</div>
+          {right}
+        </div>
+      )}
+      {hint && <div style={{ color: T.textDim, fontSize: 12.5, lineHeight: 1.4, marginBottom: 14 }}>{hint}</div>}
+      {children}
+    </div>
+  );
+}
+
+// Tappable chips for picking one option (cars, communities…).
+export function ChipPicker({ value, onChange, options, testid }) {
+  return (
+    <div data-testid={testid} data-noswipe style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 2, margin: "0 -2px" }}>
+      {options.map((o) => {
+        const on = value === o.id;
+        return (
+          <button key={o.id} type="button" onClick={() => onChange(o.id)} className="press" style={{
+            flexShrink: 0, padding: o.sub ? "8px 14px" : "9px 14px", borderRadius: 16, textAlign: "left",
+            border: `1px solid ${on ? T.accent : T.lineDark}`, background: on ? "rgba(230,56,70,0.14)" : T.surface2, color: on ? T.text : T.textDim,
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: on ? T.text : T.text, whiteSpace: "nowrap" }}>{o.label}</div>
+            {o.sub && <div style={{ fontSize: 10.5, color: on ? T.accent : T.textDim, marginTop: 1, whiteSpace: "nowrap" }}>{o.sub}</div>}
           </button>
         );
       })}

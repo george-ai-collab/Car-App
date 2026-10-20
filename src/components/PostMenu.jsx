@@ -1,25 +1,32 @@
 import { useState } from "react";
-import { MoreHorizontal, Pencil, Archive, ArchiveRestore, Trash2 } from "lucide-react";
+import { Pencil, Archive, ArchiveRestore, Trash2 } from "lucide-react";
 import { T } from "../theme";
-import { ActionMenu, BottomSheet, ConfirmDialog, TextArea } from "./ui";
+import { BottomSheet, ConfirmDialog, TextArea } from "./ui";
+import { MoreMenu, useSafety } from "./Safety";
 
-// The "..." button on your own posts: edit caption, archive, delete.
-export function PostMenu({ post, me, actions, onDeleted, overlay }) {
-  const [menu, setMenu] = useState(false);
+// The "···" on a post. Yours: edit caption, archive, delete, share.
+// Someone else's: share, not interested, report, block.
+export function PostMenu({ post, me, actions, onDeleted, overlay, carName }) {
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [caption, setCaption] = useState(post.caption || "");
-  if (post.authorUsername !== me) return null;
+  const safety = useSafety();
+  const mine = post.authorUsername === me;
+  const share = { title: "Carfooly", text: `${post.authorUsername}${carName ? `'s ${carName}` : ""} on Carfooly${post.caption ? `: "${post.caption}"` : ""}` };
+
+  if (!mine) {
+    if (!safety) return null;
+    return (
+      <MoreMenu overlay={overlay} label="Post options" testid="post-menu" share={share} flash={safety.flash}
+        hide={() => { safety.actions.hidePost(post.id); onDeleted && onDeleted(); }}
+        report={{ what: "post", onSend: (reason, note) => safety.actions.report({ kind: "post", id: post.id, reason, note }) }}
+        block={{ handle: post.authorUsername, blocked: safety.prefs.blocked.includes(post.authorUsername), onToggle: () => safety.actions.toggleBlock(post.authorUsername) }} />
+    );
+  }
 
   return (
     <>
-      <button aria-label="Post options" data-testid="post-menu" onClick={(e) => { e.stopPropagation(); setMenu(true); }} className="press" style={overlay
-        ? { width: 52, height: 32, background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }
-        : { background: "rgba(255,255,255,0.06)", border: "none", padding: 7, borderRadius: 999, display: "flex" }}>
-        <MoreHorizontal size={overlay ? 28 : 18} color={overlay ? "#fff" : T.text} style={overlay ? { filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" } : undefined} />
-      </button>
-
-      <ActionMenu open={menu} onClose={() => setMenu(false)} items={[
+      <MoreMenu overlay={overlay} label="Post options" testid="post-menu" share={share} flash={safety?.flash} items={[
         { label: "Edit caption", icon: <Pencil size={17} />, onClick: () => { setCaption(post.caption || ""); setEditing(true); } },
         post.archived
           ? { label: "Unarchive", icon: <ArchiveRestore size={17} />, onClick: () => actions.setArchived(post.id, false) }
