@@ -7,7 +7,7 @@ create extension if not exists citext;
 -- ---------- people ----------
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  handle citext not null unique check (handle ~ '^[A-Za-z0-9_.]{2,24}$'),
+  handle citext not null unique check (handle::text ~ '^[a-z0-9_.]{2,24}$'),  -- always lowercase
   name text not null default '' check (char_length(name) <= 40),
   bio text not null default '' check (char_length(bio) <= 150),
   avatar_url text,
@@ -79,7 +79,7 @@ create table public.communities (
   created_by uuid references public.profiles(id) on delete set null,
   created_at timestamptz not null default now()
 );
-create unique index communities_brand_name on public.communities (lower(name)) where kind = 'brand';
+create unique index communities_name_unique on public.communities (lower(btrim(name)));  -- one community per name, any capitals
 
 create table public.community_members (
   community_id uuid not null references public.communities(id) on delete cascade,
@@ -264,7 +264,7 @@ create trigger car_follows_check before insert on public.car_follows for each ro
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$
 begin
   insert into profiles (id, handle, name)
-  values (new.id, new.raw_user_meta_data->>'handle', coalesce(new.raw_user_meta_data->>'name', ''));
+  values (new.id, lower(new.raw_user_meta_data->>'handle'), coalesce(new.raw_user_meta_data->>'name', ''));
   return new;
 end $$;
 create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
