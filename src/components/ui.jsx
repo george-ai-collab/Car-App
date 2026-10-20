@@ -295,3 +295,23 @@ export function FollowAvatar({ username, size, showFollow, following, onFollow, 
     </div>
   );
 }
+
+// Text tabs with a red underline (Local / Global, Posts / Discuss / People).
+export function Segmented({ value, onChange, options, testid }) {
+  return (
+    <div data-testid={testid} style={{ display: "flex", gap: 22, borderBottom: `1px solid ${T.lineDark}`, marginBottom: 16 }}>
+      {options.map(([id, label]) => {
+        const on = value === id;
+        return (
+          <button key={id} onClick={() => onChange(id)} className="press" style={{
+            background: "none", border: "none", padding: "10px 0 12px", position: "relative",
+            color: on ? T.text : T.textDim, fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+          }}>
+            {label}
+            <span style={{ position: "absolute", left: 0, right: 0, bottom: -1, height: 2.5, borderRadius: 2, background: on ? T.accent : "transparent", transition: "background .15s ease" }} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}

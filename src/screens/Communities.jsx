@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Car, Image as ImageIcon, Heart, MessageCircle, Check } from "lucide-react";
+import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2 } from "lucide-react";
 import { T } from "../theme";
-import { hueForId } from "../lib/utils";
-import { Avatar, EmptyState, Field, TextInput, SectionLabel } from "../components/ui";
+import { hueForId, timeAgo } from "../lib/utils";
+import { useSwipe } from "../lib/useSwipe";
+import { Avatar, EmptyState, Field, TextInput, TextArea, SectionLabel, Segmented, ConfirmDialog } from "../components/ui";
 
 export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
   const joined = community.members.includes(me);
@@ -18,7 +19,7 @@ export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
         </button>
         <button onClick={() => onToggle(community.id)} className="press" style={{
           padding: "7px 14px", borderRadius: 999, border: `1px solid ${joined ? T.lineDark : T.accent}`,
-          background: joined ? "transparent" : T.accent, color: joined ? T.text : T.ink, fontSize: 12.5, fontWeight: 600,
+          background: joined ? "transparent" : T.accent, color: joined ? T.text : "#fff", fontSize: 12.5, fontWeight: 600,
           display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
         }}>
           {joined && <Check size={12} />} {joined ? "Joined" : "Join"}
@@ -43,7 +44,7 @@ export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
       </button>
       <button onClick={() => onToggle(community.id)} className="press" style={{
         padding: "7px 14px", borderRadius: 999, border: `1px solid ${joined ? T.lineDark : T.accent}`,
-        background: joined ? "transparent" : T.accent, color: joined ? T.text : T.ink, fontSize: 12.5, fontWeight: 600,
+        background: joined ? "transparent" : T.accent, color: joined ? T.text : "#fff", fontSize: 12.5, fontWeight: 600,
         display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", boxShadow: joined ? "none" : T.shadowAccent,
       }}>
         {joined && <Check size={12} />} {joined ? "Joined" : "Join"}
@@ -79,17 +80,27 @@ export function CommunityPostRow({ post, car, onOpenPost, onOpenCar, onOpenProfi
   );
 }
 
-export function CommunityPage({ community, me, cars, posts, onToggle, openPost, openCar }) {
+// Engagement decides tile size in the Posts mosaic (likes + comments count double).
+const score = (p) => p.likes.length + 2 * p.comments.length;
+
+export function CommunityPage({ community, me, users, cars, posts, discussions, onToggle, openPost, openProfile, openThread, onNewThread, onNewPost, tab = "posts", setTab }) {
   const joined = community.members.includes(me);
-  const communityPosts = Object.values(posts).filter((p) => p.communityId === community.id && !p.archived).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const order = ["posts", "discuss", "people"];
+  const sw = useSwipe({
+    onLeft: () => setTab(order[Math.min(order.length - 1, order.indexOf(tab) + 1)]),
+    onRight: () => setTab(order[Math.max(0, order.indexOf(tab) - 1)]),
+  });
+  const cPosts = Object.values(posts).filter((p) => p.communityId === community.id && !p.archived).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const threads = Object.values(discussions || {}).filter((t) => t.communityId === community.id)
+    .sort((a, b) => new Date(b.replies.at(-1)?.date || b.date) - new Date(a.replies.at(-1)?.date || a.date));
 
   return (
-    <div style={{ paddingTop: 18, paddingBottom: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
-        <Avatar username={community.name} size={56} />
-        <div style={{ flex: 1 }}>
-          <div className="display" style={{ fontSize: 19, color: T.text }}>{community.name}</div>
-          <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 2 }}>{community.members.length} {community.members.length === 1 ? "member" : "members"}</div>
+    <div {...sw.bind} style={{ ...sw.bind.style, paddingBottom: 10, minHeight: "75vh" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
+        <Avatar username={community.name} size={60} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="display" style={{ fontSize: 21, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{community.name}</div>
+          <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 2 }}>{community.members.length} {community.members.length === 1 ? "member" : "members"}{community.kind === "brand" ? " · brand" : ""}</div>
         </div>
         <button onClick={() => onToggle(community.id)} className="press" style={{
           padding: "8px 16px", borderRadius: 999, border: `1px solid ${joined ? T.lineDark : T.accent}`,
@@ -100,17 +111,188 @@ export function CommunityPage({ community, me, cars, posts, onToggle, openPost, 
           {joined && <Check size={12} />} {joined ? "Joined" : "Join"}
         </button>
       </div>
-      {community.description && <div style={{ color: T.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 20 }}>{community.description}</div>}
+      {community.description && <div style={{ color: T.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }}>{community.description}</div>}
 
-      <SectionLabel>Posts</SectionLabel>
-      {communityPosts.length === 0 ? (
-        <EmptyState icon={<ImageIcon size={20} color={T.textDim} />} title="No posts yet"
-          body={joined ? "Tag this community next time you post about a car." : "Join to be the first to post here."} />
-      ) : (
-        communityPosts.map((p) => (
-          <CommunityPostRow key={p.id} post={p} car={cars[p.carId]} onOpenPost={openPost} onOpenCar={openCar} />
-        ))
+      <Segmented testid="community-tabs" value={tab} onChange={setTab} options={[["posts", "Posts"], ["discuss", "Discuss"], ["people", "People"]]} />
+
+      {tab === "posts" && (
+        <>
+          <button onClick={onNewPost} className="press" style={dashedBtn}><Plus size={14} /> Post to {community.name}</button>
+          {cPosts.length === 0
+            ? <EmptyState icon={<ImageIcon size={20} color={T.textDim} />} title="No posts yet" body="Post a photo of your car here and it shows up for everyone in the community." />
+            : <Mosaic posts={cPosts} openPost={openPost} />}
+        </>
       )}
+
+      {tab === "discuss" && (
+        <>
+          <button onClick={onNewThread} className="press" style={dashedBtn}><Plus size={14} /> Start a discussion</button>
+          {threads.length === 0
+            ? <EmptyState icon={<MessagesSquare size={20} color={T.textDim} />} title="No discussions yet" body="Ask about a mod, share an opinion, plan a drive." />
+            : threads.map((t) => <ThreadCard key={t.id} thread={t} me={me} onOpen={openThread} />)}
+        </>
+      )}
+
+      {tab === "people" && <People community={community} users={users} posts={cPosts} threads={threads} openProfile={openProfile} />}
+    </div>
+  );
+}
+
+const dashedBtn = {
+  width: "100%", marginBottom: 14, padding: "11px 14px", borderRadius: 16, border: `1px dashed ${T.lineDark}`,
+  background: T.surface, color: T.text, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+};
+
+// Instagram-explore style grid: the most-liked/commented posts get big tiles.
+function Mosaic({ posts, openPost }) {
+  const ranked = [...posts].sort((a, b) => score(b) - score(a));
+  const bigCount = Math.min(3, Math.ceil(posts.length / 5));
+  const big = new Set(ranked.slice(0, bigCount).filter((p) => score(p) >= 2).map((p) => p.id));
+  return (
+    <div data-testid="mosaic" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridAutoRows: "clamp(96px, calc((100vw - 44px) / 3), 145px)", gridAutoFlow: "dense", gap: 6 }}>
+      {posts.map((p, i) => {
+        const isBig = big.has(p.id);
+        const hue = hueForId(p.id);
+        // Alternate big tiles left and right, like your sketch.
+        const col = isBig ? ([...big].indexOf(p.id) % 2 === 0 ? "2 / span 2" : "1 / span 2") : undefined;
+        return (
+          <button key={p.id} data-testid={isBig ? "tile-big" : "tile"} onClick={() => openPost(p.id)} style={{
+            gridColumn: col, gridRow: isBig ? "span 2" : undefined,
+            position: "relative", borderRadius: 14, overflow: "hidden", border: "none", padding: 0,
+            background: p.photoUrl ? `url(${p.photoUrl}) center/cover` : `linear-gradient(135deg, hsl(${hue},45%,24%), hsl(${hue},35%,12%))`,
+          }}>
+            {!p.photoUrl && <span style={{ position: "absolute", inset: 8, color: "#fff", fontSize: isBig ? 15 : 11.5, fontWeight: 600, textAlign: "left", overflow: "hidden", lineHeight: 1.35 }}>{p.caption || ""}</span>}
+            {isBig && (
+              <span style={{ position: "absolute", left: 8, bottom: 8, display: "flex", gap: 8, color: "#fff", fontSize: 12, fontWeight: 700, textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Heart size={12} fill="#fff" /> {p.likes.length}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 3 }}><MessageCircle size={12} /> {p.comments.length}</span>
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ThreadCard({ thread, me, onOpen }) {
+  return (
+    <button data-testid="thread-card" onClick={() => onOpen(thread.id)} className="press" style={{
+      width: "100%", textAlign: "left", padding: 14, marginBottom: 10, borderRadius: 20,
+      background: T.surface, border: `1px solid ${T.lineDark}`, boxShadow: T.shadowCard,
+    }}>
+      <div style={{ color: T.text, fontSize: 15, fontWeight: 700, lineHeight: 1.3 }}>{thread.title}</div>
+      {thread.body && <div style={{ color: T.textDim, fontSize: 13, lineHeight: 1.45, marginTop: 5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{thread.body}</div>}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, color: T.textDim, fontSize: 11.5 }}>
+        <Avatar username={thread.author} size={18} />
+        <span style={{ color: T.text, fontWeight: 600 }}>{thread.author}</span>
+        <span>· {timeAgo(thread.date)}</span>
+        <span style={{ flex: 1 }} />
+        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Heart size={11} color={thread.likes.includes(me) ? T.accent : T.textDim} fill={thread.likes.includes(me) ? T.accent : "none"} /> {thread.likes.length}</span>
+        <span style={{ display: "flex", alignItems: "center", gap: 3 }}><MessageCircle size={11} /> {thread.replies.length}</span>
+      </div>
+    </button>
+  );
+}
+
+// Moderators + most active members.
+function People({ community, users, posts, threads, openProfile }) {
+  const mods = community.kind === "custom" ? [community.createdBy].filter(Boolean) : community.members.slice(0, 1);
+  const counts = {};
+  const bump = (u, k) => { counts[u] = counts[u] || { posts: 0, talk: 0 }; counts[u][k]++; };
+  posts.forEach((p) => bump(p.authorUsername, "posts"));
+  threads.forEach((t) => { bump(t.author, "talk"); t.replies.forEach((r) => bump(r.author, "talk")); });
+  const top = Object.entries(counts).sort((a, b) => (b[1].posts + b[1].talk) - (a[1].posts + a[1].talk)).slice(0, 5);
+  const row = (u, right) => (
+    <button key={u} onClick={() => openProfile(u)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: "8px 0", textAlign: "left" }}>
+      <Avatar username={u} size={36} />
+      <div style={{ flex: 1 }}>
+        <div style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{users[u]?.name || u}</div>
+        <div className="plate" style={{ color: T.textDim, fontSize: 10.5 }}>@{u}</div>
+      </div>
+      {right}
+    </button>
+  );
+  return (
+    <div data-testid="people">
+      <SectionLabel>{community.kind === "custom" ? "Moderators" : "Founding member"}</SectionLabel>
+      {mods.length ? mods.map((u) => row(u, <span style={{ display: "flex", alignItems: "center", gap: 4, color: T.accent, fontSize: 11.5, fontWeight: 700 }}><Shield size={12} /> Mod</span>)) : <div style={{ color: T.textDim, fontSize: 13 }}>None yet.</div>}
+      <div style={{ height: 14 }} />
+      <SectionLabel>Top contributors</SectionLabel>
+      {top.length === 0 ? <div style={{ color: T.textDim, fontSize: 13 }}>Nobody has posted yet.</div> : top.map(([u, c], i) => row(u,
+        <span style={{ color: T.textDim, fontSize: 11.5, textAlign: "right" }}>{i === 0 && <Crown size={12} color={T.accentWarm} style={{ marginRight: 4, verticalAlign: "-2px" }} />}{c.posts} posts · {c.talk} in discuss</span>))}
+      <div style={{ height: 14 }} />
+      <SectionLabel>Members · {community.members.length}</SectionLabel>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {community.members.slice(0, 40).map((u) => (
+          <button key={u} onClick={() => openProfile(u)} aria-label={u} style={{ background: "none", border: "none", padding: 0 }}><Avatar username={u} size={34} /></button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// A single discussion with its replies.
+export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, openProfile, onGone }) {
+  const [text, setText] = useState("");
+  const [confirm, setConfirm] = useState(false);
+  const liked = thread.likes.includes(me);
+  return (
+    <div style={{ paddingBottom: 10 }}>
+      {community && <div className="plate" style={{ color: T.accent, fontSize: 10.5, marginBottom: 8 }}>{community.name} · Discuss</div>}
+      <div className="display" style={{ fontSize: 22, color: T.text, lineHeight: 1.2 }}>{thread.title}</div>
+      <button onClick={() => openProfile(thread.author)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, marginTop: 10 }}>
+        <Avatar username={thread.author} size={26} />
+        <span style={{ color: T.text, fontSize: 13, fontWeight: 600 }}>{thread.author}</span>
+        <span style={{ color: T.textDim, fontSize: 12 }}>· {timeAgo(thread.date)}</span>
+      </button>
+      {thread.body && <div style={{ color: T.text, fontSize: 14.5, lineHeight: 1.55, marginTop: 14, whiteSpace: "pre-wrap" }}>{thread.body}</div>}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 0", margin: "14px 0", borderTop: `1px solid ${T.lineDark}`, borderBottom: `1px solid ${T.lineDark}` }}>
+        <button onClick={() => onLike(thread.id)} aria-label="Like discussion" style={{ background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", gap: 6, color: T.textDim, fontSize: 13 }}>
+          <Heart size={18} color={liked ? T.accent : T.textDim} fill={liked ? T.accent : "none"} /> {thread.likes.length}
+        </button>
+        <span style={{ display: "flex", alignItems: "center", gap: 6, color: T.textDim, fontSize: 13 }}><MessageCircle size={18} /> {thread.replies.length}</span>
+        <span style={{ flex: 1 }} />
+        {thread.author === me && (
+          <button onClick={() => setConfirm(true)} aria-label="Delete discussion" style={{ background: "none", border: "none", padding: 0, display: "flex" }}><Trash2 size={16} color={T.accent} /></button>
+        )}
+      </div>
+      {thread.replies.length === 0 && <div style={{ color: T.textDim, fontSize: 13, marginBottom: 14 }}>No replies yet. Start it off.</div>}
+      {thread.replies.map((r) => (
+        <div key={r.id} data-testid="thread-reply" style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+          <button onClick={() => openProfile(r.author)} style={{ background: "none", border: "none", padding: 0 }}><Avatar username={r.author} size={30} /></button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12.5 }}><span style={{ color: T.text, fontWeight: 700 }}>{r.author}</span> <span style={{ color: T.textDim }}>· {timeAgo(r.date)}</span></div>
+            <div style={{ color: T.text, fontSize: 14, lineHeight: 1.45, marginTop: 2, whiteSpace: "pre-wrap" }}>{r.text}</div>
+          </div>
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <div style={{ flex: 1 }}><TextInput value={text} onChange={setText} placeholder="Add to the discussion…" maxLength={500} /></div>
+        <button disabled={!text.trim()} onClick={() => { onReply(thread.id, text); setText(""); }} className="press"
+          style={{ padding: "0 16px", borderRadius: 16, border: "none", background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim, fontWeight: 600 }}>
+          Reply
+        </button>
+      </div>
+      <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title="Delete this discussion?" body="The discussion and all its replies will be removed." onConfirm={async () => { await onDelete(thread.id); onGone(); }} />
+    </div>
+  );
+}
+
+export function NewThreadForm({ community, onSubmit }) {
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <div style={{ paddingBottom: 10 }}>
+      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>Start a discussion</div>
+      <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 20 }}>In {community.name}. New mods, opinions, questions, plans.</div>
+      <Field label="Title"><TextInput value={title} onChange={setTitle} placeholder="e.g. Best coilovers for daily + track?" maxLength={100} /></Field>
+      <Field label="Details (optional)"><TextArea value={body} onChange={setBody} placeholder="Add context, your setup, what you've tried…" maxLength={1000} rows={6} /></Field>
+      <button disabled={!title.trim() || busy} className="press" onClick={async () => { setBusy(true); await onSubmit({ title, body }); setBusy(false); }}
+        style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", marginTop: 8, background: title.trim() ? T.accent : T.surface2, color: title.trim() ? "#fff" : T.textDim, fontWeight: 600, fontSize: 15 }}>
+        {busy ? "Posting…" : "Post discussion"}
+      </button>
     </div>
   );
 }
@@ -119,14 +301,14 @@ export function CreateCommunityForm({ onSubmit }) {
   const [name, setName] = useState(""); const [description, setDescription] = useState(""); const [busy, setBusy] = useState(false);
   const valid = name.trim();
   return (
-    <div style={{ paddingTop: 18, paddingBottom: 10 }}>
+    <div style={{ paddingBottom: 10 }}>
       <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>Start a community</div>
       <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 20 }}>A model, a scene, a local meet crowd — whatever people can gather around.</div>
       <Field label="Name"><TextInput value={name} onChange={setName} placeholder="e.g. R34 GT-R, JDM, Cars & Coffee QA" maxLength={40} /></Field>
       <Field label="Description (optional)"><TextInput value={description} onChange={setDescription} placeholder="What's it about?" maxLength={150} /></Field>
       <button disabled={!valid || busy}
         onClick={async () => { setBusy(true); await onSubmit({ name, description }); setBusy(false); }}
-        style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", marginTop: 8, background: valid ? T.accent : T.surface2, color: valid ? T.ink : T.textDim, fontWeight: 600, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
+        style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", marginTop: 8, background: valid ? T.accent : T.surface2, color: valid ? "#fff" : T.textDim, fontWeight: 600, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
         {busy ? "Creating…" : "Create"}
       </button>
     </div>

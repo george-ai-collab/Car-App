@@ -63,6 +63,7 @@ export function notifText(n) {
   if (n.type === "follow") return "started following you";
   if (n.type === "spot") return "spotted your car";
   if (n.type === "followBuild") return "started following your build";
+  if (n.type === "threadReply") return `replied to your discussion: "${n.text}"`;
   return "";
 }
 

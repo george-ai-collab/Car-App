@@ -5,6 +5,7 @@ import { hueForId } from "../lib/utils";
 import { Avatar, FollowAvatar, EmptyState, TextInput, BottomSheet } from "../components/ui";
 import { CommentRow } from "./PostDetail";
 import { PostMenu } from "../components/PostMenu";
+import { useSwipe } from "../lib/useSwipe";
 
 // Remembers how far down the feed you were, so coming back lands on the same post.
 const feedScroll = new Map();
@@ -21,13 +22,23 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
   const [commentsPostId, setCommentsPostId] = useState(null);
   const commentsPost = commentsPostId ? posts[commentsPostId] : null;
   const scroller = useRef(null);
+  // Swipe left on a post = open that person's profile. Swipe right = switch For You / Following.
+  const sw = useSwipe({
+    onLeft: () => {
+      const el = scroller.current;
+      const i = el ? Math.round(el.scrollTop / Math.max(1, el.clientHeight)) : 0;
+      const post = list[i];
+      if (post) openProfile(post.authorUsername);
+    },
+    onRight: () => setTab(tab === "foryou" ? "following" : "foryou"),
+  });
   const memoKey = `${scrollKey}-${tab}`;
   useLayoutEffect(() => {
     if (scroller.current) scroller.current.scrollTop = feedScroll.get(memoKey) || 0;
   }, [memoKey, list.length > 0]);
 
   return (
-    <div style={{ position: "relative", height: "calc(100vh - 92px)", background: T.bg, overflow: "hidden" }}>
+    <div {...sw.bind} data-testid="feed" style={{ ...sw.bind.style, position: "relative", height: "calc(100vh - 92px)", background: T.bg, overflow: "hidden" }}>
       {/* Top controls: search on the left, tabs in the middle, notifications on the right. */}
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, zIndex: 8, display: "flex", alignItems: "center",
@@ -68,6 +79,7 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
         </div>
       ) : (
         <div ref={scroller} data-testid="feed-scroller" onScroll={(e) => feedScroll.set(memoKey, e.currentTarget.scrollTop)} style={{
+          transform: sw.dx ? `translateX(${sw.dx * 0.35}px)` : "none", transition: sw.dx ? "none" : "transform .2s ease",
           height: "100%", overflowY: "auto", scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch",
         }}>
           {list.map((p) => (

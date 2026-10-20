@@ -2,54 +2,41 @@ import { useState } from "react";
 import { Plus, Heart, Rss, Calendar, Users, ExternalLink, Search, ChevronRight } from "lucide-react";
 import { T } from "../theme";
 import { timeAgo } from "../lib/utils";
-import { Avatar, TabButton, IconBadge, EmptyState, TextInput, SectionLabel } from "../components/ui";
+import { Avatar, IconBadge, EmptyState, TextInput, SectionLabel, Segmented } from "../components/ui";
+import { useSwipe } from "../lib/useSwipe";
 import { CarCard } from "./Cars";
 import { CommunityCard } from "./Communities";
-import { MeetCard } from "./Meets";
 
-export function DiscoverView(props) {
-  const {
-    me, cars, users, news, meets, communities,
-    openCar, openProfile, openCommunity, onLikeNews, onToggleGoing, onToggleCommunity,
-    onOpenSearch, onOpenCommunities, onOpenMeets, onOpenNews,
-  } = props;
-
-  const communityList = Object.values(communities).sort((a, b) => b.members.length - a.members.length);
-  const meetList = Object.values(meets).sort((a, b) => (a.when || "").localeCompare(b.when || ""));
-  const newsAll = Object.values(news).sort((a, b) => new Date(b.date) - new Date(a.date));
-
+// Discover is a set of doors: tap one to open that section (like the + menu).
+export function DiscoverView({ meets, communities, news, onOpenSearch, onOpenCommunities, onOpenMeets, onOpenNews }) {
+  const upcoming = Object.values(meets).filter((m) => !m.when || new Date(m.when) >= new Date()).length;
+  const tiles = [
+    { id: "meets", title: "Meets", sub: "Find meets near you, or anywhere in the world", count: `${upcoming} upcoming`, icon: <Calendar size={24} color="#BFE0EC" />, tone: "accent2", onClick: onOpenMeets },
+    { id: "communities", title: "Communities", sub: "Your make, your scene, your people", count: `${Object.keys(communities).length} communities`, icon: <Users size={24} color={T.accent} />, tone: "accent", onClick: onOpenCommunities },
+    { id: "news", title: "News", sub: "What's happening in cars and racing", count: `${Object.keys(news).length} stories`, icon: <Rss size={24} color={T.accentWarm} />, tone: "warm", onClick: onOpenNews },
+  ];
   return (
-    <div style={{ paddingTop: 18 }}>
+    <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-        <div className="display" style={{ fontSize: 22, color: T.text }}>Discover</div>
-        <button onClick={onOpenSearch} style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 999, padding: 9 }}>
-          <Search size={17} color={T.text} />
+        <div className="display" style={{ fontSize: 24, color: T.text }}>Discover</div>
+        <button onClick={onOpenSearch} aria-label="Search" className="press" style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 999, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Search size={19} color={T.text} />
         </button>
       </div>
-
-      <DivisionCard title="Communities" icon={<Users size={15} color={T.accent} />} tone="accent" onSeeAll={onOpenCommunities}>
-        {communityList.length === 0 ? (
-          <div style={{ color: T.textDim, fontSize: 13 }}>No communities yet.</div>
-        ) : (
-          communityList.slice(0, 2).map((c) => <CommunityCard key={c.id} community={c} me={me} onToggle={onToggleCommunity} onOpen={openCommunity} compact />)
-        )}
-      </DivisionCard>
-
-      <DivisionCard title="Meets" icon={<Calendar size={15} color={T.accent2} />} tone="teal" onSeeAll={onOpenMeets}>
-        {meetList.length === 0 ? (
-          <div style={{ color: T.textDim, fontSize: 13 }}>No meets posted.</div>
-        ) : (
-          meetList.slice(0, 1).map((m) => <MeetCard key={m.id} meet={m} me={me} onToggleGoing={onToggleGoing} />)
-        )}
-      </DivisionCard>
-
-      <DivisionCard title="News" icon={<Rss size={15} color={T.accent} />} tone="accent" onSeeAll={onOpenNews}>
-        {newsAll.length === 0 ? (
-          <div style={{ color: T.textDim, fontSize: 13 }}>Nothing here yet.</div>
-        ) : (
-          newsAll.slice(0, 2).map((n) => <NewsCard key={n.id} item={n} me={me} onLike={onLikeNews} compact />)
-        )}
-      </DivisionCard>
+      {tiles.map((t) => (
+        <button key={t.id} data-testid={`door-${t.id}`} onClick={t.onClick} className="press" style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 16, padding: "22px 18px", marginBottom: 12, textAlign: "left",
+          background: `linear-gradient(135deg, ${T.surface2}, ${T.surface})`, border: `1px solid ${T.lineDark}`, borderRadius: 24, boxShadow: T.shadowCard,
+        }}>
+          <IconBadge size={56} tone={t.tone}>{t.icon}</IconBadge>
+          <div style={{ flex: 1 }}>
+            <div style={{ color: T.text, fontSize: 18, fontWeight: 700 }}>{t.title}</div>
+            <div style={{ color: T.textDim, fontSize: 13, lineHeight: 1.4, marginTop: 3 }}>{t.sub}</div>
+            <div className="plate" style={{ color: T.textDim, fontSize: 10.5, marginTop: 8 }}>{t.count}</div>
+          </div>
+          <ChevronRight size={20} color={T.textDim} />
+        </button>
+      ))}
     </div>
   );
 }
@@ -131,8 +118,8 @@ export function SearchScreen({ me, cars, users, communities, openCar, openProfil
 export function CommunitiesScreen({ me, communities, onToggle, onOpen, onCreate }) {
   const list = Object.values(communities).sort((a, b) => b.members.length - a.members.length);
   return (
-    <div style={{ paddingTop: 18 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 14 }}>Communities</div>
+    <div>
+      <div className="display" style={{ fontSize: 24, color: T.text, marginBottom: 14 }}>Communities</div>
       <button onClick={onCreate} style={{ width: "100%", marginBottom: 14, padding: "10px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
         <Plus size={14} /> Start a community
       </button>
@@ -145,33 +132,14 @@ export function CommunitiesScreen({ me, communities, onToggle, onOpen, onCreate 
   );
 }
 
-export function MeetsScreen({ me, meets, onToggleGoing, onPost, onEdit, onDelete }) {
-  const list = Object.values(meets).sort((a, b) => (a.when || "").localeCompare(b.when || ""));
-  return (
-    <div style={{ paddingTop: 18 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 14 }}>Meets</div>
-      <button onClick={onPost} style={{ width: "100%", marginBottom: 14, padding: "10px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-        <Plus size={14} /> Post a meet
-      </button>
-      {list.length === 0 ? (
-        <EmptyState icon={<Calendar size={20} color={T.textDim} />} title="No meets posted" body="Post one you're planning to go to." />
-      ) : (
-        list.map((m) => <MeetCard key={m.id} meet={m} me={me} onToggleGoing={onToggleGoing} onEdit={onEdit} onDelete={onDelete} />)
-      )}
-    </div>
-  );
-}
-
 export function NewsScreen({ me, news, onLike }) {
   const [tab, setTab] = useState("general");
+  const sw = useSwipe({ onLeft: () => setTab("racing"), onRight: () => setTab("general") });
   const list = Object.values(news).filter((n) => n.category === tab).sort((a, b) => new Date(b.date) - new Date(a.date));
   return (
-    <div style={{ paddingTop: 18 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 14 }}>News</div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        <TabButton active={tab === "general"} onClick={() => setTab("general")} label="General" />
-        <TabButton active={tab === "racing"} onClick={() => setTab("racing")} label="Racing" />
-      </div>
+    <div {...sw.bind} style={{ ...sw.bind.style, minHeight: "70vh" }}>
+      <div className="display" style={{ fontSize: 24, color: T.text, marginBottom: 6 }}>News</div>
+      <Segmented value={tab} onChange={setTab} options={[["general", "General"], ["racing", "Racing"]]} />
       {list.length === 0 ? (
         <EmptyState icon={<Rss size={20} color={T.textDim} />} title="Nothing here yet" body="Check back soon." />
       ) : (

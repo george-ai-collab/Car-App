@@ -55,15 +55,15 @@ export function AddChoiceScreen({ onNewPost, onSpot, onAddCar }) {
   );
 }
 
-export function NewPostForm({ me, cars, communities, onSubmit, onNeedCar }) {
+export function NewPostForm({ me, cars, communities, onSubmit, onNeedCar, initialCommunityId }) {
   // Only your own cars, plus public cars you've spotted. Other accounts' garages never show up here.
   const byName = (a, b) => a.make.localeCompare(b.make);
   const myCars = Object.values(cars).filter((c) => c.ownerUsername === me).sort(byName);
   const spotted = Object.values(cars).filter((c) => c.ownerUsername !== me && c.hasPage !== false && c.spotterUsernames.includes(me)).sort(byName);
   const carList = [...myCars, ...spotted];
-  const joinedCommunities = Object.values(communities || {}).filter((c) => c.members.includes(me));
+  const joinedCommunities = Object.values(communities || {}).filter((c) => c.members.includes(me) || c.id === initialCommunityId);
   const [carId, setCarId] = useState(carList[0]?.id || "");
-  const [communityId, setCommunityId] = useState("");
+  const [communityId, setCommunityId] = useState(initialCommunityId || "");
   const [photo, setPhoto] = useState(null); const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
 

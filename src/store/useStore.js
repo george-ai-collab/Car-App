@@ -15,6 +15,7 @@ export const KEYS = {
   communities: "carfooly-communities",
   notifications: "carfooly-notifications",
   sightings: "carfooly-sightings",
+  discussions: "carfooly-discussions",
   me: "carfooly-me",
 };
 
@@ -34,7 +35,7 @@ export function useStore(flash) {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({
-    cars: {}, posts: {}, users: {}, news: {}, meets: {}, communities: {}, notifications: {}, sightings: {},
+    cars: {}, posts: {}, users: {}, news: {}, meets: {}, communities: {}, notifications: {}, sightings: {}, discussions: {},
   });
   // Always-fresh copy of data, so actions that change several things in a row don't overwrite each other.
   const ref = useRef(data);
@@ -42,16 +43,16 @@ export function useStore(flash) {
 
   useEffect(() => {
     (async () => {
-      const [c, p, u, n, m, co, nf, sg, meRes] = await Promise.all([
+      const [c, p, u, n, m, co, nf, sg, ds, meRes] = await Promise.all([
         readShared(KEYS.cars), readShared(KEYS.posts), readShared(KEYS.users), readShared(KEYS.news),
-        readShared(KEYS.meets), readShared(KEYS.communities), readShared(KEYS.notifications), readShared(KEYS.sightings),
+        readShared(KEYS.meets), readShared(KEYS.communities), readShared(KEYS.notifications), readShared(KEYS.sightings), readShared(KEYS.discussions),
         window.storage.get(KEYS.me, false).catch(() => null),
       ]);
       const seed = {};
       SEED_NEWS.forEach((item) => { seed[item.id] = { ...item, submittedBy: null, likes: [] }; });
       const next = {
         cars: c || {}, posts: p || {}, users: u || {}, news: { ...seed, ...(n || {}) },
-        meets: normalizeMeets(m), communities: co || {}, notifications: nf || {}, sightings: sg || {},
+        meets: normalizeMeets(m), communities: co || {}, notifications: nf || {}, sightings: sg || {}, discussions: ds || {},
       };
       ref.current = next;
       setData(next);
@@ -160,10 +161,15 @@ export function useStore(flash) {
     Object.entries(d.notifications).forEach(([h, list]) => { if (h !== me) notifications[h] = list.filter((n) => n.from !== me); });
     const news = {};
     Object.values(d.news).forEach((n) => { news[n.id] = { ...n, likes: strip(n.likes) }; });
+    const discussions = {};
+    Object.values(d.discussions).forEach((t) => {
+      if (t.author === me) return;
+      discussions[t.id] = { ...t, likes: strip(t.likes), replies: t.replies.filter((r) => r.author !== me) };
+    });
 
     await save("cars", cars); await save("posts", posts); await save("users", users); await save("meets", meets);
     await save("communities", communities); await save("sightings", sightings); await save("notifications", notifications, true);
-    await save("news", news);
+    await save("news", news); await save("discussions", discussions);
     await logout();
   };
 
@@ -390,19 +396,25 @@ export function useStore(flash) {
     await save("news", { ...get().news, [id]: { ...item, likes: has ? item.likes.filter((u) => u !== me) : [...item.likes, me] } });
   };
 
-  const submitMeet = async ({ title, location, lat, lng, when, note }, editingId) => {
-    if (!title.trim() || !location.trim() || !when) return null;
-    const place = { location: location.trim(), lat: lat ?? null, lng: lng ?? null };
+  // A meet: what, when, where (with city/country for Near you), cover photo, sponsors, details.
+  const submitMeet = async (f, editingId) => {
+    if (!f.title.trim() || !f.location.trim() || !f.when) return null;
+    const fields = {
+      title: f.title.trim(), location: f.location.trim(), lat: f.lat ?? null, lng: f.lng ?? null,
+      city: (f.city || "").trim(), country: (f.country || "").trim(),
+      when: f.when, note: (f.note || "").trim(), cover: f.cover || null,
+      sponsors: (f.sponsors || []).map((x) => x.trim()).filter(Boolean).slice(0, 8),
+    };
     const meets = get().meets;
     if (editingId) {
       const existing = meets[editingId];
       if (!existing || existing.submittedBy !== me) return null;
-      await save("meets", { ...meets, [editingId]: { ...existing, title: title.trim(), ...place, when, note: note.trim() } });
+      await save("meets", { ...meets, [editingId]: { ...existing, ...fields } });
       flash("Meet updated");
       return editingId;
     }
     const id = uid("meet");
-    await save("meets", { ...meets, [id]: { id, title: title.trim(), ...place, when, note: note.trim(), submittedBy: me, createdAt: now(), attendees: [{ username: me, role: "organizer" }] } });
+    await save("meets", { ...meets, [id]: { id, ...fields, submittedBy: me, createdAt: now(), attendees: [{ username: me, role: "organizer" }] } });
     flash("Meet posted");
     return id;
   };
@@ -441,6 +453,45 @@ export function useStore(flash) {
     await save("communities", { ...get().communities, [id]: { ...c, members: inIt ? c.members.filter((u) => u !== me) : [...c.members, me] } });
   };
 
+  // ---------- community discussions ----------
+  const joinIfNeeded = async (communityId) => {
+    const c = get().communities[communityId];
+    if (c && !c.members.includes(me)) await save("communities", { ...get().communities, [c.id]: { ...c, members: [...c.members, me] } });
+  };
+
+  const createThread = async ({ communityId, title, body }) => {
+    if (!title.trim() || !get().communities[communityId]) return null;
+    const id = uid("thread");
+    await save("discussions", { ...get().discussions, [id]: { id, communityId, author: me, title: title.trim(), body: (body || "").trim(), date: now(), likes: [], replies: [] } });
+    await joinIfNeeded(communityId);
+    flash("Discussion started");
+    return id;
+  };
+
+  const replyThread = async (threadId, text) => {
+    const t = get().discussions[threadId];
+    if (!t || !text.trim()) return;
+    const reply = { id: uid("r"), author: me, text: text.trim(), date: now() };
+    await save("discussions", { ...get().discussions, [threadId]: { ...t, replies: [...t.replies, reply] } });
+    await joinIfNeeded(t.communityId);
+    await pushNotif(t.author, { type: "threadReply", from: me, threadId, text: text.trim().slice(0, 60) });
+  };
+
+  const toggleThreadLike = async (threadId) => {
+    const t = get().discussions[threadId];
+    if (!t) return;
+    const has = t.likes.includes(me);
+    await save("discussions", { ...get().discussions, [threadId]: { ...t, likes: has ? t.likes.filter((u) => u !== me) : [...t.likes, me] } });
+  };
+
+  const deleteThread = async (threadId) => {
+    const t = get().discussions[threadId];
+    if (!t || t.author !== me) return;
+    const { [threadId]: _gone, ...rest } = get().discussions;
+    await save("discussions", rest);
+    flash("Discussion deleted");
+  };
+
   const markNotificationsRead = async () => {
     const all = get().notifications;
     const mine = all[me] || [];
@@ -456,6 +507,7 @@ export function useStore(flash) {
       createPost, editPost, setArchived, deletePost, toggleLike, addComment, addReply,
       toggleFollow, toggleNewsLike, submitMeet, deleteMeet, toggleGoing,
       createCommunity, toggleCommunityMembership, markNotificationsRead,
+      createThread, replyThread, toggleThreadLike, deleteThread,
     },
   };
 }

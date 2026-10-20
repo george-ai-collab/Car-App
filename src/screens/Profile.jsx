@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSwipe } from "../lib/useSwipe";
 import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus } from "lucide-react";
 import { T } from "../theme";
 import { computeBadges, nextBadgeProgress } from "../lib/badges";
@@ -7,6 +8,11 @@ import { CarCard, SightingCard } from "./Cars";
 
 export function Profile({ username, me, cars, posts, users, sightings, tab = "posts", setTab, onToggleFollow, openCar, openPost, onAddCar, onOpenSettings }) {
   const [showBadges, setShowBadges] = useState(false);
+  const tabs = ["posts", "cars", "spotted"];
+  const sw = useSwipe({
+    onLeft: () => setTab(tabs[Math.min(2, tabs.indexOf(tab) + 1)]),
+    onRight: () => setTab(tabs[Math.max(0, tabs.indexOf(tab) - 1)]),
+  });
   const user = users[username] || { name: username, joinedAt: null, followers: [], following: [] };
   const isMe = username === me;
   const iFollow = (users[me]?.following || []).includes(username);
@@ -19,7 +25,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
   const nextBadge = nextBadgeProgress(username, cars, sightings);
 
   return (
-    <div style={{ paddingTop: 40, paddingBottom: 10 }}>
+    <div {...sw.bind} style={{ ...sw.bind.style, paddingTop: 40, paddingBottom: 10, minHeight: "75vh" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 22 }}>
         <FollowAvatar username={username} size={76} showFollow={!isMe} following={iFollow} onFollow={onToggleFollow} />
         <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>

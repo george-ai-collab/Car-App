@@ -7,18 +7,18 @@ import { BottomNav } from "./components/BottomNav";
 import { Feed } from "./screens/Feed";
 import { InboxView } from "./screens/Inbox";
 import { PostDetail } from "./screens/PostDetail";
-import { DiscoverView, SearchScreen, CommunitiesScreen, MeetsScreen, NewsScreen } from "./screens/Discover";
-import { CommunityPage, CreateCommunityForm } from "./screens/Communities";
+import { DiscoverView, SearchScreen, CommunitiesScreen, NewsScreen } from "./screens/Discover";
+import { CommunityPage, CreateCommunityForm, ThreadPage, NewThreadForm } from "./screens/Communities";
 import { AddCarForm, CarPage } from "./screens/Cars";
 import { Profile } from "./screens/Profile";
-import { AddMeetForm } from "./screens/Meets";
+import { AddMeetForm, MeetsScreen, MeetDetail } from "./screens/Meets";
 import { AddChoiceScreen, NewPostForm, SpotForm } from "./screens/Add";
 import { SettingsScreen, EditProfile, ManageCars, ArchivedPosts } from "./screens/Settings";
 
 const ADD_VIEWS = ["addChoice", "newPost", "quickSpot", "addCar"];
 
 export function Shell({ store, toast }) {
-  const { me, cars, posts, users, news, meets, communities, notifications, sightings, actions: a } = store;
+  const { me, cars, posts, users, news, meets, communities, notifications, sightings, discussions, actions: a } = store;
   const nav = useNav();
   const { current: cur, stack, go, back, tab, replace, reset, patch } = nav;
   const p = cur.params || {};
@@ -59,6 +59,8 @@ export function Shell({ store, toast }) {
   };
   const openPost = (id) => go("postDetail", { id });
   const openCommunity = (id) => go("communityPage", { id });
+  const openMeet = (id) => go("meet", { id });
+  const openThread = (id) => go("thread", { id });
 
   const unread = (notifications[me] || []).filter((n) => !n.read).length;
 
@@ -70,8 +72,8 @@ export function Shell({ store, toast }) {
         openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} />;
       break;
     case "inbox":
-      page = <InboxView me={me} notifications={notifications[me] || []} posts={posts} cars={cars}
-        onMount={a.markNotificationsRead} openPost={openPost} openCar={openCar} openProfile={openProfile} />;
+      page = <InboxView me={me} notifications={notifications[me] || []} posts={posts} cars={cars} discussions={discussions}
+        onMount={a.markNotificationsRead} openPost={openPost} openCar={openCar} openProfile={openProfile} openThread={openThread} />;
       break;
     case "discover":
       page = <DiscoverView me={me} cars={cars} users={users} news={news} meets={meets} communities={communities}
@@ -89,19 +91,35 @@ export function Shell({ store, toast }) {
         onCreate={() => go("createCommunity")} />;
       break;
     case "communityPage":
-      page = communities[p.id] && <CommunityPage community={communities[p.id]} me={me} cars={cars} posts={posts}
-        onToggle={a.toggleCommunityMembership} openPost={openPost} openCar={openCar} />;
+      page = communities[p.id] && <CommunityPage community={communities[p.id]} me={me} users={users} cars={cars} posts={posts} discussions={discussions}
+        onToggle={a.toggleCommunityMembership} openPost={openPost} openProfile={openProfile} openThread={openThread}
+        onNewThread={() => go("newThread", { communityId: p.id })} onNewPost={() => go("newPost", { communityId: p.id })}
+        tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })} />;
+      break;
+    case "thread": {
+      const t = discussions[p.id];
+      page = t && <ThreadPage thread={t} community={communities[t.communityId]} me={me} onReply={a.replyThread} onLike={a.toggleThreadLike}
+        onDelete={a.deleteThread} openProfile={openProfile} onGone={back} />;
+      break;
+    }
+    case "newThread":
+      page = communities[p.communityId] && <NewThreadForm community={communities[p.communityId]}
+        onSubmit={async (data) => { const id = await a.createThread({ communityId: p.communityId, ...data }); if (id) replace("thread", { id }); }} />;
       break;
     case "meetList":
-      page = <MeetsScreen me={me} meets={meets} onToggleGoing={a.toggleGoing} onPost={() => go("addMeet")}
-        onEdit={(id) => go("addMeet", { id })} onDelete={a.deleteMeet} />;
+      page = <MeetsScreen meets={meets} onOpen={openMeet} onPost={() => go("addMeet")}
+        scope={p.scope || "local"} setScope={(sc) => patch({ scope: sc })} />;
+      break;
+    case "meet":
+      page = meets[p.id] && <MeetDetail meet={meets[p.id]} me={me} users={users} onToggleGoing={a.toggleGoing}
+        onEdit={(id) => go("addMeet", { id })} onDelete={async (id) => { await a.deleteMeet(id); back(); }} openProfile={openProfile} />;
       break;
     case "newsList":
       page = <NewsScreen me={me} news={news} onLike={a.toggleNewsLike} />;
       break;
     case "addMeet":
       page = <AddMeetForm key={p.id || "new"} editing={p.id ? meets[p.id] : null}
-        onSubmit={async (data) => { const id = await a.submitMeet(data, p.id); if (id) back(); }} />;
+        onSubmit={async (data) => { const id = await a.submitMeet(data, p.id); if (!id) return; if (p.id) back(); else replace("meet", { id }); }} />;
       break;
     case "createCommunity":
       page = <CreateCommunityForm onSubmit={async (data) => { const id = await a.createCommunity(data); if (id) replace("communityPage", { id }); }} />;
@@ -119,8 +137,8 @@ export function Shell({ store, toast }) {
       page = cars[p.id] && <AddCarForm initial={cars[p.id]} onSubmit={async (data) => { await a.editCar(p.id, data); back(); }} />;
       break;
     case "newPost":
-      page = <NewPostForm me={me} cars={cars} communities={communities}
-        onSubmit={async (data) => { const id = await a.createPost(data); if (id) reset(); }} onNeedCar={() => go("addCar")} />;
+      page = <NewPostForm me={me} cars={cars} communities={communities} initialCommunityId={p.communityId}
+        onSubmit={async (data) => { const id = await a.createPost(data); if (!id) return; if (p.communityId) back(); else reset(); }} onNeedCar={() => go("addCar")} />;
       break;
     case "addChoice":
       page = <AddChoiceScreen onNewPost={() => go("newPost")} onSpot={() => go("quickSpot")} onAddCar={() => go("addCar")} />;

@@ -16,7 +16,13 @@ export function directionsUrl(lat, lng) {
   return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
 }
 
-function labelFor(p) {
+// City + country of a place, so meets can be grouped and found "near you".
+export function placeArea(p) {
+  const isTown = ["city", "town", "village"].includes(p.type) || ["city", "town", "village"].includes(p.osm_value);
+  return { city: p.city || (isTown ? p.name : "") || p.county || p.state || "", country: p.country || "" };
+}
+
+export function labelFor(p) {
   const parts = [];
   if (p.name) parts.push(p.name);
   const street = [p.housenumber, p.street].filter(Boolean).join(" ");
@@ -88,7 +94,7 @@ export function LocationPicker({ value, onChange }) {
         const res = await fetch(`${SEARCH}?q=${encodeURIComponent(q)}&limit=5${bias}`);
         const json = await res.json();
         if (!cancelled) {
-          setResults((json.features || []).map((f) => ({ label: labelFor(f.properties || {}), lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] })).filter((r) => r.label));
+          setResults((json.features || []).map((f) => ({ label: labelFor(f.properties || {}), ...placeArea(f.properties || {}), lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] })).filter((r) => r.label));
           setError("");
         }
       } catch {
@@ -102,34 +108,35 @@ export function LocationPicker({ value, onChange }) {
 
   const setText = (text) => {
     setQuery(text);
-    onChange({ location: text, lat: value?.lat ?? null, lng: value?.lng ?? null });
+    onChange({ ...value, location: text });
   };
 
   const choose = (r) => {
     skipSearch.current = true;
     setQuery(r.label);
     setResults([]);
-    onChange({ location: r.label, lat: r.lat, lng: r.lng });
+    onChange({ location: r.label, lat: r.lat, lng: r.lng, city: r.city, country: r.country });
   };
 
   // Tapping the map drops a pin and looks up the address for it.
   const pickPoint = async ({ lat, lng }) => {
-    onChange({ location: query, lat, lng });
+    onChange({ ...value, location: query, lat, lng });
     try {
       const res = await fetch(`${REVERSE}?lat=${lat}&lon=${lng}`);
       const json = await res.json();
-      const label = json.features?.[0] ? labelFor(json.features[0].properties || {}) : "";
+      const props = json.features?.[0]?.properties || {};
+      const label = json.features?.[0] ? labelFor(props) : "";
       const text = label || `Pinned spot (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
       skipSearch.current = true;
       setQuery(text);
       setResults([]);
-      onChange({ location: text, lat, lng });
+      onChange({ location: text, lat, lng, ...placeArea(props) });
     } catch {
       if (!query.trim()) {
         const text = `Pinned spot (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
         skipSearch.current = true;
         setQuery(text);
-        onChange({ location: text, lat, lng });
+        onChange({ ...value, location: text, lat, lng });
       }
     }
   };
@@ -168,7 +175,7 @@ export function LocationPicker({ value, onChange }) {
       )}
 
       <div style={{ marginTop: 10, position: "relative", isolation: "isolate", zIndex: 0 }}>
-        <LeafletMap pin={pin} onPick={pickPoint} />
+        <div data-noswipe><LeafletMap pin={pin} onPick={pickPoint} /></div>
         <button onClick={useMyLocation} disabled={locating} className="glass press" style={{
           position: "absolute", right: 10, bottom: 26, zIndex: 500, border: "none", padding: "8px 12px", borderRadius: 999,
           display: "flex", alignItems: "center", gap: 6, color: "#fff", fontSize: 12, fontWeight: 600,
