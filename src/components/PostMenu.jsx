@@ -13,10 +13,10 @@ export function PostMenu({ post, me, actions, onDeleted, overlay }) {
 
   return (
     <>
-      <button aria-label="Post options" data-testid="post-menu" onClick={(e) => { e.stopPropagation(); setMenu(true); }} className={overlay ? "glass-light press" : "press"} style={overlay
-        ? { border: "none", padding: 7, borderRadius: 999, display: "flex" }
+      <button aria-label="Post options" data-testid="post-menu" onClick={(e) => { e.stopPropagation(); setMenu(true); }} className="press" style={overlay
+        ? { width: 52, height: 32, background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }
         : { background: "rgba(255,255,255,0.06)", border: "none", padding: 7, borderRadius: 999, display: "flex" }}>
-        <MoreHorizontal size={18} color={overlay ? "#fff" : T.text} />
+        <MoreHorizontal size={overlay ? 28 : 18} color={overlay ? "#fff" : T.text} style={overlay ? { filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" } : undefined} />
       </button>
 
       <ActionMenu open={menu} onClose={() => setMenu(false)} items={[

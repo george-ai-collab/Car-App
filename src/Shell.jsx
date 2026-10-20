@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { T } from "./theme";
 import { useNav } from "./nav/useNav";
+import { useKeyboardOffset } from "./lib/keyboard";
 import { TopBar, SheetContext } from "./components/ui";
 import { BottomNav } from "./components/BottomNav";
 import { Feed } from "./screens/Feed";
@@ -22,6 +23,7 @@ export function Shell({ store, toast }) {
   const { current: cur, stack, go, back, tab, replace, reset, patch } = nav;
   const p = cur.params || {};
   const [sheets, setSheets] = useState(0);
+  const kb = useKeyboardOffset();
   const sheetDelta = useCallback((d) => setSheets((n) => Math.max(0, n + d)), []);
 
   // Android back button / gesture (see main.jsx). Returns false on the Feed so the app minimizes.
@@ -61,7 +63,7 @@ export function Shell({ store, toast }) {
     case "feed":
       page = <Feed me={me} cars={cars} posts={posts} users={users} tab={p.feedTab || "foryou"} setTab={(t) => patch({ feedTab: t })}
         openCar={openCar} openProfile={openProfile} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
-        openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} />;
+        openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} />;
       break;
     case "inbox":
       page = <InboxView me={me} notifications={notifications[me] || []} posts={posts} cars={cars}
@@ -165,19 +167,19 @@ export function Shell({ store, toast }) {
 
   return (
     <SheetContext.Provider value={sheetDelta}>
-      <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", position: "relative", paddingBottom: 110 }}>
+      <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", position: "relative", paddingBottom: 96 + kb, overflowX: "clip" }}>
         <TopBar onBack={showBack ? back : null} />
         <div key={cur.key} className="fade-in" data-view={cur.view} style={cur.view === "feed" ? { padding: 0 } : { padding: "0 16px" }}>
           {page}
         </div>
 
         {toast && (
-          <div style={{ position: "fixed", bottom: 96, left: "50%", transform: "translateX(-50%)", background: T.text, color: T.ink, padding: "10px 18px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, zIndex: 60, boxShadow: "0 6px 20px rgba(0,0,0,0.3)", whiteSpace: "nowrap" }}>
+          <div style={{ position: "fixed", bottom: 86, left: "50%", transform: "translateX(-50%)", background: T.text, color: T.ink, padding: "10px 18px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, zIndex: 60, boxShadow: "0 6px 20px rgba(0,0,0,0.3)", whiteSpace: "nowrap" }}>
             {toast}
           </div>
         )}
 
-        <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0} />
+        <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0} />
       </div>
     </SheetContext.Provider>
   );

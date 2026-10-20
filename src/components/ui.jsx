@@ -1,12 +1,14 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext, useEffect, useRef } from "react";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { T, FONT_STACK, MONO_STACK } from "../theme";
 import { hueForId } from "../lib/utils";
+import { useKeyboardOffset } from "../lib/keyboard";
 
 export function GlobalStyle() {
   return (
     <style>{`
       * { box-sizing: border-box; }
+      html, body { margin: 0; max-width: 100%; overflow-x: hidden; overscroll-behavior-x: none; }
       *::-webkit-scrollbar { display: none; }
       * { scrollbar-width: none; -ms-overflow-style: none; }
       button { font-family: inherit; cursor: pointer; }
@@ -142,23 +144,44 @@ export function TextInput({ value, onChange, placeholder, icon, autoFocus, maxLe
 
 export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh" }) {
   const sheets = useContext(SheetContext);
+  const kb = useKeyboardOffset();
+  const wasTyping = useRef(false);
   useEffect(() => {
     if (!open || !sheets) return;
     sheets(1);
     return () => sheets(-1);
   }, [open]);
   if (!open) return null;
+
+  // Tapping the dim area while typing just closes the keyboard; the sheet (and what you typed) stays.
+  // (The tap itself already moves focus away, so check what was focused when the finger went down.)
+  const typingNow = () => {
+    const el = document.activeElement;
+    return !!(el && el.matches?.("input, textarea") && el.closest("[data-sheet]"));
+  };
+  const onBackdropDown = () => { wasTyping.current = typingNow() || kb > 0; };
+  const onBackdrop = () => {
+    if (wasTyping.current || typingNow()) {
+      wasTyping.current = false;
+      document.activeElement?.blur?.();
+      return;
+    }
+    onClose();
+  };
+
   return (
     <>
-      <div data-sheet-backdrop onClick={onClose} className="fade-in" style={{
+      <div data-sheet-backdrop onPointerDown={onBackdropDown} onClick={onBackdrop} className="fade-in" style={{
         position: "fixed", inset: 0, zIndex: 40, background: "rgba(6,6,7,0.78)",
         backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
       }} />
-      <div className="glass sheet-in" style={{
-        position: "fixed", left: "50%", bottom: 0, transform: "translateX(-50%)",
-        width: "100%", maxWidth: 480, maxHeight, zIndex: 41,
-        borderRadius: "26px 26px 0 0", padding: "10px 20px calc(24px + env(safe-area-inset-bottom))",
-        overflowY: "auto",
+      <div data-sheet className="glass sheet-in" style={{
+        position: "fixed", left: "50%", bottom: kb, transform: "translateX(-50%)",
+        width: "100%", maxWidth: 480, zIndex: 41,
+        maxHeight: kb ? `min(${maxHeight}, ${Math.max(200, window.innerHeight - kb - 40)}px)` : maxHeight,
+        borderRadius: kb ? 26 : "26px 26px 0 0",
+        padding: kb ? "10px 20px 12px" : "10px 20px calc(24px + env(safe-area-inset-bottom))",
+        overflowY: "auto", transition: "bottom 0.18s ease",
       }}>
         <div style={{ width: 36, height: 4, borderRadius: 99, background: "rgba(255,255,255,0.25)", margin: "4px auto 16px" }} />
         {title && <div className="display" style={{ fontSize: 18, color: T.text, marginBottom: 16 }}>{title}</div>}
@@ -179,7 +202,7 @@ export function Stat({ label, value, small, dark }) {
 
 export function MiniStat({ value, label }) {
   return (
-    <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
+    <div style={{ display: "flex", alignItems: "baseline", gap: 4, whiteSpace: "nowrap" }}>
       <span style={{ color: T.text, fontSize: 12.5, fontWeight: 700 }}>{value}</span>
       <span style={{ color: T.textDim, fontSize: 11 }}>{label}</span>
     </div>

@@ -19,13 +19,13 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
   const nextBadge = nextBadgeProgress(username, cars, sightings);
 
   return (
-    <div style={{ paddingTop: 18, paddingBottom: 10 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 16 }}>
+    <div style={{ paddingTop: 40, paddingBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 22 }}>
         <Avatar username={username} size={72} />
-        <div style={{ flex: 1, paddingTop: 2 }}>
-          <div className="display" style={{ fontSize: 19, color: T.text, lineHeight: 1.2 }}>{user.name || username}</div>
+        <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
+          <div className="display" style={{ fontSize: 20, color: T.text, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name || username}</div>
           <div className="plate" style={{ fontSize: 11.5, color: T.textDim, marginTop: 2 }}>@{username}</div>
-          <div style={{ display: "flex", gap: 14, marginTop: 8 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", columnGap: 12, rowGap: 4, marginTop: 8 }}>
             <MiniStat value={myPosts.length} label="Posts" />
             <MiniStat value={myCars.length} label="Cars" />
             <MiniStat value={user.followers.length} label="Followers" />

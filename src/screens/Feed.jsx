@@ -8,8 +8,13 @@ import { PostMenu } from "../components/PostMenu";
 
 // Remembers how far down the feed you were, so coming back lands on the same post.
 const feedScroll = new Map();
+// Half-typed comments, per post, so closing the sheet doesn't lose them.
+const drafts = new Map();
+const railBtn = { width: 52, background: "none", border: "none", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3 };
+const railCount = { color: "#fff", fontSize: 12, fontWeight: 600, textShadow: "0 1px 3px rgba(0,0,0,0.5)" };
+const topIcon = { width: 46, height: 46, border: "none", borderRadius: 999, pointerEvents: "auto", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 };
 
-export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile, toggleLike, addComment, addReply, openSearch, openInbox, unreadCount, actions, scrollKey }) {
+export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile, toggleLike, addComment, addReply, openSearch, openInbox, unreadCount, actions, scrollKey, onFollow }) {
   const following = (users[me]?.following) || [];
   let list = Object.values(posts).filter((p) => !p.archived).sort((a, b) => new Date(b.date) - new Date(a.date));
   if (tab === "following") list = list.filter((p) => following.includes(p.authorUsername));
@@ -22,32 +27,33 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
   }, [memoKey, list.length > 0]);
 
   return (
-    <div style={{ position: "relative", height: "calc(100vh - 110px)", background: T.bg, overflow: "hidden" }}>
+    <div style={{ position: "relative", height: "calc(100vh - 92px)", background: T.bg, overflow: "hidden" }}>
+      {/* Top controls: search on the left, tabs in the middle, notifications on the right. */}
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, zIndex: 8, display: "flex", alignItems: "center",
-        justifyContent: "center", padding: "14px 16px 30px",
+        justifyContent: "space-between", gap: 8, padding: "14px 14px 34px",
         background: "linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0))",
         pointerEvents: "none",
       }}>
+        <button onClick={openSearch} aria-label="Search" className="glass-light press" style={topIcon}>
+          <Search size={21} color="#fff" />
+        </button>
         <div className="glass-light" style={{ display: "flex", borderRadius: 999, padding: 4, pointerEvents: "auto" }}>
           {[["foryou", "For You"], ["following", "Following"]].map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} className="press" style={{
               background: tab === id ? "rgba(255,255,255,0.92)" : "none", border: "none",
-              padding: "6px 14px", borderRadius: 999,
-              fontSize: 12.5, fontWeight: 700, color: tab === id ? T.ink : "rgba(255,255,255,0.75)",
+              padding: "9px 17px", borderRadius: 999,
+              fontSize: 14.5, fontWeight: 700, color: tab === id ? T.ink : "rgba(255,255,255,0.75)",
             }}>
               {label}
             </button>
           ))}
         </div>
-        <button onClick={openSearch} className="glass-light press" style={{ position: "absolute", right: 60, top: 8, border: "none", padding: 8, borderRadius: 999, pointerEvents: "auto", display: "flex" }}>
-          <Search size={18} color="#fff" />
-        </button>
-        <button onClick={openInbox} className="glass-light press" style={{ position: "absolute", right: 16, top: 8, border: "none", padding: 8, borderRadius: 999, pointerEvents: "auto", display: "flex" }}>
-          <Bell size={18} color="#fff" />
+        <button onClick={openInbox} aria-label="Notifications" className="glass-light press" style={{ ...topIcon, position: "relative" }}>
+          <Bell size={21} color="#fff" />
           {unreadCount > 0 && (
             <span style={{
-              position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: 99,
+              position: "absolute", top: 9, right: 10, width: 9, height: 9, borderRadius: 99,
               background: T.accent, border: `1.5px solid rgba(0,0,0,0.3)`,
             }} />
           )}
@@ -66,6 +72,7 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
         }}>
           {list.map((p) => (
             <FeedSlide key={p.id} post={p} car={cars[p.carId]} me={me} actions={actions}
+              following={following.includes(p.authorUsername)} onFollow={onFollow}
               openCar={openCar} openProfile={openProfile} toggleLike={toggleLike}
               openComments={() => setCommentsPostId(p.id)} />
           ))}
@@ -88,9 +95,10 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
 }
 
 export function FeedCommentInput({ postId, addComment }) {
-  const [text, setText] = useState("");
+  const [text, setTextState] = useState(() => drafts.get(postId) || "");
+  const setText = (v) => { setTextState(v); if (v) drafts.set(postId, v); else drafts.delete(postId); };
   return (
-    <div style={{ display: "flex", gap: 8, marginTop: 8, position: "sticky", bottom: 0, paddingTop: 8 }}>
+    <div style={{ display: "flex", gap: 8, marginTop: 8, position: "sticky", bottom: -12, paddingTop: 8, paddingBottom: 4, background: "rgba(24,24,27,0.96)", marginLeft: -20, marginRight: -20, paddingLeft: 20, paddingRight: 20 }}>
       <div style={{ flex: 1 }}>
         <TextInput value={text} onChange={setText} placeholder="Add a comment…" maxLength={220} />
       </div>
@@ -103,7 +111,7 @@ export function FeedCommentInput({ postId, addComment }) {
   );
 }
 
-export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, openComments, actions }) {
+export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, openComments, actions, following, onFollow }) {
   const liked = post.likes.includes(me);
   const [pop, setPop] = useState(false);
   const hue = hueForId(post.id);
@@ -127,27 +135,20 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
       )}
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0) 65%)" }} />
 
-      <button onClick={doLike} style={{
-        position: "absolute", right: 12, bottom: 130, background: "none", border: "none",
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 3, zIndex: 3,
-      }}>
-        <Heart size={30} color={liked ? T.accent : "#fff"} fill={liked ? T.accent : "none"} className={pop ? "heart-pop" : ""} />
-        <span style={{ color: "#fff", fontSize: 12, fontWeight: 600, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>{post.likes.length}</span>
-      </button>
-      <button onClick={openComments} style={{
-        position: "absolute", right: 12, bottom: 68, background: "none", border: "none",
-        display: "flex", flexDirection: "column", alignItems: "center", gap: 3, zIndex: 3,
-      }}>
-        <MessageCircle size={28} color="#fff" />
-        <span style={{ color: "#fff", fontSize: 12, fontWeight: 600, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>{post.comments.length}</span>
-      </button>
+      {/* Right-side action column: like, comment, and (on your own posts) the ··· menu, all lined up. */}
+      <div style={{ position: "absolute", right: 6, bottom: 20, zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+        <button onClick={doLike} aria-label="Like" style={railBtn}>
+          <Heart size={30} color={liked ? T.accent : "#fff"} fill={liked ? T.accent : "none"} className={pop ? "heart-pop" : ""} style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }} />
+          <span style={railCount}>{post.likes.length}</span>
+        </button>
+        <button onClick={openComments} aria-label="Comments" style={railBtn}>
+          <MessageCircle size={29} color="#fff" style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }} />
+          <span style={railCount}>{post.comments.length}</span>
+        </button>
+        {actions && <PostMenu post={post} me={me} actions={actions} overlay />}
+      </div>
 
-      {actions && (
-        <div style={{ position: "absolute", right: 12, bottom: 190, zIndex: 3 }}>
-          <PostMenu post={post} me={me} actions={actions} overlay />
-        </div>
-      )}
-      <div style={{ position: "relative", zIndex: 2, padding: "0 70px 22px 14px", width: "100%" }}>
+      <div style={{ position: "relative", zIndex: 2, padding: "0 72px 22px 14px", width: "100%" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
           <button onClick={() => openProfile(post.authorUsername)} style={{ background: "none", border: "none", padding: 0, display: "flex" }}>
             <Avatar username={post.authorUsername} size={30} />
@@ -155,6 +156,16 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
           <button onClick={() => openProfile(post.authorUsername)} style={{ background: "none", border: "none", padding: 0, color: "#fff", fontSize: 14, fontWeight: 700, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
             {post.authorUsername}
           </button>
+          {post.authorUsername !== me && onFollow && (
+            <button data-testid="feed-follow" onClick={() => onFollow(post.authorUsername)} className="press" style={{
+              marginLeft: 2, padding: "4px 11px", borderRadius: 999, fontSize: 12, fontWeight: 700,
+              border: `1px solid ${following ? "rgba(255,255,255,0.45)" : "#fff"}`,
+              background: following ? "rgba(0,0,0,0.25)" : "rgba(255,255,255,0.12)", color: "#fff",
+              backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+            }}>
+              {following ? "Following" : "Follow"}
+            </button>
+          )}
         </div>
         {car && (
           <button onClick={() => openCar(car.id)} style={{
