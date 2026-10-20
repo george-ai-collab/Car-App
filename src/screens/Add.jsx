@@ -56,7 +56,11 @@ export function AddChoiceScreen({ onNewPost, onSpot, onAddCar }) {
 }
 
 export function NewPostForm({ me, cars, communities, onSubmit, onNeedCar }) {
-  const carList = Object.values(cars).filter((c) => c.ownerUsername === me || c.hasPage !== false).sort((a, b) => a.make.localeCompare(b.make));
+  // Only your own cars, plus public cars you've spotted. Other accounts' garages never show up here.
+  const byName = (a, b) => a.make.localeCompare(b.make);
+  const myCars = Object.values(cars).filter((c) => c.ownerUsername === me).sort(byName);
+  const spotted = Object.values(cars).filter((c) => c.ownerUsername !== me && c.hasPage !== false && c.spotterUsernames.includes(me)).sort(byName);
+  const carList = [...myCars, ...spotted];
   const joinedCommunities = Object.values(communities || {}).filter((c) => c.members.includes(me));
   const [carId, setCarId] = useState(carList[0]?.id || "");
   const [communityId, setCommunityId] = useState("");
@@ -82,7 +86,8 @@ export function NewPostForm({ me, cars, communities, onSubmit, onNeedCar }) {
       <Field label="Which car">
         <select value={carId} onChange={(e) => setCarId(e.target.value)}
           style={{ width: "100%", padding: "11px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 14.5, outline: "none" }}>
-          {carList.map((c) => <option key={c.id} value={c.id}>{c.make} {c.model} '{c.year}</option>)}
+          {myCars.length > 0 && <optgroup label="Your cars">{myCars.map((c) => <option key={c.id} value={c.id}>{c.nickname || `${c.make} ${c.model}`} '{c.year}</option>)}</optgroup>}
+          {spotted.length > 0 && <optgroup label="Cars you've spotted">{spotted.map((c) => <option key={c.id} value={c.id}>{c.make} {c.model} '{c.year} · @{c.ownerUsername}</option>)}</optgroup>}
         </select>
       </Field>
       {joinedCommunities.length > 0 && (
