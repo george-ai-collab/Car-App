@@ -1,12 +1,14 @@
 import { useState, useRef, useLayoutEffect } from "react";
-import { Car, Compass, Heart, MessageCircle, Search, Bell, MapPin } from "lucide-react";
+import { Car, Compass, Heart, MessageCircle, Search, Bell, MapPin, Share2, Maximize2 } from "lucide-react";
 import { T } from "../theme";
 import { hueForId } from "../lib/utils";
 import { Avatar, FollowAvatar, EmptyState, TextInput, BottomSheet } from "../components/ui";
 import { CommentRow } from "./PostDetail";
 import { PostMenu } from "../components/PostMenu";
 import { PhotoCarousel, postPhotos } from "../components/photo/PhotoCarousel";
-import { useSwipe } from "../lib/useSwipe";
+import { useTapGestures } from "../lib/useTapGestures";
+import { shareText } from "../lib/share";
+import { ActionMenu } from "../components/ui";
 
 // Remembers how far down the feed you were, so coming back lands on the same post.
 const feedScroll = new Map();
@@ -16,31 +18,23 @@ const railBtn = { width: 52, background: "none", border: "none", padding: 0, dis
 const railCount = { color: "#fff", fontSize: 12, fontWeight: 600, textShadow: "0 1px 3px rgba(0,0,0,0.5)" };
 const topIcon = { width: 46, height: 46, border: "none", borderRadius: 999, pointerEvents: "auto", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 };
 
-export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile, toggleLike, addComment, addReply, openSearch, openInbox, unreadCount, actions, scrollKey, onFollow, prefs }) {
+export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile, openPost, toggleLike, addComment, addReply, openSearch, openInbox, unreadCount, actions, scrollKey, onFollow, prefs }) {
   const following = (users[me]?.following) || [];
   const hidden = prefs?.hidden || [], blocked = prefs?.blocked || [];
   let list = Object.values(posts).filter((p) => !p.archived && !hidden.includes(p.id) && !blocked.includes(p.authorUsername)).sort((a, b) => new Date(b.date) - new Date(a.date));
   if (tab === "following") list = list.filter((p) => following.includes(p.authorUsername));
   const [commentsPostId, setCommentsPostId] = useState(null);
+  const [holdId, setHoldId] = useState(null);
+  const holdPost = holdId ? posts[holdId] : null;
   const commentsPost = commentsPostId ? posts[commentsPostId] : null;
   const scroller = useRef(null);
-  // Swipe left on a post = open that person's profile. Swipe right = switch For You / Following.
-  const sw = useSwipe({
-    onLeft: () => {
-      const el = scroller.current;
-      const i = el ? Math.round(el.scrollTop / Math.max(1, el.clientHeight)) : 0;
-      const post = list[i];
-      if (post) openProfile(post.authorUsername);
-    },
-    onRight: () => setTab(tab === "foryou" ? "following" : "foryou"),
-  });
   const memoKey = `${scrollKey}-${tab}`;
   useLayoutEffect(() => {
     if (scroller.current) scroller.current.scrollTop = feedScroll.get(memoKey) || 0;
   }, [memoKey, list.length > 0]);
 
   return (
-    <div {...sw.bind} data-testid="feed" style={{ ...sw.bind.style, position: "relative", height: "calc(100vh - 92px)", background: T.bg, overflow: "hidden" }}>
+    <div data-testid="feed" style={{ position: "relative", height: "calc(100vh - 92px)", background: T.bg, overflow: "hidden" }}>
       {/* Top controls: search on the left, tabs in the middle, notifications on the right. */}
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, zIndex: 8, display: "flex", alignItems: "center",
@@ -81,18 +75,21 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
         </div>
       ) : (
         <div ref={scroller} data-testid="feed-scroller" onScroll={(e) => feedScroll.set(memoKey, e.currentTarget.scrollTop)} style={{
-          transform: sw.dx ? `translateX(${sw.dx * 0.35}px)` : "none", transition: sw.dx ? "none" : "transform .2s ease",
           height: "100%", overflowY: "auto", scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch",
         }}>
           {list.map((p) => (
             <FeedSlide key={p.id} post={p} car={cars[p.carId]} me={me} actions={actions}
-              following={following.includes(p.authorUsername)} onFollow={onFollow}
+              following={following.includes(p.authorUsername)} onFollow={onFollow} onHold={() => setHoldId(p.id)}
               openCar={openCar} openProfile={openProfile} toggleLike={toggleLike}
               openComments={() => setCommentsPostId(p.id)} />
           ))}
         </div>
       )}
 
+      {holdPost && (
+        <QuickActions post={holdPost} me={me} car={cars[holdPost.carId]} onClose={() => setHoldId(null)}
+          onLike={() => toggleLike(holdPost.id)} onComment={() => setCommentsPostId(holdPost.id)} onOpen={() => openPost && openPost(holdPost.id)} />
+      )}
       <BottomSheet open={!!commentsPost} onClose={() => setCommentsPostId(null)} title="Comments">
         {commentsPost && (
           <>
@@ -125,14 +122,20 @@ export function FeedCommentInput({ postId, addComment }) {
   );
 }
 
-export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, openComments, actions, following, onFollow }) {
+export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, openComments, actions, following, onFollow, onHold }) {
   const liked = post.likes.includes(me);
   const [pop, setPop] = useState(false);
+  const [burst, setBurst] = useState(null);
+  // Double-tap anywhere on the post to like it (never un-likes, like Instagram). Hold for quick actions.
+  const gesture = useTapGestures({
+    onDoubleTap: (x, y) => { if (!liked) toggleLike(post.id); setBurst({ x, y, k: Date.now() }); },
+    onHold: () => onHold && onHold(),
+  });
   const hue = hueForId(post.id);
   const pics = postPhotos(post);
   const doLike = () => { toggleLike(post.id); if (!liked) { setPop(true); setTimeout(() => setPop(false), 350); } };
   return (
-    <div data-testid="feed-slide" style={{
+    <div data-testid="feed-slide" {...gesture} style={{
       height: "100%", width: "100%", scrollSnapAlign: "start", scrollSnapStop: "always",
       position: "relative", display: "flex", alignItems: "flex-end", overflow: "hidden",
       background: pics.length ? "#000" : `linear-gradient(135deg, hsl(${hue},45%,20%), hsl(${hue},35%,10%))`,
@@ -146,6 +149,10 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
             ? <div className="display" style={{ color: "#fff", fontSize: post.caption.length > 120 ? 20 : 27, lineHeight: 1.25, textAlign: "center" }}>{post.caption}</div>
             : <Car size={52} color="rgba(245,244,242,0.3)" />}
         </div>
+      )}
+      {burst && (
+        <Heart key={burst.k} size={110} color={T.accent} fill={T.accent} className="big-heart"
+          style={{ position: "absolute", left: burst.x, top: burst.y, zIndex: 6, pointerEvents: "none", filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.4))" }} />
       )}
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0) 65%)" }} />
 
@@ -200,5 +207,19 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
         )}
       </div>
     </div>
+  );
+}
+
+// Hold a post: the actions people reach for most, without hunting for buttons.
+function QuickActions({ post, me, car, onClose, onLike, onComment, onOpen }) {
+  const liked = post.likes.includes(me);
+  const carName = car ? `${car.make} ${car.model}` : post.carLabel;
+  return (
+    <ActionMenu open onClose={onClose} items={[
+      { label: liked ? "Unlike" : "Like", icon: <Heart size={17} />, onClick: onLike },
+      { label: "Comment", icon: <MessageCircle size={17} />, onClick: onComment },
+      { label: "Share", icon: <Share2 size={17} />, onClick: () => shareText({ title: "Carfooly", text: `${post.authorUsername}${carName ? `'s ${carName}` : ""} on Carfooly${post.caption ? `: "${post.caption}"` : ""}` }) },
+      { label: "Open post", icon: <Maximize2 size={17} />, onClick: onOpen },
+    ]} />
   );
 }

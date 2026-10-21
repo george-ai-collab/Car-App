@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Camera, Image as ImageIcon, Plus, X, ChevronLeft, Crop, Sparkles, SlidersHorizontal, Type, Square, RotateCw, Trash2, Loader2, MapPin, AtSign, Users, Car, FileText, Search } from "lucide-react";
+import { Camera, Image as ImageIcon, Plus, X, ChevronLeft, Crop, Sparkles, SlidersHorizontal, Type, Square, RotateCw, Trash2, Loader2, MapPin, AtSign, Users, Car, Search } from "lucide-react";
 import { T } from "../../theme";
 import { uid } from "../../lib/utils";
 import { readPhoto } from "./CameraCapture";
+import { canPickNatively, pickFromGallery } from "../../lib/media";
 import { SHAPES, FILTERS, TEXT_COLORS, blankEdit, shapeRatio, angleOf, coverScale, clampPan, dragToPan, cssFilter, warmthLayer, bakeEdit } from "./edit";
 import { Avatar, BottomSheet, ChipPicker, Section, TextArea, TextInput } from "../ui";
 import { labelFor, placeArea } from "../LocationPicker";
@@ -37,55 +38,57 @@ export function ComposerFlow({ me, cars, communities, users, initialCommunityId,
 
   return (
     <div data-testid={`compose-${step}`} style={{ paddingBottom: 10 }}>
-      {step === "pick" && <PickStep onFiles={addFiles} onTextOnly={() => setStep("details")} onCancel={onCancel} />}
+      {step === "pick" && <PickStep onFiles={addFiles} onCancel={onCancel} />}
       {step === "edit" && (
         <EditStep edits={edits} setEdits={setEdits} shape={shape} setShape={setShape} onFiles={addFiles}
           onBack={() => { setEdits([]); setStep("pick"); }} onNext={() => setStep("details")} />
       )}
       {step === "details" && (
         <DetailsStep me={me} cars={cars} communities={communities} users={users} initialCommunityId={initialCommunityId}
-          edits={edits} shape={shape} busy={busy} onBack={() => setStep(edits.length ? "edit" : "pick")} onShare={share} />
+          edits={edits} shape={shape} busy={busy} onBack={() => setStep("edit")} onShare={share} />
       )}
     </div>
   );
 }
 
-// ---------- 1. pick ----------
-function PickStep({ onFiles, onTextOnly, onCancel }) {
+// ---------- 1. pick: gallery first (recent photos + albums), camera as the other option ----------
+function PickStep({ onFiles, onCancel }) {
   const cam = useRef(null), lib = useRef(null);
+  const [opening, setOpening] = useState(false);
+  const openGallery = async () => {
+    if (canPickNatively()) {
+      setOpening(true);
+      const blobs = await pickFromGallery(MAX_PHOTOS);
+      setOpening(false);
+      if (blobs.length) onFiles(blobs);
+    } else lib.current.click();
+  };
+  // On the phone, go straight to the gallery when "Post" is opened.
+  useEffect(() => { if (canPickNatively()) openGallery(); }, []);
   return (
     <div>
       <TopRow title="New post" left={<IconBtn label="Close" onClick={onCancel}><X size={20} /></IconBtn>} />
       <input ref={cam} type="file" accept="image/*" capture="environment" style={{ display: "none" }} data-testid="pick-camera" onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
       <input ref={lib} type="file" accept="image/*" multiple style={{ display: "none" }} data-testid="pick-gallery" onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <BigChoice icon={<Camera size={30} color="#fff" />} title="Camera" sub="Take a photo now" accent onClick={() => cam.current.click()} />
-        <BigChoice icon={<ImageIcon size={30} color={T.text} />} title="Gallery" sub={`Pick up to ${MAX_PHOTOS}`} onClick={() => lib.current.click()} />
-      </div>
-      <button onClick={onTextOnly} className="press" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: 16, borderRadius: 20, border: `1px solid ${T.lineDark}`, background: T.surface, textAlign: "left" }}>
-        <FileText size={20} color={T.accent2} />
+      <button data-testid="open-gallery" onClick={openGallery} className="press" style={{
+        width: "100%", aspectRatio: "4 / 3", borderRadius: 26, border: "none", padding: 20, marginBottom: 12,
+        background: `linear-gradient(160deg, ${T.accent}, ${T.accentDeep})`, boxShadow: T.shadowAccent,
+        display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "flex-start", textAlign: "left",
+      }}>
+        {opening ? <Loader2 size={32} color="#fff" style={{ animation: "spin 1s linear infinite" }} /> : <ImageIcon size={34} color="#fff" />}
+        <div>
+          <div style={{ color: "#fff", fontSize: 22, fontWeight: 800 }}>Choose from gallery</div>
+          <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, marginTop: 3 }}>Recent photos and albums · up to {MAX_PHOTOS}</div>
+        </div>
+      </button>
+      <button data-testid="open-camera" onClick={() => cam.current.click()} className="press" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: 16, borderRadius: 20, border: `1px solid ${T.lineDark}`, background: T.surface, textAlign: "left" }}>
+        <Camera size={22} color={T.text} />
         <div style={{ flex: 1 }}>
-          <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>Text post</div>
-          <div style={{ color: T.textDim, fontSize: 12.5 }}>No photo, just words</div>
+          <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>Take a photo</div>
+          <div style={{ color: T.textDim, fontSize: 12.5 }}>Use the camera instead</div>
         </div>
       </button>
     </div>
-  );
-}
-
-function BigChoice({ icon, title, sub, onClick, accent }) {
-  return (
-    <button onClick={onClick} className="press" style={{
-      aspectRatio: "3 / 4", borderRadius: 24, border: accent ? "none" : `1px solid ${T.lineDark}`, padding: 16,
-      background: accent ? `linear-gradient(160deg, ${T.accent}, ${T.accentDeep})` : `linear-gradient(160deg, ${T.surface2}, ${T.surface})`,
-      display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "flex-start", textAlign: "left", boxShadow: accent ? T.shadowAccent : T.shadowCard,
-    }}>
-      {icon}
-      <div>
-        <div style={{ color: accent ? "#fff" : T.text, fontSize: 19, fontWeight: 800 }}>{title}</div>
-        <div style={{ color: accent ? "rgba(255,255,255,0.8)" : T.textDim, fontSize: 12.5, marginTop: 2 }}>{sub}</div>
-      </div>
-    </button>
   );
 }
 
@@ -138,7 +141,7 @@ function EditStep({ edits, setEdits, shape, setShape, onFiles, onBack, onNext })
           </div>
         ))}
         {edits.length < MAX_PHOTOS && (
-          <button aria-label="Add more photos" onClick={() => more.current.click()} style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 12, border: `1.5px dashed ${T.lineDark}`, background: T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button aria-label="Add more photos" onClick={async () => { if (canPickNatively()) { const b = await pickFromGallery(MAX_PHOTOS - edits.length); if (b.length) onFiles(b); } else more.current.click(); }} style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 12, border: `1.5px dashed ${T.lineDark}`, background: T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Plus size={20} color={T.textDim} />
           </button>
         )}
@@ -341,7 +344,7 @@ function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, 
   const [caption, setCaption] = useState("");
   const [location, setLocation] = useState(null);
   const [tags, setTags] = useState([]);
-  const canShare = !busy && (edits.length > 0 || caption.trim());
+  const canShare = !busy && edits.length > 0;
   const ratio = shapeRatio(shape, edits[0]);
 
   const carOptions = [

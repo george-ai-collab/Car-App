@@ -9,7 +9,6 @@ export function GlobalStyle() {
     <style>{`
       * { box-sizing: border-box; }
       html, body { margin: 0; overscroll-behavior: none; }
-      * { overscroll-behavior: none; }
       *::-webkit-scrollbar { display: none; }
       * { scrollbar-width: none; -ms-overflow-style: none; }
       button { font-family: inherit; cursor: pointer; }
@@ -27,6 +26,8 @@ export function GlobalStyle() {
       .heart-pop { animation: heartPop 0.35s ease; }
       @keyframes sheetIn { from { transform: translate(-50%, 100%); } to { transform: translate(-50%, 0); } }
       @keyframes popIn { from { opacity: 0; transform: translate(-50%, 16px) scale(0.96); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+      @keyframes bigHeart { 0% { transform: translate(-50%,-50%) scale(0.3); opacity: 0; } 25% { transform: translate(-50%,-50%) scale(1.15); opacity: 1; } 70% { transform: translate(-50%,-50%) scale(1); opacity: 1; } 100% { transform: translate(-50%,-70%) scale(0.9); opacity: 0; } }
+      .big-heart { animation: bigHeart 0.8s ease forwards; }
       .pop-in { animation: popIn 0.2s cubic-bezier(0.32, 0.72, 0, 1) both; }
       .sheet-in { animation: sheetIn 0.3s cubic-bezier(0.32, 0.72, 0, 1) both; }
       .glass {

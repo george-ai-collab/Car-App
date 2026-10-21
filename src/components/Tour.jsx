@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Car, Compass, Plus, User, Heart, MessageCircle, MapPin, Calendar, Users, ChevronRight, ArrowLeft, ArrowRight, ArrowUp, Wrench, Image as ImageIcon } from "lucide-react";
+import { Car, Compass, Plus, User, Heart, MessageCircle, MapPin, Calendar, Users, ChevronRight, ArrowUp, Wrench, Image as ImageIcon } from "lucide-react";
 import { T } from "../theme";
 import { useSwipe } from "../lib/useSwipe";
 
@@ -11,19 +11,19 @@ const SLIDES = [
     art: () => <Orbit center={<Car size={42} color="#fff" />} items={[<Wrench key="w" size={18} />, <ImageIcon key="i" size={18} />, <Heart key="h" size={18} />]} />,
   },
   {
-    title: "Swipe the feed",
-    body: "Swipe up for the next post. Swipe left to open that person's profile. Swipe right to switch between For You and Following.",
+    title: "Double-tap to like",
+    body: "Swipe up for the next post. Double-tap a post (or a comment) to like it. Press and hold a post to comment, share or open it.",
     art: () => (
       <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-        <Gesture icon={<ArrowLeft size={20} />} label="Profile" />
+        <Gesture icon={<Heart size={20} color={T.accent} fill={T.accent} />} label="Double-tap" />
         <Phone><ArrowUp size={22} color="#fff" /><div style={{ color: "#fff", fontSize: 10, marginTop: 4, fontWeight: 700 }}>Next</div></Phone>
-        <Gesture icon={<ArrowRight size={20} />} label="Following" />
+        <Gesture icon={<MessageCircle size={20} />} label="Hold" />
       </div>
     ),
   },
   {
     title: "Tap + to share",
-    body: "Post photos of a car, log a spot, plan a meet, or add a car to your garage.",
+    body: "Post photos of a car (straight from your gallery), log a spot, plan a meet, or add a car to your garage.",
     art: () => (
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         {[[ImageIcon, "Post", T.accent], [MapPin, "Spot", T.accent2], [Calendar, "Meet", "#BFE0EC"], [Car, "Add car", T.accentWarm]].map(([I, l, c]) => (

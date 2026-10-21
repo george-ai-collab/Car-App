@@ -6,6 +6,7 @@ import { Avatar, TextInput, SectionLabel } from "../components/ui";
 import { PostMenu } from "../components/PostMenu";
 import { PhotoCarousel, postPhotos } from "../components/photo/PhotoCarousel";
 import { ReportSheet, useSafety } from "../components/Safety";
+import { useTapGestures } from "../lib/useTapGestures";
 
 export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, addComment, addReply, actions, onGone }) {
   const [text, setText] = useState("");
@@ -13,6 +14,8 @@ export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, ad
   const liked = post.likes.includes(me);
   const hue = hueForId(post.id);
   const doLike = () => { toggleLike(post.id); if (!liked) { setPop(true); setTimeout(() => setPop(false), 350); } };
+  const [burst, setBurst] = useState(null);
+  const photoTaps = useTapGestures({ onDoubleTap: (x, y) => { if (!liked) toggleLike(post.id); setBurst({ x, y, k: Date.now() }); } });
   return (
     <div style={{ paddingTop: 18, paddingBottom: 10 }}>
       {post.archived && (
@@ -42,7 +45,10 @@ export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, ad
       </div>
 
       {postPhotos(post).length ? (
-        <div style={{ marginBottom: 12 }}><PhotoCarousel photos={postPhotos(post)} mode="detail" /></div>
+        <div style={{ marginBottom: 12, position: "relative" }} data-testid="detail-photo" {...photoTaps}>
+          <PhotoCarousel photos={postPhotos(post)} mode="detail" />
+          {burst && <Heart key={burst.k} size={96} color={T.accent} fill={T.accent} className="big-heart" style={{ position: "absolute", left: burst.x, top: burst.y, pointerEvents: "none", zIndex: 3 }} />}
+        </div>
       ) : post.caption ? null : (
         <div style={{
           height: 220, borderRadius: 18, overflow: "hidden", background: `linear-gradient(135deg, hsl(${hue},45%,22%), hsl(${hue},35%,12%))`,
@@ -105,6 +111,18 @@ function CommentAction({ author, onDelete, kind, id }) {
   );
 }
 
+// Heart on a comment or reply. Double-tapping the comment does the same.
+function CommentHeart({ item, me, onToggle, small }) {
+  const likes = item.likes || [];
+  const on = likes.includes(me);
+  return (
+    <button aria-label={on ? "Unlike comment" : "Like comment"} data-testid="comment-heart" onClick={onToggle} style={{ background: "none", border: "none", padding: "2px 0 0 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 1, flexShrink: 0 }}>
+      <Heart size={small ? 12 : 14} color={on ? T.accent : T.textDim} fill={on ? T.accent : "none"} />
+      {likes.length > 0 && <span style={{ fontSize: 10, color: T.textDim }}>{likes.length}</span>}
+    </button>
+  );
+}
+
 export function CommentRow({ comment, postId, addReply }) {
   const safety = useSafety();
   const [replying, setReplying] = useState(false);
@@ -112,13 +130,16 @@ export function CommentRow({ comment, postId, addReply }) {
   const [text, setText] = useState("");
   const blocked = safety?.prefs.blocked || [];
   const replies = (comment.replies || []).filter((r) => !blocked.includes(r.author));
+  const me = safety?.me;
+  const likeIt = (replyId) => safety && safety.actions.toggleCommentLike(postId, comment.id, replyId);
+  const dbl = useTapGestures({ onDoubleTap: () => { if (!(comment.likes || []).includes(me)) likeIt(); } });
   if (blocked.includes(comment.author)) return null;
 
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", gap: 9 }}>
         <Avatar username={comment.author} size={26} />
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1 }} data-testid="comment-body" {...dbl}>
           <div style={{ fontSize: 13, color: T.text }}>
             <span style={{ fontWeight: 600 }}>{comment.author}</span> {comment.text}
           </div>
@@ -130,6 +151,7 @@ export function CommentRow({ comment, postId, addReply }) {
             <CommentAction author={comment.author} kind="comment" id={comment.id} onDelete={() => safety.actions.deleteComment(postId, comment.id)} />
           </div>
         </div>
+        {safety && <CommentHeart item={comment} me={me} onToggle={() => likeIt()} />}
       </div>
 
       {replying && (
@@ -156,7 +178,7 @@ export function CommentRow({ comment, postId, addReply }) {
               {replies.map((r) => (
                 <div key={r.id} style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                   <Avatar username={r.author} size={21} />
-                  <div>
+                  <div style={{ flex: 1 }} onDoubleClick={() => { if (!(r.likes || []).includes(me)) likeIt(r.id); }}>
                     <div style={{ fontSize: 12.5, color: T.text }}>
                       <span style={{ fontWeight: 600 }}>{r.author}</span> {r.text}
                     </div>
@@ -165,6 +187,7 @@ export function CommentRow({ comment, postId, addReply }) {
                       <CommentAction author={r.author} kind="reply" id={r.id} onDelete={() => safety.actions.deleteComment(postId, comment.id, r.id)} />
                     </div>
                   </div>
+                  {safety && <CommentHeart item={r} me={me} onToggle={() => likeIt(r.id)} small />}
                 </div>
               ))}
             </div>

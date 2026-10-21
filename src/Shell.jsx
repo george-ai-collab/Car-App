@@ -15,11 +15,11 @@ import { Profile } from "./screens/Profile";
 import { AddMeetForm, MeetsScreen, MeetDetail } from "./screens/Meets";
 import { SpotForm } from "./screens/Add";
 import { ComposerFlow } from "./components/photo/Composer";
-import { AddMenu } from "./components/AddMenu";
+import { AddPage } from "./components/AddMenu";
 import { Tour } from "./components/Tour";
 import { SettingsScreen, EditProfile, ManageCars, ArchivedPosts } from "./screens/Settings";
 
-const ADD_VIEWS = ["compose", "quickSpot", "addCar", "addMeet"];
+const ADD_VIEWS = ["addChoice", "compose", "quickSpot", "addCar", "addMeet"];
 
 export function Shell({ store, toast }) {
   const { me, cars, posts, users, news, meets, communities, notifications, sightings, discussions, actions: a } = store;
@@ -27,7 +27,6 @@ export function Shell({ store, toast }) {
   const { current: cur, stack, go, back, tab, replace, reset, patch } = nav;
   const p = cur.params || {};
   const [sheets, setSheets] = useState(0);
-  const [addOpen, setAddOpen] = useState(false);
   // First time on this phone for this account: show the short intro.
   const [tour, setTour] = useState(false);
   useEffect(() => {
@@ -35,7 +34,7 @@ export function Shell({ store, toast }) {
   }, [me]);
   const endTour = () => { setTour(false); window.storage.set(`carfooly-tour:${me}`, "seen", false).catch(() => {}); };
   const pickAdd = (kind) => {
-    if (kind === "post") go("compose", {});
+    if (kind === "post") go("compose", { fromAdd: true });
     else if (kind === "spot") go("quickSpot", { fromAdd: true });
     else if (kind === "meet") go("addMeet", { fromAdd: true });
     else if (kind === "car") go("addCar", { fromAdd: true });
@@ -61,7 +60,7 @@ export function Shell({ store, toast }) {
     if (id === "feed") tab("feed");
     else if (id === "discover") tab("discover");
     else if (id === "profile") tab("profile", { username: me });
-    else if (id === "add") setAddOpen((o) => !o);
+    else if (id === "add") { if (cur.view !== "addChoice") go("addChoice"); }
   };
 
   const openProfile = (username) => {
@@ -85,7 +84,7 @@ export function Shell({ store, toast }) {
   switch (cur.view) {
     case "feed":
       page = <Feed me={me} cars={cars} posts={posts} users={users} tab={p.feedTab || "foryou"} setTab={(t) => patch({ feedTab: t })}
-        openCar={openCar} openProfile={openProfile} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
+        openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
         openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
       break;
     case "inbox":
@@ -155,6 +154,9 @@ export function Shell({ store, toast }) {
     case "editCar":
       page = cars[p.id] && <AddCarForm initial={cars[p.id]} onSubmit={async (data) => { await a.editCar(p.id, data); back(); }} />;
       break;
+    case "addChoice":
+      page = <AddPage onPick={pickAdd} />;
+      break;
     case "compose":
       page = <ComposerFlow me={me} cars={cars} communities={communities} users={users} initialCommunityId={p.communityId} onCancel={back}
         onSubmit={async (data) => { const id = await a.createPost(data); if (!id) return; if (p.communityId) back(); else reset(); }} />;
@@ -223,8 +225,7 @@ export function Shell({ store, toast }) {
         )}
 
         {tour && <Tour onDone={endTour} />}
-        <AddMenu open={addOpen} onClose={() => setAddOpen(false)} onPick={pickAdd} />
-        <BottomNav active={addOpen ? "add" : activeTab} onTab={onTab} hidden={(sheets > 0 && !addOpen) || kb > 0} raised={addOpen} />
+        <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0} />
       </div>
     </SheetContext.Provider>
     </SafetyContext.Provider>

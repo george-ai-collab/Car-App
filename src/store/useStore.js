@@ -87,8 +87,8 @@ export function useStore(flash) {
   // Notifications skip your own actions on purpose (same as Instagram/TikTok).
   // Repeat actions (follow, unfollow, follow again) replace the old notification instead of piling up.
   const sameEvent = (a, b) => a.type === b.type && a.from === b.from && (a.carId || null) === (b.carId || null)
-    && (a.type === "like" ? a.postId === b.postId : true);
-  const DEDUPE = ["follow", "followBuild", "like"];
+    && (a.type === "like" ? a.postId === b.postId : true) && (a.type === "commentLike" ? a.commentId === b.commentId : true);
+  const DEDUPE = ["follow", "followBuild", "like", "commentLike"];
   const pushNotif = async (to, notif) => {
     if (!to || to === me) return;
     const all = get().notifications;
@@ -380,6 +380,28 @@ export function useStore(flash) {
     else await dropNotif(post.authorUsername, { type: "like", postId });
   };
 
+  // Like a comment (or a reply to one). The person who wrote it gets one notification, not one per tap.
+  const toggleCommentLike = async (postId, commentId, replyId) => {
+    const p = get().posts[postId];
+    if (!p) return;
+    let author = null, nowLiked = false;
+    const flip = (x) => {
+      const likes = x.likes || [];
+      author = x.author;
+      nowLiked = !likes.includes(me);
+      return { ...x, likes: nowLiked ? [...likes, me] : likes.filter((u) => u !== me) };
+    };
+    const comments = p.comments.map((c) => {
+      if (c.id !== commentId) return c;
+      if (!replyId) return flip(c);
+      return { ...c, replies: (c.replies || []).map((r) => (r.id === replyId ? flip(r) : r)) };
+    });
+    await save("posts", { ...get().posts, [postId]: { ...p, comments } });
+    const target = replyId || commentId;
+    if (nowLiked) await pushNotif(author, { type: "commentLike", from: me, postId, commentId: target });
+    else await dropNotif(author, { type: "commentLike", postId, commentId: target });
+  };
+
   const addComment = async (postId, text) => {
     const post = get().posts[postId];
     if (!post || !text.trim()) return;
@@ -640,6 +662,7 @@ export function useStore(flash) {
       createPost, editPost, setArchived, deletePost, toggleLike, addComment, addReply,
       toggleFollow, toggleNewsLike, submitMeet, deleteMeet, toggleGoing,
       createCommunity, toggleCommunityMembership, markNotificationsRead,
+      toggleCommentLike,
       createThread, replyThread, toggleThreadLike, deleteThread, editThread, deleteThreadReply, deleteComment,
       setMeetRole, setMeetCaps, editCommunity, deleteCommunity,
       report, hidePost, undoHide, toggleBlock,
