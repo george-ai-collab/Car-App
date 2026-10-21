@@ -12,7 +12,7 @@ const ITEMS = [
 const SWIPE_STOPS = ["feed", "discover", "profile"];
 
 // Floating pill nav. Tap a tab, or slide your finger along the bar like a gear selector.
-export function BottomNav({ active, onTab, hidden }) {
+export function BottomNav({ active, onTab, hidden, raised }) {
   const bar = useRef(null);
   const drag = useRef(null);
   const [preview, setPreview] = useState(null);
@@ -54,7 +54,7 @@ export function BottomNav({ active, onTab, hidden }) {
       style={{
         position: "fixed", bottom: "calc(14px + env(safe-area-inset-bottom))", left: "50%", transform: "translateX(-50%)",
         width: "calc(100% - 32px)", maxWidth: 360, display: "flex", borderRadius: 999,
-        padding: "5px 8px", zIndex: 20, gap: 2, touchAction: "none",
+        padding: "5px 8px", zIndex: raised ? 45 : 20, gap: 2, touchAction: "none",
         opacity: hidden ? 0 : 1, pointerEvents: hidden ? "none" : "auto", transition: "opacity 0.2s ease",
       }}>
       {ITEMS.map(({ id, label, icon: Icon }) => {

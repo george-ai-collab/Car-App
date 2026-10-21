@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { Car, Heart } from "lucide-react";
+import { Car, Heart, MapPin } from "lucide-react";
 import { T } from "../theme";
 import { timeAgo, hueForId } from "../lib/utils";
 import { Avatar, TextInput, SectionLabel } from "../components/ui";
 import { PostMenu } from "../components/PostMenu";
+import { PhotoCarousel, postPhotos } from "../components/photo/PhotoCarousel";
 import { ReportSheet, useSafety } from "../components/Safety";
 
 export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, addComment, addReply, actions, onGone }) {
@@ -40,11 +41,9 @@ export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, ad
         {actions && <PostMenu post={post} me={me} actions={actions} onDeleted={onGone} carName={car ? `${car.make} ${car.model}` : post.carLabel} />}
       </div>
 
-      {post.photoUrl ? (
-        <div style={{ borderRadius: 18, overflow: "hidden", marginBottom: 12, background: "#000", aspectRatio: post.photoAspect ? String(post.photoAspect) : undefined }}>
-          <img src={post.photoUrl} alt="" style={{ width: "100%", height: "100%", maxHeight: "75vh", objectFit: "contain", display: "block" }} />
-        </div>
-      ) : (
+      {postPhotos(post).length ? (
+        <div style={{ marginBottom: 12 }}><PhotoCarousel photos={postPhotos(post)} mode="detail" /></div>
+      ) : post.caption ? null : (
         <div style={{
           height: 220, borderRadius: 18, overflow: "hidden", background: `linear-gradient(135deg, hsl(${hue},45%,22%), hsl(${hue},35%,12%))`,
           display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12,
@@ -53,7 +52,13 @@ export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, ad
         </div>
       )}
 
-      {post.caption && <div style={{ color: T.text, fontSize: 14.5, lineHeight: 1.4, marginBottom: 12, whiteSpace: "pre-wrap" }}>{post.caption}</div>}
+      {post.caption && <div style={{ color: T.text, fontSize: postPhotos(post).length ? 14.5 : 20, fontWeight: postPhotos(post).length ? 400 : 600, lineHeight: 1.4, marginBottom: 12, whiteSpace: "pre-wrap" }}>{post.caption}</div>}
+      {(post.location || (post.tags || []).length > 0) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", color: T.textDim, fontSize: 12.5, marginBottom: 10 }}>
+          {post.location && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={12} /> {post.location.label}</span>}
+          {(post.tags || []).length > 0 && <span>with {post.tags.map((h, k) => <button key={h} onClick={() => openProfile(h)} style={{ background: "none", border: "none", padding: 0, color: T.text, fontWeight: 700, fontSize: 12.5 }}>@{h}{k < post.tags.length - 1 ? ", " : ""}</button>)}</span>}
+        </div>
+      )}
       <div style={{ fontSize: 11.5, color: T.textDim, marginBottom: 12 }}>{timeAgo(post.date)}{post.editedAt ? " · Edited" : ""}</div>
 
       <div style={{ display: "flex", gap: 16, paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${T.lineDark}` }}>

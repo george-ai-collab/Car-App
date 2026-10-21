@@ -11,6 +11,7 @@ export function notifIcon(type) {
   if (type === "follow") return <User size={16} color={T.accent} />;
   if (type === "spot") return <MapPin size={16} color={T.accent2} />;
   if (type === "followBuild") return <Car size={16} color={T.accent} />;
+  if (type === "tag") return <User size={16} color={T.accent2} />;
   if (type === "threadReply") return <MessageCircle size={16} color={T.accent2} />;
   return null;
 }
@@ -20,7 +21,7 @@ export function InboxView({ me, notifications, posts, cars, discussions = {}, on
   const list = [...notifications].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const go = (n) => {
-    if ((n.type === "like" || n.type === "comment" || n.type === "reply") && posts[n.postId]) openPost(n.postId);
+    if ((n.type === "like" || n.type === "comment" || n.type === "reply" || n.type === "tag") && posts[n.postId]) openPost(n.postId);
     else if ((n.type === "spot" || n.type === "followBuild") && cars[n.carId]) openCar(n.carId);
     else if (n.type === "follow") openProfile(n.from);
     else if (n.type === "threadReply" && discussions[n.threadId] && openThread) openThread(n.threadId);

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2, Pencil } from "lucide-react";
+import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2, Pencil, Layers } from "lucide-react";
 import { T } from "../theme";
 import { hueForId, timeAgo } from "../lib/utils";
 import { useSwipe } from "../lib/useSwipe";
@@ -192,6 +192,7 @@ function Mosaic({ posts, openPost }) {
             background: p.photoUrl ? `url(${p.photoUrl}) center/cover` : `linear-gradient(135deg, hsl(${hue},45%,24%), hsl(${hue},35%,12%))`,
           }}>
             {!p.photoUrl && <span style={{ position: "absolute", inset: 8, color: "#fff", fontSize: isBig ? 15 : 11.5, fontWeight: 600, textAlign: "left", overflow: "hidden", lineHeight: 1.35 }}>{p.caption || ""}</span>}
+            {(p.photos || []).length > 1 && <Layers size={14} color="#fff" style={{ position: "absolute", top: 7, right: 7, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }} />}
             {isBig && (
               <span style={{ position: "absolute", left: 8, bottom: 8, display: "flex", gap: 8, color: "#fff", fontSize: 12, fontWeight: 700, textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Heart size={12} fill="#fff" /> {p.likes.length}</span>

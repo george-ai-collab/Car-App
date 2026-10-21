@@ -33,7 +33,7 @@ function Group({ children }) {
   );
 }
 
-export function SettingsScreen({ me, users, cars, posts, go, actions }) {
+export function SettingsScreen({ me, users, cars, posts, go, actions, onTour }) {
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const user = users[me] || {};
@@ -67,6 +67,11 @@ export function SettingsScreen({ me, users, cars, posts, go, actions }) {
       <Group>
         <Row icon={<span style={{ fontWeight: 800, fontSize: 15 }}>G</span>} label="Connect Google" sub="Comes with online accounts (next update)" disabled right={null} />
         <Row icon={<LogOut size={16} />} label="Switch account / Log out" sub="Pick a different handle on this phone" onClick={() => setConfirmLogout(true)} />
+      </Group>
+
+      <SectionLabel>Help</SectionLabel>
+      <Group>
+        <Row icon={<Info size={16} />} label="How Carfooly works" sub="See the intro again" onClick={onTour} />
       </Group>
 
       <Group>

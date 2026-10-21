@@ -26,6 +26,8 @@ export function GlobalStyle() {
       @keyframes heartPop { 0% { transform: scale(1); } 35% { transform: scale(1.35); } 60% { transform: scale(0.92); } 100% { transform: scale(1); } }
       .heart-pop { animation: heartPop 0.35s ease; }
       @keyframes sheetIn { from { transform: translate(-50%, 100%); } to { transform: translate(-50%, 0); } }
+      @keyframes popIn { from { opacity: 0; transform: translate(-50%, 16px) scale(0.96); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+      .pop-in { animation: popIn 0.2s cubic-bezier(0.32, 0.72, 0, 1) both; }
       .sheet-in { animation: sheetIn 0.3s cubic-bezier(0.32, 0.72, 0, 1) both; }
       .glass {
         background: ${T.glassBg};

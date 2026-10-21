@@ -308,17 +308,22 @@ export function useStore(flash) {
   };
 
   // ---------- posts ----------
-  // A post can be about one of your cars, a car you spotted, or any car (free-text tag, no page).
-  const createPost = async ({ carId, carLabel, photoUrl, photoAspect, caption, communityId }) => {
+  // A post: up to 10 photos, an optional car tag, location, tagged people and community.
+  const createPost = async ({ carId, carLabel, photos = [], photoUrl, photoAspect, caption, communityId, location, tags = [] }) => {
     const car = carId ? get().cars[carId] : null;
-    if (!photoUrl && !caption.trim()) return null;
+    const pics = photos.length ? photos.slice(0, 10) : photoUrl ? [{ url: photoUrl, aspect: photoAspect || null }] : [];
+    if (!pics.length && !caption.trim()) return null;
     const id = uid("post");
     const t = now();
+    const tagged = [...new Set(tags)].filter((h) => h !== me && get().users[h]).slice(0, 10);
     await save("posts", {
       ...get().posts,
       [id]: {
         id, carId: car ? carId : null, carLabel: car ? "" : (carLabel || "").trim().slice(0, 50), authorUsername: me,
-        photoUrl: (photoUrl || "").trim() || null, photoAspect: photoAspect || null, caption: caption.trim(), date: t, likes: [], comments: [], communityId: communityId || null,
+        photos: pics, photoUrl: pics[0]?.url || null, photoAspect: pics[0]?.aspect || null,
+        caption: caption.trim(), date: t, likes: [], comments: [], communityId: communityId || null,
+        location: location && location.label ? { label: location.label, city: location.city || "", lat: location.lat ?? null, lng: location.lng ?? null } : null,
+        tags: tagged,
       },
     });
     if (car) {
@@ -328,6 +333,7 @@ export function useStore(flash) {
       }
       await save("cars", { ...get().cars, [carId]: updatedCar });
     }
+    for (const h of tagged) await pushNotif(h, { type: "tag", from: me, postId: id });
     flash("Posted");
     return id;
   };

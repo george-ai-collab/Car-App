@@ -13,10 +13,13 @@ import { CommunityPage, CreateCommunityForm, ThreadPage, NewThreadForm } from ".
 import { AddCarForm, CarPage } from "./screens/Cars";
 import { Profile } from "./screens/Profile";
 import { AddMeetForm, MeetsScreen, MeetDetail } from "./screens/Meets";
-import { AddChoiceScreen, NewPostForm, SpotForm } from "./screens/Add";
+import { SpotForm } from "./screens/Add";
+import { ComposerFlow } from "./components/photo/Composer";
+import { AddMenu } from "./components/AddMenu";
+import { Tour } from "./components/Tour";
 import { SettingsScreen, EditProfile, ManageCars, ArchivedPosts } from "./screens/Settings";
 
-const ADD_VIEWS = ["addChoice", "newPost", "quickSpot", "addCar"];
+const ADD_VIEWS = ["compose", "quickSpot", "addCar", "addMeet"];
 
 export function Shell({ store, toast }) {
   const { me, cars, posts, users, news, meets, communities, notifications, sightings, discussions, actions: a } = store;
@@ -24,6 +27,19 @@ export function Shell({ store, toast }) {
   const { current: cur, stack, go, back, tab, replace, reset, patch } = nav;
   const p = cur.params || {};
   const [sheets, setSheets] = useState(0);
+  const [addOpen, setAddOpen] = useState(false);
+  // First time on this phone for this account: show the short intro.
+  const [tour, setTour] = useState(false);
+  useEffect(() => {
+    window.storage.get(`carfooly-tour:${me}`, false).then((r) => { if (!r) setTour(true); }).catch(() => {});
+  }, [me]);
+  const endTour = () => { setTour(false); window.storage.set(`carfooly-tour:${me}`, "seen", false).catch(() => {}); };
+  const pickAdd = (kind) => {
+    if (kind === "post") go("compose", {});
+    else if (kind === "spot") go("quickSpot", { fromAdd: true });
+    else if (kind === "meet") go("addMeet", { fromAdd: true });
+    else if (kind === "car") go("addCar", { fromAdd: true });
+  };
   const kb = useKeyboardOffset();
   const sheetDelta = useCallback((d) => setSheets((n) => Math.max(0, n + d)), []);
 
@@ -45,7 +61,7 @@ export function Shell({ store, toast }) {
     if (id === "feed") tab("feed");
     else if (id === "discover") tab("discover");
     else if (id === "profile") tab("profile", { username: me });
-    else if (id === "add") { if (!ADD_VIEWS.includes(cur.view)) go("addChoice"); }
+    else if (id === "add") setAddOpen((o) => !o);
   };
 
   const openProfile = (username) => {
@@ -94,7 +110,7 @@ export function Shell({ store, toast }) {
     case "communityPage":
       page = communities[p.id] && <CommunityPage community={communities[p.id]} me={me} users={users} cars={cars} posts={posts} discussions={discussions}
         onToggle={a.toggleCommunityMembership} openPost={openPost} openProfile={openProfile} openThread={openThread}
-        onNewThread={() => go("newThread", { communityId: p.id })} onNewPost={() => go("newPost", { communityId: p.id })}
+        onNewThread={() => go("newThread", { communityId: p.id })} onNewPost={() => go("compose", { communityId: p.id })}
         tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })}
         onEdit={a.editCommunity} onDelete={async (id) => { await a.deleteCommunity(id); back(); }} />;
       break;
@@ -122,7 +138,7 @@ export function Shell({ store, toast }) {
       break;
     case "addMeet":
       page = <AddMeetForm key={p.id || "new"} editing={p.id ? meets[p.id] : null}
-        onSubmit={async (data) => { const id = await a.submitMeet(data, p.id); if (!id) return; if (p.id) back(); else replace("meet", { id }); }} />;
+        onSubmit={async (data) => { const id = await a.submitMeet(data, p.id); if (!id) return; if (p.id) back(); else if (p.fromAdd) { reset(); go("meet", { id }); } else replace("meet", { id }); }} />;
       break;
     case "createCommunity":
       page = <CreateCommunityForm onSubmit={async (data) => { const id = await a.createCommunity(data); if (id) replace("communityPage", { id }); }} />;
@@ -132,19 +148,16 @@ export function Shell({ store, toast }) {
         const id = await a.addCar(data);
         if (!id) return;
         // Came from the + menu: land on the car, with back going home. From the profile: back returns to the profile.
-        if (stack[stack.length - 2]?.view === "addChoice") { reset(); go("car", { id }); }
+        if (p.fromAdd) { reset(); go("car", { id }); }
         else replace("car", { id });
       }} />;
       break;
     case "editCar":
       page = cars[p.id] && <AddCarForm initial={cars[p.id]} onSubmit={async (data) => { await a.editCar(p.id, data); back(); }} />;
       break;
-    case "newPost":
-      page = <NewPostForm me={me} cars={cars} communities={communities} initialCommunityId={p.communityId}
-        onSubmit={async (data) => { const id = await a.createPost(data); if (!id) return; if (p.communityId) back(); else reset(); }} onNeedCar={() => go("addCar")} />;
-      break;
-    case "addChoice":
-      page = <AddChoiceScreen onNewPost={() => go("newPost")} onSpot={() => go("quickSpot")} onAddCar={() => go("addCar")} />;
+    case "compose":
+      page = <ComposerFlow me={me} cars={cars} communities={communities} users={users} initialCommunityId={p.communityId} onCancel={back}
+        onSubmit={async (data) => { const id = await a.createPost(data); if (!id) return; if (p.communityId) back(); else reset(); }} />;
       break;
     case "quickSpot":
       page = <SpotForm onSubmit={async (data) => { await a.logSighting(data); reset(); }} />;
@@ -169,7 +182,7 @@ export function Shell({ store, toast }) {
       break;
     }
     case "settings":
-      page = <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={go} actions={a} />;
+      page = <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={go} actions={a} onTour={() => setTour(true)} />;
       break;
     case "editProfile":
       page = <EditProfile me={me} users={users} onSave={async (data) => { await a.updateProfile(data); back(); }} />;
@@ -209,7 +222,9 @@ export function Shell({ store, toast }) {
           </div>
         )}
 
-        <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0} />
+        {tour && <Tour onDone={endTour} />}
+        <AddMenu open={addOpen} onClose={() => setAddOpen(false)} onPick={pickAdd} />
+        <BottomNav active={addOpen ? "add" : activeTab} onTab={onTab} hidden={(sheets > 0 && !addOpen) || kb > 0} raised={addOpen} />
       </div>
     </SheetContext.Provider>
     </SafetyContext.Provider>

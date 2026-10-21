@@ -1,10 +1,11 @@
 import { useState, useRef, useLayoutEffect } from "react";
-import { Car, Compass, Heart, MessageCircle, Search, Bell } from "lucide-react";
+import { Car, Compass, Heart, MessageCircle, Search, Bell, MapPin } from "lucide-react";
 import { T } from "../theme";
 import { hueForId } from "../lib/utils";
 import { Avatar, FollowAvatar, EmptyState, TextInput, BottomSheet } from "../components/ui";
 import { CommentRow } from "./PostDetail";
 import { PostMenu } from "../components/PostMenu";
+import { PhotoCarousel, postPhotos } from "../components/photo/PhotoCarousel";
 import { useSwipe } from "../lib/useSwipe";
 
 // Remembers how far down the feed you were, so coming back lands on the same post.
@@ -128,25 +129,25 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
   const liked = post.likes.includes(me);
   const [pop, setPop] = useState(false);
   const hue = hueForId(post.id);
+  const pics = postPhotos(post);
   const doLike = () => { toggleLike(post.id); if (!liked) { setPop(true); setTimeout(() => setPop(false), 350); } };
   return (
     <div data-testid="feed-slide" style={{
       height: "100%", width: "100%", scrollSnapAlign: "start", scrollSnapStop: "always",
       position: "relative", display: "flex", alignItems: "flex-end", overflow: "hidden",
-      background: post.photoUrl ? "#000" : `linear-gradient(135deg, hsl(${hue},45%,20%), hsl(${hue},35%,10%))`,
+      background: pics.length ? "#000" : `linear-gradient(135deg, hsl(${hue},45%,20%), hsl(${hue},35%,10%))`,
     }}>
-      {post.photoUrl ? (
-        <>
-          {/* Blurred copy fills the empty space; the real photo is shown whole, never cropped. */}
-          <div aria-hidden style={{ position: "absolute", inset: -40, background: `url(${post.photoUrl}) center/cover`, filter: "blur(28px) brightness(0.55)" }} />
-          <img src={post.photoUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
-        </>
+      {pics.length ? (
+        // Whole photos, never cropped; swipe sideways when there are several.
+        <PhotoCarousel photos={pics} mode="feed" />
       ) : (
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Car size={52} color="rgba(245,244,242,0.3)" />
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "90px 28px 160px" }}>
+          {post.caption
+            ? <div className="display" style={{ color: "#fff", fontSize: post.caption.length > 120 ? 20 : 27, lineHeight: 1.25, textAlign: "center" }}>{post.caption}</div>
+            : <Car size={52} color="rgba(245,244,242,0.3)" />}
         </div>
       )}
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0) 65%)" }} />
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0) 65%)" }} />
 
       {/* Right-side action column: like, comment, and (on your own posts) the ··· menu, all lined up. */}
       <div style={{ position: "absolute", right: 6, bottom: 20, zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
@@ -169,6 +170,12 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
             {post.authorUsername}
           </button>
         </div>
+        {(post.location || (post.tags || []).length > 0) && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: 600, marginBottom: 8, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
+            {post.location && <span data-testid="feed-location" style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={12} /> {post.location.label}</span>}
+            {(post.tags || []).length > 0 && <span data-testid="feed-tags">with {post.tags.map((h, k) => <button key={h} onClick={() => openProfile(h)} style={{ background: "none", border: "none", padding: 0, color: "#fff", fontWeight: 700, fontSize: 12 }}>@{h}{k < post.tags.length - 1 ? ", " : ""}</button>)}</span>}
+          </div>
+        )}
         {car && (
           <button onClick={() => openCar(car.id)} style={{
             cursor: car.hasPage === false ? "default" : "pointer",
@@ -183,7 +190,7 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
             {post.carLabel}
           </div>
         )}
-        {post.caption && (
+        {post.caption && pics.length > 0 && (
           <div style={{
             color: "#fff", fontSize: 13.5, lineHeight: 1.4, textShadow: "0 1px 3px rgba(0,0,0,0.5)",
             display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",

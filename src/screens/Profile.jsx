@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSwipe } from "../lib/useSwipe";
 import { MoreMenu, useSafety } from "../components/Safety";
-import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus } from "lucide-react";
+import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus, Layers } from "lucide-react";
 import { T } from "../theme";
 import { computeBadges, nextBadgeProgress } from "../lib/badges";
 import { Avatar, FollowAvatar, IconTab, IconBadge, EmptyState, BottomSheet, MiniStat } from "../components/ui";
@@ -89,8 +89,9 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         myPosts.length === 0 ? <EmptyState icon={<Compass size={20} color={T.textDim} />} title="No posts yet" body="" /> :
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
           {myPosts.map((p) => (
-            <button key={p.id} onClick={() => openPost(p.id)} style={{ aspectRatio: "1", borderRadius: 12, overflow: "hidden", border: "none", padding: 0, background: p.photoUrl ? `url(${p.photoUrl}) center/cover` : T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {!p.photoUrl && <Car size={18} color={T.textDim} />}
+            <button key={p.id} onClick={() => openPost(p.id)} style={{ position: "relative", aspectRatio: "1", borderRadius: 12, overflow: "hidden", border: "none", padding: 0, background: p.photoUrl ? `url(${p.photoUrl}) center/cover` : T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {!p.photoUrl && (p.caption ? <span style={{ color: T.text, fontSize: 11.5, fontWeight: 600, padding: 8, lineHeight: 1.3, overflow: "hidden", maxHeight: "100%" }}>{p.caption}</span> : <Car size={18} color={T.textDim} />)}
+              {(p.photos || []).length > 1 && <Layers size={14} color="#fff" style={{ position: "absolute", top: 6, right: 6, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }} />}
             </button>
           ))}
         </div>
