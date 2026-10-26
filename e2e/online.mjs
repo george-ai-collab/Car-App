@@ -114,7 +114,8 @@ await step("B: unlike quietly removes those notifications for A", B, async () =>
   await A.getByText("For You").waitFor();
   await A.getByRole("button", { name: "Notifications" }).click();
   await A.getByText('commented: "Clean!"').waitFor();
-  if (await A.getByText("liked your post").count()) throw new Error("like notification still there");
+  // The app first shows the copy saved on the phone, then swaps in fresh data.
+  await A.getByText("liked your post").waitFor({ state: "detached", timeout: 20000 }).catch(() => { throw new Error("like notification still there"); });
 });
 await step("B: delete account", B, () => deleteAccount(B));
 await step("A: delete account", A, () => deleteAccount(A));
