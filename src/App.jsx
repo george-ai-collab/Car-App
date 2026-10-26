@@ -24,7 +24,7 @@ export default function App() {
         {store.loading ? (
           <LoadingScreen />
         ) : !store.me ? (
-          <Onboarding onSubmit={store.actions.claimUsername} users={store.users} />
+          <Onboarding onSubmit={store.actions.claimUsername} users={store.users} remote={store.remote} actions={store.actions} />
         ) : (
           // key: switching accounts starts fresh navigation
           <Shell key={store.me} store={store} toast={toast} />
