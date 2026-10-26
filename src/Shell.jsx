@@ -3,7 +3,7 @@ import { T } from "./theme";
 import { useNav } from "./nav/useNav";
 import { useKeyboardOffset } from "./lib/keyboard";
 import { SheetContext } from "./components/ui";
-import { SafetyContext } from "./components/Safety";
+import { SafetyContext, PermissionNotice } from "./components/Safety";
 import { BottomNav } from "./components/BottomNav";
 import { Feed } from "./screens/Feed";
 import { InboxView } from "./screens/Inbox";
@@ -165,9 +165,11 @@ export function Shell({ store, toast }) {
       page = <SpotForm onSubmit={async (data) => { await a.logSighting(data); reset(); }} />;
       break;
     case "car":
-      page = cars[p.id] && <CarPage car={cars[p.id]} me={me} onAddMod={(n, note) => a.addMod(p.id, n, note)}
-        onSpot={() => a.spotCar(p.id)} onFollowBuild={() => a.toggleFollowCar(p.id)} openProfile={openProfile}
-        onEdit={() => go("editCar", { id: p.id })} onTogglePage={() => a.editCar(p.id, { hasPage: true })} />;
+      page = cars[p.id] && <CarPage car={cars[p.id]} me={me} users={users} posts={posts} sightings={sightings}
+        onAddMod={(n, note) => a.addMod(p.id, n, note)} onSpot={() => a.spotCar(p.id)} onFollowBuild={() => a.toggleFollowCar(p.id)}
+        onFollowOwner={() => a.toggleFollow(cars[p.id].ownerUsername)} openProfile={openProfile} openPost={openPost}
+        onEdit={() => go("editCar", { id: p.id })} onTogglePage={() => a.editCar(p.id, { hasPage: true })}
+        tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })} />;
       break;
     case "profile":
       page = p.username && <Profile username={p.username} me={me} cars={cars} posts={posts} users={users} sightings={sightings}
@@ -225,6 +227,7 @@ export function Shell({ store, toast }) {
         )}
 
         {tour && <Tour onDone={endTour} />}
+        <PermissionNotice />
         <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0} />
       </div>
     </SheetContext.Provider>

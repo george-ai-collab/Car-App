@@ -4,6 +4,7 @@ import { T } from "../theme";
 import { fmtWhen, isPast } from "../lib/utils";
 import { useSwipe } from "../lib/useSwipe";
 import { NEAR_KM, isNear, loadArea, saveArea } from "../lib/geo";
+import { handleLocationError } from "../lib/permissions";
 import { Avatar, EmptyState, TextInput, TextArea, ConfirmDialog, Segmented, SectionLabel, BottomSheet, Section } from "../components/ui";
 import { PhotoPicker } from "../components/photo/PhotoPicker";
 import { MoreMenu, useSafety } from "../components/Safety";
@@ -155,7 +156,7 @@ function AreaPicker({ onPick }) {
       } catch { /* keep "your location" */ }
       setBusy(false);
       onPick(area);
-    }, () => { setBusy(false); setError("Couldn't get your location. You can search for your city instead."); }, { timeout: 12000 });
+    }, (err) => { setBusy(false); handleLocationError(err); setError("Couldn't get your location. You can search for your city instead."); }, { timeout: 12000 });
   };
 
   return (

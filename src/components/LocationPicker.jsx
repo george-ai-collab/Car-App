@@ -3,6 +3,7 @@ import * as L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapPin, Search, LocateFixed, Loader2 } from "lucide-react";
 import { T } from "../theme";
+import { handleLocationError } from "../lib/permissions";
 
 // Map tiles: CARTO's dark style (built on OpenStreetMap). Free for a small beta;
 // before a public launch we need a paid tile plan (e.g. CARTO, MapTiler or Stadia).
@@ -146,7 +147,7 @@ export function LocationPicker({ value, onChange }) {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => { setLocating(false); setError(""); pickPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
-      () => { setLocating(false); setError("Couldn't get your location. Check that location is allowed for Carfooly."); },
+      (err) => { setLocating(false); if (!handleLocationError(err)) setError("Couldn't get your location right now. Try again, or search instead."); else setError("Location is off for Carfooly. Search for the place instead, or turn location on."); },
       { enableHighAccuracy: true, timeout: 12000 },
     );
   };

@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Car, Plus, MapPin, Wrench, Check, Pencil, Gauge } from "lucide-react";
+import { Car, Plus, MapPin, Wrench, Check, Pencil, Gauge, Camera, Layers } from "lucide-react";
 import { T } from "../theme";
 import { fmtDate, hueForId, verbPhrase } from "../lib/utils";
-import { Avatar, EmptyState, TextInput, Stat, SectionLabel, Section } from "../components/ui";
+import { Avatar, EmptyState, TextInput, SectionLabel, Section, Segmented } from "../components/ui";
+import { useSwipe } from "../lib/useSwipe";
 import { PhotoPicker } from "../components/photo/PhotoPicker";
 import { MoreMenu, useSafety } from "../components/Safety";
 
@@ -174,134 +175,190 @@ export function Toggle({ on, onChange, label, sub }) {
   );
 }
 
-export function CarPage({ car, me, onAddMod, onSpot, onFollowBuild, openProfile, onEdit, onTogglePage }) {
+// The car's own profile. The car is the star; the owner is a small card on it.
+export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAddMod, onSpot, onFollowBuild, onFollowOwner, openProfile, openPost, onEdit, onTogglePage, tab = "posts", setTab }) {
   const safety = useSafety();
   const [modName, setModName] = useState(""); const [modNote, setModNote] = useState(""); const [addingMod, setAddingMod] = useState(false);
+  const [adding, setAdding] = useState(false);
   const isOwner = car.ownerUsername === me;
   const alreadySpotted = car.spotterUsernames.includes(me);
   const following = (car.followerUsernames || []).includes(me);
+  const owner = users[car.ownerUsername] || {};
+  const followsOwner = (users[me]?.following || []).includes(car.ownerUsername);
   const hue = hueForId(car.id);
+  const blocked = safety?.prefs.blocked || [];
+  const carPosts = Object.values(posts).filter((p) => p.carId === car.id && !p.archived && !blocked.includes(p.authorUsername)).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const carSightings = Object.values(sightings).filter((x) => x.matchedCarId === car.id);
   const timeline = [...car.timeline].sort((a, b) => new Date(b.date) - new Date(a.date));
   const specs = [
-    ["Engine", car.engine], ["Power", car.power],
-    ["Gearbox", car.gearbox], ["Weight", car.weight],
-    ["Wheels", car.wheels], ["0-60", car.zeroToSixty],
-    ["Top Speed", car.topSpeed], ["Owned since", fmtDate(car.createdAt)],
+    ["Engine", car.engine], ["Power", car.power], ["Gearbox", car.gearbox], ["Weight", car.weight],
+    ["Wheels", car.wheels], ["0-60", car.zeroToSixty], ["Top speed", car.topSpeed], ["On Carfooly since", fmtDate(car.createdAt)],
   ].filter(([, v]) => v);
+  const order = ["posts", "build", "specs", "spotters"];
+  const sw = useSwipe({ onLeft: () => setTab && setTab(order[Math.min(3, order.indexOf(tab) + 1)]), onRight: () => setTab && setTab(order[Math.max(0, order.indexOf(tab) - 1)]) });
+  const name = car.nickname || `${car.make} ${car.model}`;
 
   return (
-    <div style={{ paddingBottom: 10, position: "relative" }} className="fade-in">
-      {safety && (
-        <div style={{ position: "absolute", right: 0, top: 12, zIndex: 5, borderRadius: 999, background: "rgba(0,0,0,0.35)" }}>
-          <MoreMenu label="Car options" testid="car-menu" flash={safety.flash}
-            share={{ title: "Carfooly", text: `${car.nickname || `${car.make} ${car.model}`} (${car.year}), kept by @${car.ownerUsername} on Carfooly` }}
-            report={car.ownerUsername === me ? null : { what: "car", onSend: (reason, note) => safety.actions.report({ kind: "car", id: car.id, reason, note }) }} />
-        </div>
-      )}
-      <div style={{ height: "38vh", minHeight: 280, margin: "0 -16px 0", background: car.photoUrl ? `url(${car.photoUrl}) center/cover` : `linear-gradient(135deg, hsl(${hue},45%,22%), hsl(${hue},35%,12%))`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        {!car.photoUrl && <Car size={64} color="rgba(245,244,242,0.4)" />}
-      </div>
-
-      <div style={{ background: T.paper, margin: "-14px 0 0", borderRadius: "26px 26px 0 0", padding: "18px 16px 20px", position: "relative", zIndex: 2, boxShadow: "0 -4px 16px rgba(0,0,0,0.25)" }}>
-        {isOwner && car.hasPage === false && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.paper2, borderRadius: 14, padding: "10px 12px", marginBottom: 12 }}>
-            <div style={{ flex: 1, fontSize: 12.5, color: T.inkMuted, lineHeight: 1.4 }}>Only you can see this. It doesn't have a public page.</div>
-            {onTogglePage && <button onClick={onTogglePage} className="press" style={{ border: "none", borderRadius: 999, padding: "7px 12px", background: T.accent, color: "#fff", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>Make page</button>}
+    <div data-testid="car-profile" style={{ paddingBottom: 10, position: "relative" }} className="fade-in">
+      {/* Hero: the car */}
+      <div style={{ position: "relative", margin: "0 -16px", aspectRatio: "4 / 3.2", maxHeight: "52vh", background: car.photoUrl ? `url(${car.photoUrl}) center/cover` : `linear-gradient(135deg, hsl(${hue},45%,24%), hsl(${hue},35%,10%))` }}>
+        {!car.photoUrl && <Car size={70} color="rgba(245,244,242,0.35)" style={{ position: "absolute", left: "50%", top: "42%", transform: "translate(-50%,-50%)" }} />}
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(10,10,11,1) 0%, rgba(10,10,11,0.55) 30%, rgba(10,10,11,0) 60%)" }} />
+        {safety && (
+          <div style={{ position: "absolute", right: 14, top: 14, borderRadius: 999, background: "rgba(0,0,0,0.4)" }}>
+            <MoreMenu label="Car options" testid="car-menu" flash={safety.flash}
+              share={{ title: "Carfooly", text: `${name} (${car.year}), kept by @${car.ownerUsername} on Carfooly` }}
+              items={isOwner && onEdit ? [{ label: "Edit car", icon: <Pencil size={17} />, onClick: onEdit }] : []}
+              report={isOwner ? null : { what: "car", onSend: (reason, note) => safety.actions.report({ kind: "car", id: car.id, reason, note }) }} />
           </div>
         )}
-        <div className="plate" style={{ fontSize: 11, color: T.inkMuted, marginBottom: 3 }}>{car.year} · {car.make} {car.model}</div>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
-          <div className="display" style={{ fontSize: 23, color: T.ink }}>{car.nickname || `${car.make} ${car.model}`}</div>
-          {isOwner && onEdit && (
-            <button onClick={onEdit} aria-label="Edit car" className="press" style={{ background: T.paper2, border: "none", borderRadius: 999, padding: 8, display: "flex", flexShrink: 0 }}>
-              <Pencil size={15} color={T.ink} />
-            </button>
-          )}
+        <div style={{ position: "absolute", left: 16, right: 16, bottom: 14 }}>
+          <span className="plate" style={{ display: "inline-block", background: T.paper, color: T.ink, fontSize: 11, fontWeight: 700, padding: "4px 9px", borderRadius: 6, marginBottom: 8 }}>{car.year} · {car.make} {car.model}</span>
+          <div className="display" data-testid="car-name" style={{ fontSize: 32, color: "#fff", lineHeight: 1.05 }}>{name}</div>
         </div>
+      </div>
 
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-          <button onClick={() => openProfile(car.ownerUsername)} style={{ background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", gap: 8 }}>
-            <Avatar username={car.ownerUsername} size={26} />
-            <span style={{ color: T.inkMuted, fontSize: 12.5 }}>Kept by <span style={{ color: T.accent, fontWeight: 700 }}>{car.ownerUsername}</span></span>
-          </button>
-          {!isOwner && (
-            <button onClick={onFollowBuild} className="press" style={{
-              padding: "7px 13px", borderRadius: 999, border: `1px solid ${following ? T.linePaper : T.accent}`,
-              background: following ? "transparent" : T.accent, color: following ? T.inkMuted : T.ink,
-              fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5,
-            }}>
-              {following && <Check size={11} />} {following ? "Following" : "Follow build"}
-            </button>
-          )}
+      {isOwner && car.hasPage === false && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 16, padding: "10px 12px", margin: "12px 0 0" }}>
+          <div style={{ flex: 1, fontSize: 12.5, color: T.textDim, lineHeight: 1.4 }}>Only you can see this. It doesn't have a public page.</div>
+          {onTogglePage && <button onClick={onTogglePage} className="press" style={{ border: "none", borderRadius: 999, padding: "7px 12px", background: T.accent, color: "#fff", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}>Make page</button>}
         </div>
+      )}
 
-        <div style={{ display: "flex", gap: 18, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.linePaper}` }}>
-          <Stat label="Mods" value={car.mods.length} />
-          <Stat label="Spots" value={car.spotterUsernames.length} />
-          <Stat label="Followers" value={(car.followerUsernames || []).length} />
-        </div>
-
-        {!isOwner && (
-          <button onClick={onSpot} disabled={alreadySpotted} className="press"
-            style={{ width: "100%", marginTop: 16, padding: "12px 16px", borderRadius: 16, border: "none", background: alreadySpotted ? T.paper2 : T.accent2, color: alreadySpotted ? T.inkMuted : "#fff", fontWeight: 600, fontSize: 14.5, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <MapPin size={15} />{alreadySpotted ? "You spotted this" : "I spotted this"}
+      {/* Owner: a small card */}
+      <div data-testid="owner-card" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", margin: "12px 0", borderRadius: 18, background: T.surface, border: `1px solid ${T.lineDark}` }}>
+        <button onClick={() => openProfile(car.ownerUsername)} style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "left" }}>
+          <Avatar username={car.ownerUsername} size={36} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ color: T.textDim, fontSize: 11 }}>Kept by</div>
+            <div style={{ color: T.text, fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{owner.name || car.ownerUsername} <span className="plate" style={{ color: T.textDim, fontSize: 10.5, fontWeight: 400 }}>@{car.ownerUsername}</span></div>
+          </div>
+        </button>
+        {!isOwner && onFollowOwner && (
+          <button onClick={onFollowOwner} className="press" style={{ padding: "6px 12px", borderRadius: 999, border: `1px solid ${followsOwner ? T.lineDark : T.accent}`, background: followsOwner ? "transparent" : "rgba(230,56,70,0.14)", color: followsOwner ? T.textDim : T.accent, fontSize: 12, fontWeight: 700 }}>
+            {followsOwner ? "Following" : "Follow"}
           </button>
         )}
       </div>
 
-      <div style={{ padding: "20px 4px 0" }}>
-        {specs.length > 0 && (
+      {/* Dash: the numbers, like gauges */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
+        {[["Followers", (car.followerUsernames || []).length], ["Spots", car.spotterUsernames.length], ["Posts", carPosts.length], ["Mods", car.mods.length]].map(([l, v]) => (
+          <div key={l} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 16, background: "radial-gradient(100% 120% at 50% 0%, rgba(230,56,70,0.12), transparent 70%), " + T.surface, border: `1px solid ${T.lineDark}` }}>
+            <div className="plate" style={{ color: T.text, fontSize: 19, fontWeight: 700 }}>{v}</div>
+            <div style={{ color: T.textDim, fontSize: 10.5, marginTop: 2 }}>{l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {isOwner ? (
           <>
-            <SectionLabel>Spec</SectionLabel>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 20 }}>
-              {specs.map(([label, val]) => (
-                <div key={label} style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 16, padding: "10px 12px", boxShadow: T.shadowCard }}>
-                  <div className="plate" style={{ fontSize: 9.5, color: T.textDim, marginBottom: 3 }}>{label}</div>
-                  <div style={{ color: T.text, fontSize: 13.5, fontWeight: 600 }}>{val}</div>
+            {onEdit && <button onClick={onEdit} aria-label="Edit car" className="press" style={actBtn(false)}><Pencil size={15} /> Edit car</button>}
+            <button onClick={() => { setTab && setTab("build"); setAdding(true); }} className="press" style={actBtn(true)}><Wrench size={15} /> Log a mod</button>
+          </>
+        ) : (
+          <>
+            <button onClick={onFollowBuild} className="press" style={actBtn(!following)}>{following ? <Check size={15} /> : <Plus size={15} />} {following ? "Following build" : "Follow build"}</button>
+            <button onClick={onSpot} disabled={alreadySpotted} className="press" style={{ ...actBtn(false), color: alreadySpotted ? T.textDim : "#8EC3D6" }}><MapPin size={15} /> {alreadySpotted ? "Spotted" : "I spotted this"}</button>
+          </>
+        )}
+      </div>
+
+      <div {...sw.bind} style={{ ...sw.bind.style, minHeight: "40vh" }}>
+        <Segmented testid="car-tabs" value={tab} onChange={(t) => setTab && setTab(t)} options={[["posts", "Posts"], ["build", "Build"], ["specs", "Specs"], ["spotters", "Spotted"]]} />
+
+        {tab === "posts" && (
+          carPosts.length === 0
+            ? <EmptyState icon={<Camera size={20} color={T.textDim} />} title="No posts yet" body={isOwner ? "Post a photo and tag this car." : "Posts tagged with this car show up here."} />
+            : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                {carPosts.map((p) => (
+                  <button key={p.id} data-testid="car-post" onClick={() => openPost && openPost(p.id)} style={{ position: "relative", aspectRatio: "1", borderRadius: 12, overflow: "hidden", border: "none", padding: 0, background: p.photoUrl ? `url(${p.photoUrl}) center/cover` : T.surface }}>
+                    {!p.photoUrl && <span style={{ color: T.text, fontSize: 11, padding: 8, display: "block" }}>{p.caption}</span>}
+                    {(p.photos || []).length > 1 && <Layers size={13} color="#fff" style={{ position: "absolute", top: 6, right: 6 }} />}
+                  </button>
+                ))}
+              </div>
+            )
+        )}
+
+        {tab === "build" && (
+          <>
+            {isOwner && (adding ? (
+              <div className="fade-in" style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 18, padding: 12, marginBottom: 16 }}>
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  <div style={{ flex: 1 }}><TextInput value={modName} onChange={setModName} placeholder="e.g. Ohlins DFV coilovers" maxLength={60} autoFocus /></div>
+                  <button disabled={!modName.trim() || addingMod} className="press" aria-label="Save mod"
+                    onClick={async () => { setAddingMod(true); await onAddMod(modName, modNote); setModName(""); setModNote(""); setAddingMod(false); setAdding(false); }}
+                    style={{ padding: "0 16px", borderRadius: 16, border: "none", background: modName.trim() ? T.accent : T.surface2, color: modName.trim() ? "#fff" : T.textDim, fontWeight: 600 }}>
+                    <Check size={16} />
+                  </button>
+                </div>
+                <TextInput value={modNote} onChange={setModNote} placeholder="Details (optional): ride height, part numbers, notes" maxLength={200} />
+              </div>
+            ) : (
+              <button onClick={() => setAdding(true)} className="press" style={{ width: "100%", marginBottom: 16, padding: "11px", borderRadius: 16, border: `1px dashed ${T.lineDark}`, background: T.surface, color: T.text, fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><Plus size={14} /> Log a mod</button>
+            ))}
+            <div style={{ position: "relative", paddingLeft: 18 }}>
+              <div style={{ position: "absolute", left: 4, top: 4, bottom: 4, width: 1, background: T.lineDark }} />
+              {timeline.map((t) => (
+                <div key={t.id} style={{ position: "relative", marginBottom: 18 }}>
+                  <div style={{ position: "absolute", left: -18, top: 3, width: 9, height: 9, borderRadius: 99, background: t.type === "spot" ? T.accent2 : t.type === "mod" || t.type === "post" ? T.accent : T.textDim, border: `2px solid ${T.bg}` }} />
+                  <div className="plate" style={{ color: T.textDim, fontSize: 10.5, marginBottom: 2 }}>{fmtDate(t.date)}</div>
+                  <div style={{ color: T.text, fontSize: 13.5, lineHeight: 1.4 }}>
+                    <button onClick={() => openProfile(t.by)} style={{ background: "none", border: "none", padding: 0, color: T.text, fontWeight: 600, fontSize: 13.5 }}>{t.by}</button>
+                    {" "}{verbPhrase(t)}
+                  </div>
+                  {t.type === "mod" && t.modNote && <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 3, lineHeight: 1.4 }}>{t.modNote}</div>}
                 </div>
               ))}
             </div>
           </>
         )}
 
-        <SectionLabel>Build log · {car.mods.length} {car.mods.length === 1 ? "entry" : "entries"}</SectionLabel>
-        <div style={{ position: "relative", paddingLeft: 18, marginBottom: isOwner ? 14 : 4 }}>
-          <div style={{ position: "absolute", left: 4, top: 4, bottom: 4, width: 1, background: T.lineDark }} />
-          {timeline.map((t) => (
-            <div key={t.id} style={{ position: "relative", marginBottom: 18 }}>
-              <div style={{ position: "absolute", left: -18, top: 3, width: 9, height: 9, borderRadius: 99, background: t.type === "spot" ? T.accent2 : t.type === "mod" || t.type === "post" ? T.accent : T.textDim, border: `2px solid ${T.bg}` }} />
-              <div className="plate" style={{ color: T.textDim, fontSize: 10.5, marginBottom: 2 }}>{fmtDate(t.date)}</div>
-              <div style={{ color: T.text, fontSize: 13.5, lineHeight: 1.4 }}>
-                <button onClick={() => openProfile(t.by)} style={{ background: "none", border: "none", padding: 0, color: T.text, fontWeight: 600, fontSize: 13.5 }}>{t.by}</button>
-                {" "}{verbPhrase(t)}
+        {tab === "specs" && (
+          specs.length === 0
+            ? <EmptyState icon={<Gauge size={20} color={T.textDim} />} title="No specs yet" body={isOwner ? "Add them with Edit car." : "The owner hasn't added specs yet."} />
+            : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {specs.map(([label, val]) => (
+                  <div key={label} style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 16, padding: "12px" }}>
+                    <div className="plate" style={{ fontSize: 9.5, color: T.textDim, marginBottom: 4 }}>{label}</div>
+                    <div style={{ color: T.text, fontSize: 15, fontWeight: 700 }}>{val}</div>
+                  </div>
+                ))}
               </div>
-              {t.type === "mod" && t.modNote && (
-                <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 3, lineHeight: 1.4 }}>{t.modNote}</div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        {isOwner && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-              <div style={{ flex: 1 }}><TextInput value={modName} onChange={setModName} placeholder="e.g. Ohlins DFV coilovers" maxLength={60} /></div>
-              <button disabled={!modName.trim() || addingMod} className="press"
-                onClick={async () => { setAddingMod(true); await onAddMod(modName, modNote); setModName(""); setModNote(""); setAddingMod(false); }}
-                style={{ padding: "0 16px", borderRadius: 16, border: "none", background: modName.trim() ? T.accent : T.surface2, color: modName.trim() ? T.ink : T.textDim, fontWeight: 600 }}>
-                <Plus size={16} />
-              </button>
-            </div>
-            <TextInput value={modNote} onChange={setModNote} placeholder="Details (optional) — ride height, part numbers, notes" maxLength={200} />
-          </div>
+            )
         )}
 
-        {car.spotterUsernames.length > 0 && (
-          <div style={{ color: T.textDim, fontSize: 12.5, display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-            <MapPin size={12} /> Spotted {car.spotterUsernames.length} {car.spotterUsernames.length === 1 ? "time" : "times"}
-          </div>
+        {tab === "spotters" && (
+          car.spotterUsernames.length === 0
+            ? <EmptyState icon={<MapPin size={20} color={T.textDim} />} title="Not spotted yet" body="When someone spots this car in the wild, they show up here." />
+            : (
+              <>
+                {carSightings.filter((x) => x.photoUrl).length > 0 && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 14 }}>
+                    {carSightings.filter((x) => x.photoUrl).map((x) => <div key={x.id} style={{ aspectRatio: "1", borderRadius: 12, background: `url(${x.photoUrl}) center/cover` }} />)}
+                  </div>
+                )}
+                {car.spotterUsernames.map((u) => (
+                  <button key={u} onClick={() => openProfile(u)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 0", background: "none", border: "none", textAlign: "left" }}>
+                    <Avatar username={u} size={32} />
+                    <span style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{users[u]?.name || u}</span>
+                    <span className="plate" style={{ color: T.textDim, fontSize: 10.5 }}>@{u}</span>
+                  </button>
+                ))}
+              </>
+            )
         )}
       </div>
     </div>
   );
 }
+
+const actBtn = (primary) => ({
+  flex: 1, padding: "11px 10px", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, fontSize: 13.5, fontWeight: 700,
+  border: primary ? "none" : `1px solid ${T.lineDark}`, background: primary ? T.accent : T.surface, color: primary ? "#fff" : T.text, boxShadow: primary ? T.shadowAccent : "none",
+});

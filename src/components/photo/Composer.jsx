@@ -3,7 +3,7 @@ import { Camera, Image as ImageIcon, Plus, X, ChevronLeft, Crop, Sparkles, Slide
 import { T } from "../../theme";
 import { uid } from "../../lib/utils";
 import { readPhoto } from "./CameraCapture";
-import { canPickNatively, pickFromGallery } from "../../lib/media";
+import { canPickNatively, pickFromGallery, takePhoto } from "../../lib/media";
 import { SHAPES, FILTERS, TEXT_COLORS, blankEdit, shapeRatio, angleOf, coverScale, clampPan, dragToPan, cssFilter, warmthLayer, bakeEdit } from "./edit";
 import { Avatar, BottomSheet, ChipPicker, Section, TextArea, TextInput } from "../ui";
 import { labelFor, placeArea } from "../LocationPicker";
@@ -63,8 +63,6 @@ function PickStep({ onFiles, onCancel }) {
       if (blobs.length) onFiles(blobs);
     } else lib.current.click();
   };
-  // On the phone, go straight to the gallery when "Post" is opened.
-  useEffect(() => { if (canPickNatively()) openGallery(); }, []);
   return (
     <div>
       <TopRow title="New post" left={<IconBtn label="Close" onClick={onCancel}><X size={20} /></IconBtn>} />
@@ -81,7 +79,7 @@ function PickStep({ onFiles, onCancel }) {
           <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, marginTop: 3 }}>Recent photos and albums · up to {MAX_PHOTOS}</div>
         </div>
       </button>
-      <button data-testid="open-camera" onClick={() => cam.current.click()} className="press" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: 16, borderRadius: 20, border: `1px solid ${T.lineDark}`, background: T.surface, textAlign: "left" }}>
+      <button data-testid="open-camera" onClick={async () => { if (canPickNatively()) { const b = await takePhoto(); if (b) onFiles([b]); } else cam.current.click(); }} className="press" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: 16, borderRadius: 20, border: `1px solid ${T.lineDark}`, background: T.surface, textAlign: "left" }}>
         <Camera size={22} color={T.text} />
         <div style={{ flex: 1 }}>
           <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>Take a photo</div>

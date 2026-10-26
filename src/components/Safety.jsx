@@ -1,8 +1,9 @@
-import { useState, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import { MoreHorizontal, Flag, Share2, EyeOff, Ban } from "lucide-react";
 import { T } from "../theme";
 import { ActionMenu, BottomSheet, TextArea } from "./ui";
 import { shareText } from "../lib/share";
+import { PERMISSION_HELP } from "../lib/permissions";
 
 export const REPORT_REASONS = [
   "Spam or scam",
@@ -68,3 +69,26 @@ export function MoreMenu({ label = "More options", testid = "more-menu", items =
 // Shared access to report / hide / block from anywhere (set up in Shell).
 export const SafetyContext = createContext(null);
 export const useSafety = () => useContext(SafetyContext);
+
+// The message shown when a permission was refused (see lib/permissions.js).
+export function PermissionNotice() {
+  const [kind, setKind] = useState(null);
+  useEffect(() => {
+    const on = (e) => setKind(e.detail);
+    window.addEventListener("carfooly-permission", on);
+    return () => window.removeEventListener("carfooly-permission", on);
+  }, []);
+  const info = kind && PERMISSION_HELP[kind];
+  return (
+    <BottomSheet open={!!info} onClose={() => setKind(null)} title={info?.title} maxHeight="70vh">
+      {info && (
+        <div data-testid="permission-notice">
+          <div style={{ color: T.text, fontSize: 14.5, lineHeight: 1.5, marginBottom: 14 }}>{info.body}</div>
+          <div className="plate" style={{ fontSize: 10.5, color: T.textDim, marginBottom: 6 }}>To turn it on</div>
+          <div style={{ color: T.text, fontSize: 13.5, lineHeight: 1.5, background: "rgba(255,255,255,0.06)", borderRadius: 14, padding: "10px 12px", marginBottom: 16 }}>{info.steps}</div>
+          <button onClick={() => setKind(null)} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 700, fontSize: 15 }}>OK</button>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}

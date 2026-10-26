@@ -8,8 +8,8 @@ const ITEMS = [
   { id: "add", label: "Add", icon: Plus },
   { id: "profile", label: "Profile", icon: User },
 ];
-// Sliding across the bar moves between the main pages (Add is skipped: it opens a menu).
-const SWIPE_STOPS = ["feed", "discover", "profile"];
+// Sliding across the bar moves between every tab, including + (the Create page).
+const SWIPE_STOPS = ["feed", "discover", "add", "profile"];
 
 // Floating pill nav. Tap a tab, or slide your finger along the bar like a gear selector.
 export function BottomNav({ active, onTab, hidden, raised }) {
@@ -20,9 +20,7 @@ export function BottomNav({ active, onTab, hidden, raised }) {
   const slotAt = (clientX) => {
     const r = bar.current.getBoundingClientRect();
     const i = Math.max(0, Math.min(ITEMS.length - 1, Math.floor(((clientX - r.left) / r.width) * ITEMS.length)));
-    let id = ITEMS[i].id;
-    if (id === "add") id = clientX - drag.current.x > 0 ? "profile" : "discover";
-    return id;
+    return ITEMS[i].id;
   };
   const down = (e) => { drag.current = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId }; };
   const move = (e) => {

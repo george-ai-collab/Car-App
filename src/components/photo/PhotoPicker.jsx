@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Camera, Image as ImageIcon, Loader2 } from "lucide-react";
 import { T } from "../../theme";
 import { readPhoto } from "./CameraCapture";
+import { canPickNatively, pickFromGallery, takePhoto } from "../../lib/media";
 
 // Big "add a photo" area with two choices: take one now, or pick from the gallery.
 // aspect = width ÷ height of the empty area. children = extra art inside (e.g. viewfinder corners).
@@ -34,8 +35,8 @@ export function PhotoPicker({ onPick, aspect = 4 / 5, title = "Add a photo", hin
         {hint && <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 4, lineHeight: 1.4 }}>{hint}</div>}
       </div>
       <div style={{ display: "flex", gap: 8, width: "100%", position: "relative" }}>
-        <button onClick={() => cam.current.click()} disabled={busy} className="press" style={btn(true)}><Camera size={15} /> Camera</button>
-        <button onClick={() => lib.current.click()} disabled={busy} className="press" style={btn(false)}><ImageIcon size={15} /> Gallery</button>
+        <button onClick={async () => { if (canPickNatively()) { const b = await takePhoto(); if (b) handle(b); } else cam.current.click(); }} disabled={busy} className="press" style={btn(true)}><Camera size={15} /> Camera</button>
+        <button onClick={async () => { if (canPickNatively()) { const [b] = await pickFromGallery(1); if (b) handle(b); } else lib.current.click(); }} disabled={busy} className="press" style={btn(false)}><ImageIcon size={15} /> Gallery</button>
       </div>
     </div>
   );
