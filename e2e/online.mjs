@@ -104,10 +104,10 @@ await step("A: after reopening the app, still signed in and gets all 3 notificat
   await A.getByText("started following you").waitFor();
   await A.screenshot({ path: "e2e-shots/inbox-A.png" });
 });
-await step("B: unlike + unfollow quietly removes those notifications for A", B, async () => {
+await step("B: unlike quietly removes those notifications for A", B, async () => {
+  await B.reload(); // reopen the app (the comments panel stays open on purpose to keep drafts)
   const slide = B.locator("[data-testid=feed-slide]", { hasText: caption });
-  await B.keyboard.press("Escape").catch(() => {});
-  await B.evaluate(() => { const bd = document.querySelector("[data-sheet-backdrop]"); if (bd) bd.click(); });
+  await slide.waitFor();
   await slide.getByRole("button", { name: "Like" }).click();
   await B.waitForTimeout(4000);
   await A.reload();
