@@ -36,14 +36,24 @@ jobs:
           npm install 2>&1 | tee -a build.log
 
       - name: Build the Carfooly frontend
+        env:
+          VITE_BUILD: ${{ github.run_number }}
         run: |
           set -o pipefail
           npm run build 2>&1 | tee -a build.log
 
       - name: Generate the Android project
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
           set -o pipefail
           { npx cap add android && node scripts/patch-android.mjs && npx cap sync android; } 2>&1 | tee -a build.log
+
+      # Same signing key every time, so new test APKs install as updates (data is kept).
+      - name: Use the shared test signing key
+        run: |
+          mkdir -p ~/.android
+          cp android-signing/debug.keystore ~/.android/debug.keystore
 
       - name: Compile the APK
         run: |

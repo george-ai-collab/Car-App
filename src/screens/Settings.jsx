@@ -5,7 +5,7 @@ import { fmtDate } from "../lib/utils";
 import { Avatar, EmptyState, Field, TextInput, TextArea, ConfirmDialog, SectionLabel } from "../components/ui";
 import { CameraCapture } from "../components/photo/CameraCapture";
 
-export const APP_VERSION = "0.2.0 beta";
+export const APP_VERSION = `0.2${import.meta.env?.VITE_BUILD ? `.${import.meta.env.VITE_BUILD}` : ".0"} beta`;
 
 function Row({ icon, label, sub, onClick, danger, disabled, right }) {
   return (

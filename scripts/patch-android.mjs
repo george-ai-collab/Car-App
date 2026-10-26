@@ -63,4 +63,13 @@ public class MainActivity extends BridgeActivity {
 `);
   }
 }
-console.log("patch-android: permissions, portrait lock, no scrollbar/bounce applied");
+// Each GitHub build gets a higher version number, so Android treats it as an update.
+const buildNo = parseInt(process.env.BUILD_NUMBER || "", 10);
+const gradlePath = "android/app/build.gradle";
+if (buildNo && existsSync(gradlePath)) {
+  let g = readFileSync(gradlePath, "utf8");
+  g = g.replace(/versionCode\s+\d+/, `versionCode ${buildNo}`).replace(/versionName\s+"[^"]*"/, `versionName "0.2.${buildNo}"`);
+  writeFileSync(gradlePath, g);
+}
+
+console.log("patch-android: permissions, portrait lock, no scrollbar/bounce, version applied");
