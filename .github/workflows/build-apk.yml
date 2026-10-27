@@ -90,3 +90,41 @@ jobs:
             echo '```'
           } > comment.md
           gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --body-file comment.md
+
+  # Two throwaway accounts use the real online backend and check they can see and
+  # react to each other (post with photo, like, comment, follow, notifications),
+  # then delete themselves. The result is posted on the PR.
+  online-test:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: |
+          npm install
+          npm install --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+      - name: Build the web app
+        run: npm run build
+      - name: Run the two-account test
+        run: |
+          npx vite preview --port 4173 --strictPort > preview.log 2>&1 &
+          npx --yes wait-on@8 http://localhost:4173 -t 30000
+          node e2e/online.mjs http://localhost:4173
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: online-test-screenshots
+          path: e2e-shots
+          retention-days: 7
+      - name: Post the result on the PR
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -f e2e-result.md ] || echo "❌ Online test didn't run (setup failed). Check the Actions log." > e2e-result.md
+          gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --body-file e2e-result.md

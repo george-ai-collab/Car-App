@@ -4,6 +4,7 @@ import { T } from "../theme";
 import { fmtDate } from "../lib/utils";
 import { Avatar, EmptyState, Field, TextInput, TextArea, ConfirmDialog, SectionLabel } from "../components/ui";
 import { CameraCapture } from "../components/photo/CameraCapture";
+import { REMOTE } from "../backend/config";
 
 export const APP_VERSION = `0.2${import.meta.env?.VITE_BUILD ? `.${import.meta.env.VITE_BUILD}` : ".0"} beta`;
 
@@ -34,6 +35,7 @@ function Group({ children }) {
 }
 
 export function SettingsScreen({ me, users, cars, posts, go, actions, onTour }) {
+  const remote = REMOTE;
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const user = users[me] || {};
@@ -65,8 +67,8 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour }) 
 
       <SectionLabel>Sign-in</SectionLabel>
       <Group>
-        <Row icon={<span style={{ fontWeight: 800, fontSize: 15 }}>G</span>} label="Connect Google" sub="Comes with online accounts (next update)" disabled right={null} />
-        <Row icon={<LogOut size={16} />} label="Switch account / Log out" sub="Pick a different handle on this phone" onClick={() => setConfirmLogout(true)} />
+        <Row icon={<span style={{ fontWeight: 800, fontSize: 15 }}>G</span>} label="Connect Google" sub="Coming soon" disabled right={null} />
+        <Row icon={<LogOut size={16} />} label={remote ? "Log out" : "Switch account / Log out"} sub={remote ? "Log in again with your email and password" : "Pick a different handle on this phone"} onClick={() => setConfirmLogout(true)} />
       </Group>
 
       <SectionLabel>Help</SectionLabel>
@@ -83,7 +85,7 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour }) 
       </div>
 
       <ConfirmDialog open={confirmLogout} onClose={() => setConfirmLogout(false)} title="Log out?" confirmLabel="Log out"
-        body="Your stuff stays on this phone. Log back in with the same handle to get it back." onConfirm={actions.logout} />
+        body={remote ? "Everything stays in your account. Log back in any time." : "Your stuff stays on this phone. Log back in with the same handle to get it back."} onConfirm={actions.logout} />
       <ConfirmDialog open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete your account?" confirmLabel="Delete everything"
         body="This removes your profile, cars, posts, comments, likes and spots. It can't be undone." onConfirm={actions.deleteAccount} />
     </div>

@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { uid } from "../lib/utils";
 import { SEED_NEWS } from "../lib/seedNews";
+import { REMOTE, REFRESH_MS } from "../backend/config";
+import * as remote from "../backend/remote";
 
 // All app data lives here. Screens call these actions; actions only change data
 // (they never move between pages — the Shell decides where to go next).
-// window.storage is the one place that will be swapped for Supabase later.
+// Online (REMOTE): every change shows instantly on this phone, then saves to the
+// backend in the background, in order. Every ~20s the app reloads to pick up
+// other people's changes. Offline/test builds (local) keep everything on the device.
 
 export const KEYS = {
   cars: "carfooly-cars",
@@ -42,11 +46,12 @@ export function useStore(flash) {
   const [prefs, setPrefs] = useState({ hidden: [], blocked: [] });
   const prefsKey = (h) => `carfooly-prefs:${h}`;
   useEffect(() => {
-    if (!me) return;
+    if (!me || REMOTE) return;
     window.storage.get(prefsKey(me), false).then((r) => setPrefs(r ? { hidden: [], blocked: [], ...JSON.parse(r.value) } : { hidden: [], blocked: [] })).catch(() => {});
   }, [me]);
   const savePrefs = async (next) => {
     setPrefs(next);
+    if (REMOTE) return;
     try { await window.storage.set(prefsKey(me), JSON.stringify(next), false); } catch { /* not critical */ }
   };
 
@@ -54,7 +59,84 @@ export function useStore(flash) {
   const ref = useRef(data);
   ref.current = data;
 
+  // ---------- online sync ----------
+  const meId = useRef(null);          // your account id (online only)
+  const queue = useRef(Promise.resolve());
+  const pending = useRef(0);
+  const version = useRef(0);          // goes up with every change made on this phone
+  const newId = (prefix) => (REMOTE ? crypto.randomUUID() : uid(prefix));
+  const idOf = (handle) => ref.current.users[handle]?.id || null;
+  const CACHE = "carfooly-cache";
+
+  const apply = (res) => {
+    ref.current = res.data;
+    setData(res.data);
+    setPrefs(res.prefs);
+    setMe(res.me);
+  };
+  // Reload everything from the backend. Skipped if you changed something meanwhile
+  // (your change is still on its way, and the next reload will include it).
+  const refresh = useCallback(async () => {
+    if (!REMOTE || !meId.current || pending.current) return;
+    const started = version.current;
+    try {
+      const res = await remote.load(meId.current);
+      if (version.current !== started || pending.current || !meId.current) return;
+      if (!res.me) { meId.current = null; setMe(null); return; }
+      apply(res);
+      window.storage.set(CACHE, JSON.stringify({ userId: meId.current, ...res }), false).catch(() => {});
+    } catch { /* offline: keep showing what we have */ }
+  }, []);
+
+  // Run a backend save after the ones before it. If it fails, say so and reload the truth.
+  const sync = (fn) => {
+    if (!REMOTE || !meId.current) return;
+    pending.current += 1;
+    const id = meId.current;
+    queue.current = queue.current
+      .then(() => fn(id))
+      .catch((e) => { flash(remote.writeMessage(e)); })
+      .finally(() => { pending.current -= 1; if (!pending.current) { version.current += 1; refresh(); } });
+  };
+
+  const startSession = async (userId) => {
+    meId.current = userId;
+    const res = await remote.load(userId);
+    if (!res.me) throw new Error("no profile");
+    apply(res);
+    window.storage.set(CACHE, JSON.stringify({ userId, ...res }), false).catch(() => {});
+  };
+
   useEffect(() => {
+    if (!REMOTE) return;
+    (async () => {
+      try {
+        const userId = await remote.currentUserId();
+        if (userId) {
+          meId.current = userId;
+          // Show the last saved copy straight away (also works offline), then fetch fresh.
+          const cached = await window.storage.get(CACHE, false).catch(() => null);
+          const c = cached ? JSON.parse(cached.value) : null;
+          if (c && c.userId === userId && c.me) { apply(c); setLoading(false); }
+          try { await startSession(userId); }
+          catch (e) { if (!c || c.userId !== userId) { if (e?.message === "no profile") await remote.signOut(); meId.current = null; } }
+        }
+      } catch { /* not signed in */ }
+      setLoading(false);
+    })();
+  }, []);
+
+  // Pick up other people's changes while the app is open.
+  useEffect(() => {
+    if (!REMOTE || !me) return;
+    const tick = () => { if (document.visibilityState === "visible") refresh(); };
+    const timer = setInterval(tick, REFRESH_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
+  }, [me, refresh]);
+
+  useEffect(() => {
+    if (REMOTE) return;
     (async () => {
       const [c, p, u, n, m, co, nf, sg, ds, meRes] = await Promise.all([
         readShared(KEYS.cars), readShared(KEYS.posts), readShared(KEYS.users), readShared(KEYS.news),
@@ -77,6 +159,8 @@ export function useStore(flash) {
   const save = useCallback(async (name, value, quiet) => {
     ref.current = { ...ref.current, [name]: value };
     setData(ref.current);
+    version.current += 1;
+    if (REMOTE) return;
     try { await window.storage.set(KEYS[name], JSON.stringify(value), true); }
     catch { if (!quiet) flash("Couldn't save. Try again."); }
   }, [flash]);
@@ -90,15 +174,15 @@ export function useStore(flash) {
     && (a.type === "like" ? a.postId === b.postId : true) && (a.type === "commentLike" ? a.commentId === b.commentId : true);
   const DEDUPE = ["follow", "followBuild", "like", "commentLike"];
   const pushNotif = async (to, notif) => {
-    if (!to || to === me) return;
+    if (!to || to === me || REMOTE) return;
     const all = get().notifications;
     const full = { from: me, ...notif };
     const rest = (all[to] || []).filter((n) => !(DEDUPE.includes(full.type) && sameEvent(n, full)));
-    await save("notifications", { ...all, [to]: [{ id: uid("n"), date: now(), read: false, ...full }, ...rest] }, true);
+    await save("notifications", { ...all, [to]: [{ id: newId("n"), date: now(), read: false, ...full }, ...rest] }, true);
   };
   // Un-doing something (unfollow, unlike) quietly removes its notification.
   const dropNotif = async (to, notif) => {
-    if (!to || to === me) return;
+    if (!to || to === me || REMOTE) return;
     const all = get().notifications;
     const full = { from: me, ...notif };
     if (!(all[to] || []).some((n) => sameEvent(n, full))) return;
@@ -124,20 +208,52 @@ export function useStore(flash) {
     } catch { flash("Couldn't save your name. Try again."); }
   };
 
+  // Online accounts: email + password. The handle is reserved by the database.
+  const resetToSignedOut = () => {
+    meId.current = null;
+    const empty = { cars: {}, posts: {}, users: {}, news: {}, meets: {}, communities: {}, notifications: {}, sightings: {}, discussions: {} };
+    ref.current = empty;
+    setData(empty);
+    setPrefs({ hidden: [], blocked: [] });
+    window.storage.delete(CACHE, false).catch(() => {});
+    setMe(null);
+  };
+  const checkHandle = (handle) => remote.handleAvailable(handle);
+  const signUp = async (f) => {
+    const res = await remote.signUp(f);
+    if (res.error || res.needsConfirm) return res;
+    try { await startSession(res.userId); return {}; } catch { return { error: "Account made, but it couldn't load. Try logging in." }; }
+  };
+  const signIn = async (f) => {
+    const res = await remote.signIn(f);
+    if (res.error) return res;
+    try { await startSession(res.userId); return {}; } catch { await remote.signOut(); meId.current = null; return { error: "Couldn't load your account. Check your connection and try again." }; }
+  };
+  const resetPassword = (email) => remote.resetPassword(email);
+
   const updateProfile = async ({ name, bio, avatar }) => {
     const users = get().users;
     const rec = users[me] || { joinedAt: now(), followers: [], following: [] };
-    await save("users", { ...users, [me]: { ...rec, name: name.trim() || me, bio: (bio || "").trim(), avatar: avatar || null } });
+    const next = { ...rec, name: name.trim() || me, bio: (bio || "").trim(), avatar: avatar || null };
+    await save("users", { ...users, [me]: next });
+    sync((id) => remote.write.profile(id, { name: next.name.slice(0, 40), bio: next.bio.slice(0, 150), avatar: next.avatar }));
     flash("Profile updated");
   };
 
   const logout = async () => {
+    if (REMOTE) { await queue.current; await remote.signOut(); resetToSignedOut(); return; }
     try { await window.storage.delete(KEYS.me, false); } catch { /* ignore */ }
     setMe(null);
   };
 
   // Removes everything this account made, then logs out.
   const deleteAccount = async () => {
+    if (REMOTE) {
+      await queue.current;
+      try { await remote.deleteAccount(meId.current); resetToSignedOut(); }
+      catch { flash("Couldn't delete your account. Check your connection and try again."); }
+      return;
+    }
     const d = get();
     const myCarIds = new Set(Object.values(d.cars).filter((c) => c.ownerUsername === me).map((c) => c.id));
     const strip = (list) => (list || []).filter((u) => u !== me);
@@ -189,13 +305,13 @@ export function useStore(flash) {
 
   // ---------- cars ----------
   const addCar = async (f) => {
-    const id = uid("car");
+    const id = newId("car");
     const t = now();
-    const timeline = [{ id: uid("t"), type: "created", by: me, date: t }];
+    const timeline = [{ id: newId("t"), type: "created", by: me, date: t }];
     const mods = [];
     if (f.note.trim()) {
-      mods.push({ id: uid("m"), name: f.note.trim(), note: f.noteDetail.trim(), date: t });
-      timeline.push({ id: uid("t"), type: "mod", by: me, date: t, modName: f.note.trim(), modNote: f.noteDetail.trim() });
+      mods.push({ id: newId("m"), name: f.note.trim(), note: f.noteDetail.trim(), date: t });
+      timeline.push({ id: newId("t"), type: "mod", by: me, date: t, modName: f.note.trim(), modNote: f.noteDetail.trim() });
     }
     const car = {
       id, make: f.make.trim(), model: f.model.trim(), year: f.year.trim(), nickname: f.nickname.trim(),
@@ -206,6 +322,7 @@ export function useStore(flash) {
       mods, timeline, spotterUsernames: [], followerUsernames: [],
     };
     await save("cars", { ...get().cars, [id]: car });
+    sync((me2) => remote.write.addCar(me2, car, f.make.trim()));
 
     // Every new make gets its own brand community, and the owner joins it.
     const brand = f.make.trim();
@@ -214,7 +331,7 @@ export function useStore(flash) {
     if (existing) {
       if (!existing.members.includes(me)) await save("communities", { ...communities, [existing.id]: { ...existing, members: [...existing.members, me] } });
     } else if (brand) {
-      const cid = uid("community");
+      const cid = newId("community");
       await save("communities", { ...communities, [cid]: { id: cid, name: brand, description: `Everything ${brand}.`, kind: "brand", createdBy: null, members: [me], createdAt: t } });
     }
     flash("Car added");
@@ -230,6 +347,7 @@ export function useStore(flash) {
     if (typeof f.photoUrl === "string") updated.photoUrl = f.photoUrl.trim() || null;
     if (typeof f.hasPage === "boolean") updated.hasPage = f.hasPage;
     await save("cars", { ...get().cars, [carId]: updated });
+    sync((id) => remote.write.editCar(id, updated));
     flash("Car updated");
   };
 
@@ -246,6 +364,7 @@ export function useStore(flash) {
     await save("cars", cars);
     await save("posts", posts);
     await save("sightings", sightings);
+    sync((id) => remote.write.deleteCar(id, carId));
     flash("Car deleted");
   };
 
@@ -253,12 +372,11 @@ export function useStore(flash) {
     const car = get().cars[carId];
     if (!car || !name.trim()) return;
     const t = now();
-    const updated = {
-      ...car,
-      mods: [...car.mods, { id: uid("m"), name: name.trim(), note: (note || "").trim(), date: t }],
-      timeline: [...car.timeline, { id: uid("t"), type: "mod", by: me, date: t, modName: name.trim(), modNote: (note || "").trim() }],
-    };
+    const mod = { id: newId("m"), name: name.trim().slice(0, 60), note: (note || "").trim().slice(0, 200), date: t };
+    const event = { id: newId("t"), type: "mod", by: me, date: t, modName: mod.name, modNote: mod.note };
+    const updated = { ...car, mods: [...car.mods, mod], timeline: [...car.timeline, event] };
     await save("cars", { ...get().cars, [carId]: updated });
+    sync((id) => remote.write.addMod(id, carId, mod, event));
     flash("Build updated");
   };
 
@@ -268,6 +386,7 @@ export function useStore(flash) {
     const fans = car.followerUsernames || [];
     const following = fans.includes(me);
     await save("cars", { ...get().cars, [carId]: { ...car, followerUsernames: following ? fans.filter((u) => u !== me) : [...fans, me] } });
+    sync((id) => remote.write.followCar(id, carId, !following));
     if (!following) await pushNotif(car.ownerUsername, { type: "followBuild", from: me, carId });
     else await dropNotif(car.ownerUsername, { type: "followBuild", carId });
   };
@@ -275,33 +394,32 @@ export function useStore(flash) {
   const spotCar = async (carId) => {
     const car = get().cars[carId];
     if (!car || car.spotterUsernames.includes(me) || car.ownerUsername === me) return;
-    const updated = {
-      ...car,
-      spotterUsernames: [...car.spotterUsernames, me],
-      timeline: [...car.timeline, { id: uid("t"), type: "spot", by: me, date: now() }],
-    };
+    const event = { id: newId("t"), type: "spot", by: me, date: now() };
+    const updated = { ...car, spotterUsernames: [...car.spotterUsernames, me], timeline: [...car.timeline, event] };
     await save("cars", { ...get().cars, [carId]: updated });
+    sync((id) => remote.write.spot(id, carId, event));
     await pushNotif(car.ownerUsername, { type: "spot", from: me, carId });
     flash("Logged. Nice find.");
   };
 
   const logSighting = async ({ make, model, year, trim, photoUrl }) => {
-    const id = uid("sighting");
+    const id = newId("sighting");
     const t = now();
     const cars = get().cars;
     const matched = Object.values(cars).find((c) => c.hasPage !== false &&
       c.make.toLowerCase() === make.trim().toLowerCase() &&
       c.model.toLowerCase() === model.trim().toLowerCase() &&
       c.year.trim() === year.trim());
-    await save("sightings", {
-      ...get().sightings,
-      [id]: { id, spotterUsername: me, make: make.trim(), model: model.trim(), year: year.trim(), trim: trim.trim(), photoUrl, verified: false, matchedCarId: matched ? matched.id : null, date: t },
-    });
+    const sighting = { id, spotterUsername: me, make: make.trim(), model: model.trim(), year: year.trim(), trim: trim.trim(), photoUrl, verified: false, matchedCarId: matched ? matched.id : null, date: t };
+    await save("sightings", { ...get().sightings, [id]: sighting });
+    sync((uid2) => remote.write.sighting(uid2, sighting));
     if (matched && matched.ownerUsername !== me && !matched.spotterUsernames.includes(me)) {
+      const event = { id: newId("t"), type: "spot", by: me, date: t };
       await save("cars", {
         ...get().cars,
-        [matched.id]: { ...matched, spotterUsernames: [...matched.spotterUsernames, me], timeline: [...matched.timeline, { id: uid("t"), type: "spot", by: me, date: t }] },
+        [matched.id]: { ...matched, spotterUsernames: [...matched.spotterUsernames, me], timeline: [...matched.timeline, event] },
       });
+      sync((uid2) => remote.write.spot(uid2, matched.id, event));
       await pushNotif(matched.ownerUsername, { type: "spot", from: me, carId: matched.id });
     }
     flash(matched ? "Logged. Matched to an existing car." : "Logged. Nice find.");
@@ -313,9 +431,10 @@ export function useStore(flash) {
     const car = carId ? get().cars[carId] : null;
     const pics = photos.length ? photos.slice(0, 10) : photoUrl ? [{ url: photoUrl, aspect: photoAspect || null }] : [];
     if (!pics.length && !caption.trim()) return null;
-    const id = uid("post");
+    const id = newId("post");
     const t = now();
     const tagged = [...new Set(tags)].filter((h) => h !== me && get().users[h]).slice(0, 10);
+    const carEvents = [];
     await save("posts", {
       ...get().posts,
       [id]: {
@@ -327,12 +446,19 @@ export function useStore(flash) {
       },
     });
     if (car) {
-      let updatedCar = { ...car, timeline: [...car.timeline, { id: uid("t"), type: "post", by: me, date: t, detail: caption.trim(), postId: id }] };
+      const postEvent = { id: newId("t"), type: "post", by: me, date: t, detail: caption.trim(), postId: id };
+      carEvents.push({ carId, event: postEvent });
+      let updatedCar = { ...car, timeline: [...car.timeline, postEvent] };
       if (car.ownerUsername !== me && !car.spotterUsernames.includes(me)) {
-        updatedCar = { ...updatedCar, spotterUsernames: [...updatedCar.spotterUsernames, me], timeline: [...updatedCar.timeline, { id: uid("t"), type: "spot", by: me, date: t }] };
+        const spotEvent = { id: newId("t"), type: "spot", by: me, date: t };
+        carEvents.push({ carId, event: spotEvent, spot: true });
+        updatedCar = { ...updatedCar, spotterUsernames: [...updatedCar.spotterUsernames, me], timeline: [...updatedCar.timeline, spotEvent] };
       }
       await save("cars", { ...get().cars, [carId]: updatedCar });
     }
+    const saved = get().posts[id];
+    const tagIds = tagged.map(idOf).filter(Boolean);
+    sync((uid2) => remote.write.createPost(uid2, saved, tagIds, carEvents));
     for (const h of tagged) await pushNotif(h, { type: "tag", from: me, postId: id });
     flash("Posted");
     return id;
@@ -342,6 +468,7 @@ export function useStore(flash) {
     const post = get().posts[postId];
     if (!post || post.authorUsername !== me) return;
     await save("posts", { ...get().posts, [postId]: { ...post, caption: caption.trim(), editedAt: now() } });
+    sync((id) => remote.write.editPost(id, postId, caption.trim().slice(0, 280)));
     flash("Caption updated");
   };
 
@@ -350,6 +477,7 @@ export function useStore(flash) {
     const post = get().posts[postId];
     if (!post || post.authorUsername !== me) return;
     await save("posts", { ...get().posts, [postId]: { ...post, archived } });
+    sync((id) => remote.write.archivePost(id, postId, archived));
     flash(archived ? "Post archived" : "Post restored");
   };
 
@@ -359,6 +487,7 @@ export function useStore(flash) {
     if (!post || post.authorUsername !== me) return;
     const { [postId]: _gone, ...posts } = d.posts;
     await save("posts", posts);
+    sync((id) => remote.write.deletePost(id, postId));
     const car = post.carId && d.cars[post.carId];
     if (car) {
       // Old posts don't store postId on the timeline, so fall back to matching date + author.
@@ -376,6 +505,7 @@ export function useStore(flash) {
     if (!post) return;
     const has = post.likes.includes(me);
     await save("posts", { ...get().posts, [postId]: { ...post, likes: has ? post.likes.filter((u) => u !== me) : [...post.likes, me] } });
+    sync((id) => remote.write.likePost(id, postId, !has));
     if (!has) await pushNotif(post.authorUsername, { type: "like", from: me, postId });
     else await dropNotif(post.authorUsername, { type: "like", postId });
   };
@@ -398,6 +528,7 @@ export function useStore(flash) {
     });
     await save("posts", { ...get().posts, [postId]: { ...p, comments } });
     const target = replyId || commentId;
+    sync((id) => remote.write.likeComment(id, target, nowLiked));
     if (nowLiked) await pushNotif(author, { type: "commentLike", from: me, postId, commentId: target });
     else await dropNotif(author, { type: "commentLike", postId, commentId: target });
   };
@@ -405,7 +536,9 @@ export function useStore(flash) {
   const addComment = async (postId, text) => {
     const post = get().posts[postId];
     if (!post || !text.trim()) return;
-    await save("posts", { ...get().posts, [postId]: { ...post, comments: [...post.comments, { id: uid("c"), author: me, text: text.trim(), date: now(), replies: [] }] } });
+    const c = { id: newId("c"), author: me, text: text.trim().slice(0, 220), date: now(), replies: [] };
+    await save("posts", { ...get().posts, [postId]: { ...post, comments: [...post.comments, c] } });
+    sync((id) => remote.write.comment(id, postId, c));
     await pushNotif(post.authorUsername, { type: "comment", from: me, postId, text: text.trim().slice(0, 60) });
   };
 
@@ -414,8 +547,9 @@ export function useStore(flash) {
     if (!post || !text.trim()) return;
     const comment = post.comments.find((c) => c.id === commentId);
     if (!comment) return;
-    const reply = { id: uid("r"), author: me, text: text.trim(), date: now() };
+    const reply = { id: newId("r"), author: me, text: text.trim().slice(0, 220), date: now() };
     await save("posts", { ...get().posts, [postId]: { ...post, comments: post.comments.map((c) => (c.id === commentId ? { ...c, replies: [...(c.replies || []), reply] } : c)) } });
+    sync((id) => remote.write.comment(id, postId, reply, commentId));
     await pushNotif(comment.author, { type: "reply", from: me, postId, text: text.trim().slice(0, 60) });
   };
 
@@ -432,6 +566,8 @@ export function useStore(flash) {
       [me]: { ...meRec, following: isFollowing ? meRec.following.filter((u) => u !== target) : [...meRec.following, target] },
       [target]: { ...themRec, followers: isFollowing ? themRec.followers.filter((u) => u !== me) : [...themRec.followers, me] },
     });
+    const themId = idOf(target);
+    if (themId) sync((id) => remote.write.follow(id, themId, !isFollowing));
     if (!isFollowing) await pushNotif(target, { type: "follow", from: me });
     else await dropNotif(target, { type: "follow" });
   };
@@ -442,6 +578,7 @@ export function useStore(flash) {
     if (!item) return;
     const has = item.likes.includes(me);
     await save("news", { ...get().news, [id]: { ...item, likes: has ? item.likes.filter((u) => u !== me) : [...item.likes, me] } });
+    sync((uid2) => remote.write.likeNews(uid2, id, !has));
   };
 
   const capNum = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? Math.min(n, 9999) : null; };
@@ -460,11 +597,13 @@ export function useStore(flash) {
       const existing = meets[editingId];
       if (!existing || existing.submittedBy !== me) return null;
       await save("meets", { ...meets, [editingId]: { ...existing, ...fields } });
+      sync((id) => remote.write.saveMeet(id, editingId, fields, false));
       flash("Meet updated");
       return editingId;
     }
-    const id = uid("meet");
+    const id = newId("meet");
     await save("meets", { ...meets, [id]: { id, ...fields, submittedBy: me, createdAt: now(), attendees: [{ username: me, role: "organizer" }] } });
+    sync((uid2) => remote.write.saveMeet(uid2, id, fields, true));
     flash("Meet posted");
     return id;
   };
@@ -474,6 +613,7 @@ export function useStore(flash) {
     if (!meets[id] || meets[id].submittedBy !== me) return;
     const { [id]: _gone, ...rest } = meets;
     await save("meets", rest);
+    sync((uid2) => remote.write.deleteMeet(uid2, id));
     flash("Meet removed");
   };
 
@@ -487,6 +627,7 @@ export function useStore(flash) {
     if (existing && existing.role === role) {
       if (item.submittedBy === me && role === "organizer") return; // the creator always stays on the organizing list
       await save("meets", { ...get().meets, [id]: { ...item, attendees: item.attendees.filter((a) => a.username !== me) } });
+      sync((uid2) => remote.write.setAttendance(uid2, id, uid2, null, true));
       return;
     }
     const cap = item.caps?.[role];
@@ -495,6 +636,7 @@ export function useStore(flash) {
       ? item.attendees.map((a) => (a.username === me ? { ...a, role } : a))
       : [...item.attendees, { username: me, role }];
     await save("meets", { ...get().meets, [id]: { ...item, attendees } });
+    sync((uid2) => remote.write.setAttendance(uid2, id, uid2, role, !!existing));
   };
 
   // Organizer tools: move someone to another list, or take them off.
@@ -505,12 +647,16 @@ export function useStore(flash) {
       ? item.attendees.map((a) => (a.username === username ? { ...a, role } : a))
       : item.attendees.filter((a) => a.username !== username);
     await save("meets", { ...get().meets, [meetId]: { ...item, attendees } });
+    const themId = idOf(username);
+    if (themId) sync((id) => remote.write.setAttendance(id, meetId, themId, role || null, true));
   };
   const setMeetCaps = async (meetId, caps) => {
     const item = get().meets[meetId];
     if (!item || !isOrganizer(item, me)) return;
     const clean = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? Math.min(n, 9999) : null; };
-    await save("meets", { ...get().meets, [meetId]: { ...item, caps: { driver: clean(caps.driver), attendee: clean(caps.attendee) } } });
+    const nextCaps = { driver: clean(caps.driver), attendee: clean(caps.attendee) };
+    await save("meets", { ...get().meets, [meetId]: { ...item, caps: nextCaps } });
+    sync((id) => remote.write.meetCaps(id, meetId, nextCaps));
     flash("Limits saved");
   };
 
@@ -519,8 +665,10 @@ export function useStore(flash) {
   const createCommunity = async ({ name, description }) => {
     if (!name.trim()) return null;
     if (nameTaken(name)) { flash("A community with that name already exists"); return null; }
-    const id = uid("community");
-    await save("communities", { ...get().communities, [id]: { id, name: name.trim(), description: description.trim(), kind: "custom", createdBy: me, members: [me], createdAt: now() } });
+    const id = newId("community");
+    const c = { id, name: name.trim().slice(0, 40), description: description.trim().slice(0, 200), kind: "custom", createdBy: me, members: [me], createdAt: now() };
+    await save("communities", { ...get().communities, [id]: c });
+    sync((uid2) => remote.write.createCommunity(uid2, c));
     flash("Community created");
     return id;
   };
@@ -530,6 +678,7 @@ export function useStore(flash) {
     if (!c || c.createdBy !== me || !name.trim()) return false;
     if (nameTaken(name, id)) { flash("A community with that name already exists"); return false; }
     await save("communities", { ...get().communities, [id]: { ...c, name: name.trim(), description: (description || "").trim() } });
+    sync((uid2) => remote.write.editCommunity(uid2, id, name.trim().slice(0, 40), (description || "").trim().slice(0, 200)));
     flash("Community updated");
     return true;
   };
@@ -545,6 +694,7 @@ export function useStore(flash) {
     const discussions = {};
     Object.values(d.discussions).forEach((t) => { if (t.communityId !== id) discussions[t.id] = t; });
     await save("communities", communities); await save("posts", posts); await save("discussions", discussions);
+    sync((uid2) => remote.write.deleteCommunity(uid2, id));
     flash("Community deleted");
   };
 
@@ -553,18 +703,24 @@ export function useStore(flash) {
     if (!c) return;
     const inIt = c.members.includes(me);
     await save("communities", { ...get().communities, [id]: { ...c, members: inIt ? c.members.filter((u) => u !== me) : [...c.members, me] } });
+    sync((uid2) => remote.write.member(uid2, id, !inIt));
   };
 
   // ---------- community discussions ----------
   const joinIfNeeded = async (communityId) => {
     const c = get().communities[communityId];
-    if (c && !c.members.includes(me)) await save("communities", { ...get().communities, [c.id]: { ...c, members: [...c.members, me] } });
+    if (c && !c.members.includes(me)) {
+      await save("communities", { ...get().communities, [c.id]: { ...c, members: [...c.members, me] } });
+      sync((id) => remote.write.member(id, c.id, true));
+    }
   };
 
   const createThread = async ({ communityId, title, body }) => {
     if (!title.trim() || !get().communities[communityId]) return null;
-    const id = uid("thread");
-    await save("discussions", { ...get().discussions, [id]: { id, communityId, author: me, title: title.trim(), body: (body || "").trim(), date: now(), likes: [], replies: [] } });
+    const id = newId("thread");
+    const t = { id, communityId, author: me, title: title.trim().slice(0, 100), body: (body || "").trim().slice(0, 1000), date: now(), likes: [], replies: [] };
+    await save("discussions", { ...get().discussions, [id]: t });
+    sync((uid2) => remote.write.createThread(uid2, t));
     await joinIfNeeded(communityId);
     flash("Discussion started");
     return id;
@@ -573,8 +729,9 @@ export function useStore(flash) {
   const replyThread = async (threadId, text) => {
     const t = get().discussions[threadId];
     if (!t || !text.trim()) return;
-    const reply = { id: uid("r"), author: me, text: text.trim(), date: now() };
+    const reply = { id: newId("r"), author: me, text: text.trim().slice(0, 500), date: now() };
     await save("discussions", { ...get().discussions, [threadId]: { ...t, replies: [...t.replies, reply] } });
+    sync((id) => remote.write.replyThread(id, threadId, reply));
     await joinIfNeeded(t.communityId);
     await pushNotif(t.author, { type: "threadReply", from: me, threadId, text: text.trim().slice(0, 60) });
   };
@@ -584,6 +741,7 @@ export function useStore(flash) {
     if (!t) return;
     const has = t.likes.includes(me);
     await save("discussions", { ...get().discussions, [threadId]: { ...t, likes: has ? t.likes.filter((u) => u !== me) : [...t.likes, me] } });
+    sync((id) => remote.write.likeThread(id, threadId, !has));
   };
 
   const deleteThread = async (threadId) => {
@@ -591,6 +749,7 @@ export function useStore(flash) {
     if (!t || t.author !== me) return;
     const { [threadId]: _gone, ...rest } = get().discussions;
     await save("discussions", rest);
+    sync((id) => remote.write.deleteThread(id, threadId));
     flash("Discussion deleted");
   };
 
@@ -598,12 +757,14 @@ export function useStore(flash) {
     const t = get().discussions[threadId];
     if (!t || t.author !== me || !title.trim()) return;
     await save("discussions", { ...get().discussions, [threadId]: { ...t, title: title.trim(), body: (body || "").trim(), editedAt: now() } });
+    sync((id) => remote.write.editThread(id, threadId, title.trim().slice(0, 100), (body || "").trim().slice(0, 1000)));
     flash("Discussion updated");
   };
   const deleteThreadReply = async (threadId, replyId) => {
     const t = get().discussions[threadId];
     if (!t) return;
     await save("discussions", { ...get().discussions, [threadId]: { ...t, replies: t.replies.filter((r) => !(r.id === replyId && r.author === me)) } });
+    sync((id) => remote.write.deleteThreadReply(id, replyId));
   };
   const deleteComment = async (postId, commentId, replyId) => {
     const p = get().posts[postId];
@@ -612,11 +773,13 @@ export function useStore(flash) {
       ? p.comments.map((c) => (c.id === commentId ? { ...c, replies: (c.replies || []).filter((r) => !(r.id === replyId && r.author === me)) } : c))
       : p.comments.filter((c) => !(c.id === commentId && c.author === me));
     await save("posts", { ...get().posts, [postId]: { ...p, comments } });
+    sync((id) => remote.write.deleteComment(id, replyId || commentId));
   };
 
   // ---------- safety: report, not interested, block ----------
   const report = async ({ kind, id, reason, note }) => {
-    const rid = uid("report");
+    if (REMOTE) { sync((me2) => remote.write.report(me2, { kind, id, reason, note })); flash("Thanks. We'll take a look."); return; }
+    const rid = newId("report");
     const all = (await readShared(KEYS.reports)) || {};
     const next = { ...all, [rid]: { id: rid, kind, targetId: id, reason, note: (note || "").trim(), by: me, date: now(), status: "open" } };
     try { await window.storage.set(KEYS.reports, JSON.stringify(next), true); } catch { /* ignore */ }
@@ -625,13 +788,19 @@ export function useStore(flash) {
   const hidePost = async (postId) => {
     if (prefs.hidden.includes(postId)) return;
     await savePrefs({ ...prefs, hidden: [...prefs.hidden, postId] });
+    sync((id) => remote.write.hidePost(id, postId, true));
     flash("Got it. You'll see fewer posts like this.");
   };
-  const undoHide = async (postId) => savePrefs({ ...prefs, hidden: prefs.hidden.filter((x) => x !== postId) });
+  const undoHide = async (postId) => {
+    await savePrefs({ ...prefs, hidden: prefs.hidden.filter((x) => x !== postId) });
+    sync((id) => remote.write.hidePost(id, postId, false));
+  };
   const toggleBlock = async (handle) => {
     if (!handle || handle === me) return;
     const blocked = prefs.blocked.includes(handle);
     await savePrefs({ ...prefs, blocked: blocked ? prefs.blocked.filter((x) => x !== handle) : [...prefs.blocked, handle] });
+    const themId = idOf(handle);
+    if (themId) sync((id) => remote.write.block(id, themId, !blocked));
     if (!blocked) {
       // Blocking also unfollows both ways.
       const users = get().users;
@@ -652,12 +821,13 @@ export function useStore(flash) {
     const mine = all[me] || [];
     if (mine.every((n) => n.read)) return;
     await save("notifications", { ...all, [me]: mine.map((n) => ({ ...n, read: true })) }, true);
+    sync((id) => remote.write.readNotifications(id));
   };
 
   return {
-    me, loading, flash, prefs, ...data,
+    me, loading, flash, prefs, remote: REMOTE, ...data,
     actions: {
-      claimUsername, updateProfile, logout, deleteAccount,
+      claimUsername, updateProfile, logout, deleteAccount, checkHandle, signUp, signIn, resetPassword,
       addCar, editCar, deleteCar, addMod, toggleFollowCar, spotCar, logSighting,
       createPost, editPost, setArchived, deletePost, toggleLike, addComment, addReply,
       toggleFollow, toggleNewsLike, submitMeet, deleteMeet, toggleGoing,
