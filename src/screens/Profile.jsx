@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useSwipe } from "../lib/useSwipe";
 import { MoreMenu, useSafety } from "../components/Safety";
-import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus, Layers } from "lucide-react";
+import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus, Layers, QrCode } from "lucide-react";
 import { T } from "../theme";
 import { computeBadges, nextBadgeProgress } from "../lib/badges";
 import { Avatar, FollowAvatar, IconTab, IconBadge, EmptyState, BottomSheet, MiniStat } from "../components/ui";
@@ -42,6 +42,14 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
           </div>
           {user.bio && <div style={{ color: T.text, fontSize: 13, lineHeight: 1.45, marginTop: 10, whiteSpace: "pre-wrap" }}>{user.bio}</div>}
         </div>
+        {isMe && safety?.openTag && (
+          <button onClick={() => safety.openTag({ kind: "user", id: username, title: user.name || username, subtitle: `@${username}` })} aria-label="Share tag" data-testid="profile-tag" className="press" style={{
+            width: 38, height: 38, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface,
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            <QrCode size={17} color={T.text} />
+          </button>
+        )}
         {isMe && onOpenSettings && (
           <button onClick={onOpenSettings} aria-label="Settings" className="press" style={{
             width: 38, height: 38, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface,
@@ -52,6 +60,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         )}
         {!isMe && safety && (
           <MoreMenu label="Profile options" testid="profile-menu" flash={safety.flash}
+            items={safety.openTag && !blocked ? [{ label: "Show tag", icon: <QrCode size={17} />, onClick: () => safety.openTag({ kind: "user", id: username, title: user.name || username, subtitle: `@${username}` }) }] : []}
             share={{ title: "Carfooly", text: `Check out @${username} on Carfooly` }}
             report={{ what: "account", onSend: (reason, note) => safety.actions.report({ kind: "user", id: username, reason, note }) }}
             block={{ handle: username, blocked, onToggle: () => safety.actions.toggleBlock(username) }} />

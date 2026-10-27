@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { T } from "./theme";
 import { useNav } from "./nav/useNav";
 import { useKeyboardOffset } from "./lib/keyboard";
@@ -18,6 +18,9 @@ import { ComposerFlow } from "./components/photo/Composer";
 import { AddPage } from "./components/AddMenu";
 import { Tour } from "./components/Tour";
 import { SettingsScreen, EditProfile, ManageCars, ArchivedPosts } from "./screens/Settings";
+import { ShareTagSheet } from "./components/ShareTag";
+import { parseTag } from "./lib/tag";
+import { scanTag } from "./lib/scan";
 
 const ADD_VIEWS = ["addChoice", "compose", "quickSpot", "addCar", "addMeet"];
 
@@ -78,6 +81,35 @@ export function Shell({ store, toast }) {
   const openMeet = (id) => go("meet", { id });
   const openThread = (id) => go("thread", { id });
 
+  // ---------- share tags (QR) ----------
+  const [tagFor, setTagFor] = useState(null); // { kind, id, title, subtitle }
+  const openFromTag = (text) => {
+    const t = parseTag(text);
+    if (!t) { store.flash("That's not a Carfooly tag"); return; }
+    if (t.kind === "user") {
+      if (!users[t.id]) { store.flash("No one on Carfooly has that tag"); return; }
+      setTagFor(null); openProfile(t.id);
+    } else {
+      const car = cars[t.id];
+      if (!car || (car.hasPage === false && car.ownerUsername !== me)) { store.flash("This car's page isn't available"); return; }
+      setTagFor(null); go("car", { id: t.id });
+    }
+  };
+  const scan = async () => {
+    const r = await scanTag();
+    if (r.error) store.flash(r.error);
+    else if (r.text) openFromTag(r.text);
+  };
+  // Tags opened from outside the app (a link, or the scanner coming back after Android paused the app).
+  const fromTagRef = useRef(openFromTag);
+  fromTagRef.current = openFromTag;
+  useEffect(() => {
+    const on = (e) => fromTagRef.current(e.detail);
+    window.addEventListener("carfooly-open-tag", on);
+    if (window.__pendingTag) { const t = window.__pendingTag; window.__pendingTag = null; setTimeout(() => fromTagRef.current(t), 0); }
+    return () => window.removeEventListener("carfooly-open-tag", on);
+  }, []);
+
   const unread = (notifications[me] || []).filter((n) => !n.read).length;
 
   let page = null;
@@ -92,7 +124,7 @@ export function Shell({ store, toast }) {
         onMount={a.markNotificationsRead} openPost={openPost} openCar={openCar} openProfile={openProfile} openThread={openThread} />;
       break;
     case "discover":
-      page = <DiscoverView me={me} cars={cars} users={users} news={news} meets={meets} communities={communities}
+      page = <DiscoverView onScan={scan} me={me} cars={cars} users={users} news={news} meets={meets} communities={communities}
         openCar={openCar} openProfile={openProfile} openCommunity={openCommunity}
         onLikeNews={a.toggleNewsLike} onToggleGoing={a.toggleGoing} onToggleCommunity={a.toggleCommunityMembership}
         onOpenSearch={() => go("search")} onOpenCommunities={() => go("communityList")}
@@ -211,7 +243,7 @@ export function Shell({ store, toast }) {
   }
 
   return (
-    <SafetyContext.Provider value={{ me, prefs: store.prefs, actions: a, flash: store.flash }}>
+    <SafetyContext.Provider value={{ me, prefs: store.prefs, actions: a, flash: store.flash, openTag: setTagFor, scanTag: scan }}>
     <SheetContext.Provider value={sheetDelta}>
       <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", position: "relative", paddingBottom: 96 + kb, overflowX: "clip" }}>
         {/* No on-screen back arrow: the phone's back gesture/button goes back (see main.jsx). */}
@@ -228,6 +260,7 @@ export function Shell({ store, toast }) {
 
         {tour && <Tour onDone={endTour} />}
         <PermissionNotice />
+        <ShareTagSheet open={!!tagFor} onClose={() => setTagFor(null)} {...(tagFor || {})} flash={store.flash} onScan={() => { setTagFor(null); scan(); }} />
         <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0} />
       </div>
     </SheetContext.Provider>

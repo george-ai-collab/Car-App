@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Heart, Rss, Calendar, Users, ExternalLink, Search, ChevronRight } from "lucide-react";
+import { Plus, Heart, Rss, Calendar, Users, ExternalLink, Search, ChevronRight, ScanLine } from "lucide-react";
 import { T } from "../theme";
 import { timeAgo } from "../lib/utils";
 import { Avatar, IconBadge, EmptyState, TextInput, SectionLabel, Segmented } from "../components/ui";
@@ -8,7 +8,7 @@ import { CarCard } from "./Cars";
 import { CommunityCard } from "./Communities";
 
 // Discover is a set of doors: tap one to open that section (like the + menu).
-export function DiscoverView({ meets, communities, news, onOpenSearch, onOpenCommunities, onOpenMeets, onOpenNews }) {
+export function DiscoverView({ meets, communities, news, onOpenSearch, onOpenCommunities, onOpenMeets, onOpenNews, onScan }) {
   const upcoming = Object.values(meets).filter((m) => !m.when || new Date(m.when) >= new Date()).length;
   const tiles = [
     { id: "meets", title: "Meets", sub: "Find meets near you, or anywhere in the world", count: `${upcoming} upcoming`, icon: <Calendar size={24} color="#BFE0EC" />, tone: "accent2", onClick: onOpenMeets },
@@ -19,9 +19,16 @@ export function DiscoverView({ meets, communities, news, onOpenSearch, onOpenCom
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
         <div className="display" style={{ fontSize: 24, color: T.text }}>Discover</div>
-        <button onClick={onOpenSearch} aria-label="Search" className="press" style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 999, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Search size={19} color={T.text} />
-        </button>
+        <div style={{ display: "flex", gap: 8 }}>
+          {onScan && (
+            <button onClick={onScan} aria-label="Scan a tag" data-testid="scan-tag" className="press" style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 999, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ScanLine size={19} color={T.text} />
+            </button>
+          )}
+          <button onClick={onOpenSearch} aria-label="Search" className="press" style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 999, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Search size={19} color={T.text} />
+          </button>
+        </div>
       </div>
       {tiles.map((t) => (
         <button key={t.id} data-testid={`door-${t.id}`} onClick={t.onClick} className="press" style={{

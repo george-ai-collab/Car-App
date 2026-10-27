@@ -20,6 +20,23 @@ if (Capacitor.isNativePlatform()) {
   });
 }
 
+// Share tags: a carfooly:// link opened from outside (another app, or the phone's camera).
+// If the app isn't ready yet, Shell picks it up when it opens.
+const openTag = (text) => {
+  if (!text) return;
+  window.__pendingTag = text;
+  window.dispatchEvent(new CustomEvent("carfooly-open-tag", { detail: text }));
+  window.__pendingTag = window.__carfoolyBack ? null : text; // Shell mounted: handled now
+};
+if (Capacitor.isNativePlatform()) {
+  CapApp.addListener("appUrlOpen", (e) => openTag(e.url));
+  CapApp.getLaunchUrl().then((r) => { if (r?.url) openTag(r.url); }).catch(() => {});
+  // Android can pause the app while the scanner is open; the result then arrives here.
+  CapApp.addListener("appRestoredResult", (e) => {
+    if (e.pluginId === "BarcodeScanner" && e.success) openTag(e.data?.barcodes?.[0]?.rawValue);
+  });
+}
+
 createRoot(document.getElementById("root")).render(
   <App />
 );
