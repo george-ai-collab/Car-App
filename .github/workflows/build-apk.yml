@@ -1,9 +1,16 @@
 name: Build Android APK
 
+# Builds an APK for every pull request (so changes can be tested on a phone
+# before merging) and for every update to main.
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   apk:
@@ -22,29 +29,64 @@ jobs:
           java-version: 21
 
       # GitHub's Ubuntu runners ship with the Android SDK preinstalled.
+      # Every step writes to build.log so a failure can be posted on the PR.
       - name: Install web dependencies
-        run: npm install
+        run: |
+          set -o pipefail
+          npm install 2>&1 | tee -a build.log
 
       - name: Build the Carfooly frontend
-        run: npm run build
+        env:
+          VITE_BUILD: ${{ github.run_number }}
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee -a build.log
 
       - name: Generate the Android project
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
-          npx cap add android
-          node scripts/patch-android.mjs
-          npx cap sync android
+          set -o pipefail
+          { npx cap add android && node scripts/patch-android.mjs && npx cap sync android; } 2>&1 | tee -a build.log
+
+      # Same signing key every time, so new test APKs install as updates (data is kept).
+      - name: Use the shared test signing key
+        run: |
+          mkdir -p ~/.android
+          cp android-signing/debug.keystore ~/.android/debug.keystore
 
       - name: Compile the APK
-        working-directory: android
         run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          set -o pipefail
+          cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon 2>&1 | tee -a ../build.log
 
       - name: Rename APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk carfooly-debug.apk
 
       - uses: actions/upload-artifact@v4
+        id: upload
         with:
           name: carfooly-apk
           path: carfooly-debug.apk
           retention-days: 30
+
+      - name: Post the APK link on the PR
+        if: success() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} \
+            --body "✅ APK built for \`${GITHUB_SHA::7}\`. Download **carfooly-apk** here: ${{ steps.upload.outputs.artifact-url }}"
+
+      - name: Post the error on the PR
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "❌ Build failed for \`${GITHUB_SHA::7}\`. Last lines of the log:"
+            echo '```'
+            tail -n 60 build.log 2>/dev/null || echo "(no log)"
+            echo '```'
+          } > comment.md
+          gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --body-file comment.md
