@@ -12,15 +12,18 @@
     "android:open": "cap open android"
   },
   "dependencies": {
+    "@capacitor-mlkit/barcode-scanning": "^7.0.0",
     "@capacitor/android": "^7.0.0",
     "@capacitor/app": "^7.0.0",
     "@capacitor/camera": "^7.0.0",
     "@capacitor/core": "^7.0.0",
+    "@capacitor/filesystem": "^7.0.0",
     "@capacitor/keyboard": "^7.0.0",
     "@capacitor/share": "^7.0.0",
     "@supabase/supabase-js": "^2.45.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.460.0",
+    "qrcode-generator": "^2.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

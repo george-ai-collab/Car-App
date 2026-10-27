@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Car, Plus, MapPin, Wrench, Check, Pencil, Gauge, Camera, Layers } from "lucide-react";
+import { Car, Plus, MapPin, Wrench, Check, Pencil, Gauge, Camera, Layers, QrCode } from "lucide-react";
 import { T } from "../theme";
 import { fmtDate, hueForId, verbPhrase } from "../lib/utils";
 import { Avatar, EmptyState, TextInput, SectionLabel, Section, Segmented } from "../components/ui";
@@ -197,6 +197,10 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
   const order = ["posts", "build", "specs", "spotters"];
   const sw = useSwipe({ onLeft: () => setTab && setTab(order[Math.min(3, order.indexOf(tab) + 1)]), onRight: () => setTab && setTab(order[Math.max(0, order.indexOf(tab) - 1)]) });
   const name = car.nickname || `${car.make} ${car.model}`;
+  // Only cars with a public page get a tag (otherwise nobody else could open it).
+  const showTag = safety?.openTag && car.hasPage !== false
+    ? () => safety.openTag({ kind: "car", id: car.id, title: name, subtitle: `${car.year} · ${car.make} ${car.model}` })
+    : null;
 
   return (
     <div data-testid="car-profile" style={{ paddingBottom: 10, position: "relative" }} className="fade-in">
@@ -208,7 +212,10 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
           <div style={{ position: "absolute", right: 14, top: 14, borderRadius: 999, background: "rgba(0,0,0,0.4)" }}>
             <MoreMenu label="Car options" testid="car-menu" flash={safety.flash}
               share={{ title: "Carfooly", text: `${name} (${car.year}), kept by @${car.ownerUsername} on Carfooly` }}
-              items={isOwner && onEdit ? [{ label: "Edit car", icon: <Pencil size={17} />, onClick: onEdit }] : []}
+              items={[
+                ...(isOwner && onEdit ? [{ label: "Edit car", icon: <Pencil size={17} />, onClick: onEdit }] : []),
+                ...(showTag ? [{ label: isOwner ? "Share tag" : "Show tag", icon: <QrCode size={17} />, onClick: showTag }] : []),
+              ]}
               report={isOwner ? null : { what: "car", onSend: (reason, note) => safety.actions.report({ kind: "car", id: car.id, reason, note }) }} />
           </div>
         )}
@@ -257,6 +264,7 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
           <>
             {onEdit && <button onClick={onEdit} aria-label="Edit car" className="press" style={actBtn(false)}><Pencil size={15} /> Edit car</button>}
             <button onClick={() => { setTab && setTab("build"); setAdding(true); }} className="press" style={actBtn(true)}><Wrench size={15} /> Log a mod</button>
+            {showTag && <button onClick={showTag} aria-label="Share tag" data-testid="car-tag" className="press" style={{ ...actBtn(false), flex: "0 0 46px", padding: 0 }}><QrCode size={17} /></button>}
           </>
         ) : (
           <>

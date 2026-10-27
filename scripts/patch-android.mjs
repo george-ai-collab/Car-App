@@ -2,6 +2,7 @@
 //  - CAMERA permission, so "Take a photo" in Spot / New Post opens the camera
 //  - location permission, for "Use my location" when posting a meet
 //  - portrait lock, since every screen is designed for a portrait phone
+//  - carfooly:// links (share tags) open the app, and the QR scanner is set up
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 
 const manifestPath = "android/app/src/main/AndroidManifest.xml";
@@ -25,6 +26,22 @@ for (const line of additions) {
 
 if (!xml.includes('android:screenOrientation=')) {
   xml = xml.replace(/<activity\b/, '<activity\n            android:screenOrientation="portrait"');
+}
+
+// Share tags: carfooly://… links open the app.
+if (!xml.includes('android:scheme="carfooly"')) {
+  xml = xml.replace("</activity>", `    <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="carfooly" />
+            </intent-filter>
+        </activity>`);
+}
+// Google's ready-made QR scanner (downloaded by Play services when first needed).
+if (!xml.includes("com.google.mlkit.vision.DEPENDENCIES")) {
+  xml = xml.replace("</application>", `    <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui" />
+    </application>`);
 }
 
 writeFileSync(manifestPath, xml);
@@ -72,4 +89,4 @@ if (buildNo && existsSync(gradlePath)) {
   writeFileSync(gradlePath, g);
 }
 
-console.log("patch-android: permissions, portrait lock, no scrollbar/bounce, version applied");
+console.log("patch-android: permissions, portrait lock, tag links, scanner, no scrollbar/bounce, version applied");
