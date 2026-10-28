@@ -50,7 +50,7 @@ async function signUp(page, name, handle, welcome) {
     await page.getByPlaceholder("Your cars, your scene, your plans").fill(welcome.bio);
     await page.getByTestId("welcome-next").click();
     await page.getByTestId(`type-${welcome.type}`).click();
-    await page.getByTestId("welcome-next").click();
+    if (welcome.type === "personal") await page.getByTestId("welcome-next").click(); // clubs/businesses skip the car step
   } else {
     await page.getByTestId("welcome-skip").click(); await page.getByTestId("welcome-skip").click();
   }
