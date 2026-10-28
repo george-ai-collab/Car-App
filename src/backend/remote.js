@@ -134,6 +134,7 @@ export async function load(userId) {
     profiles, follows, cars, carMods, carEvents, carFollows, carSpots, sightings,
     communities, members, threads, threadReplies, threadLikes,
     posts, postLikes, comments, commentLikes, meets, attendees, newsLikes, notifications, blocks, hidden, reports,
+    announcements, meetSpots, meetViews,
   ] = await Promise.all([
     t("profiles", "id,handle,name,bio,avatar_url,account_type,is_admin,banned,created_at"),
     t("follows", "follower_id,followee_id"),
@@ -150,6 +151,7 @@ export async function load(userId) {
     t("blocks", "blocked_id", (q) => q.eq("blocker_id", userId)),
     t("hidden_posts", "post_id", (q) => q.eq("user_id", userId)),
     t("reports", "*", (q) => q.eq("status", "open").order("created_at", { ascending: false }).limit(300)), // admins only (others get none)
+    t("meet_announcements"), t("meet_spots"), t("meet_views", "meet_id"), // views: organizers only
   ]);
 
   const H = {}; // user id -> handle
@@ -238,14 +240,23 @@ export async function load(userId) {
 
   // Meets
   const goingOf = group(attendees, "meet_id");
+  const annOf = group(announcements, "meet_id");
+  const meetSpotsOf = group(meetSpots, "meet_id");
+  const viewsOf = group(meetViews, "meet_id");
   const meetsOut = {};
   meets.forEach((m) => {
     meetsOut[m.id] = {
       id: m.id, title: m.title, location: m.location, lat: m.lat, lng: m.lng, city: m.city, country: m.country,
-      when: m.starts_at, note: m.note, cover: m.cover_url || null, sponsors: m.sponsors || [],
+      when: m.starts_at, endWhen: m.ends_at || null, note: m.note, cover: m.cover_url || null, sponsors: m.sponsors || [],
       caps: { driver: m.driver_cap, attendee: m.attendee_cap },
+      plan: m.plan || "free", recurring: m.recurring || "none", approveDrivers: !!m.approve_drivers, featured: !!m.featured, driverNote: m.driver_note || "",
       submittedBy: h(m.organizer_id), createdAt: m.created_at,
-      attendees: (goingOf[m.id] || []).map((a) => ({ username: h(a.user_id), role: a.role })).filter((a) => a.username),
+      attendees: (goingOf[m.id] || []).map((a) => ({
+        username: h(a.user_id), role: a.role, carId: a.car_id || null, approved: a.approved !== false, checkedIn: !!a.checked_in_at,
+      })).filter((a) => a.username),
+      announcements: (annOf[m.id] || []).map((x) => ({ id: x.id, author: h(x.author_id), text: x.text, date: x.created_at })).sort((a, b) => (a.date < b.date ? 1 : -1)),
+      spots: (meetSpotsOf[m.id] || []).map((x) => ({ carId: x.car_id, user: h(x.user_id), verified: x.verified })).filter((x) => x.user),
+      views: (viewsOf[m.id] || []).length,
     };
   });
 
@@ -268,7 +279,7 @@ export async function load(userId) {
     id: n.id, type: n.type, from: h(n.actor_id), date: n.created_at, read: n.read,
     ...(n.post_id ? { postId: n.post_id } : {}), ...(n.car_id ? { carId: n.car_id } : {}),
     ...(n.comment_id ? { commentId: n.comment_id } : {}), ...(n.thread_id ? { threadId: n.thread_id } : {}),
-    ...(n.text ? { text: n.text } : {}),
+    ...(n.text ? { text: n.text } : {}), ...(n.meet_id ? { meetId: n.meet_id } : {}),
   })).filter((n) => n.from);
 
   return {
@@ -380,8 +391,9 @@ export const write = {
   saveMeet: async (me, id, f, isNew) => {
     const row = {
       title: f.title, location: f.location.slice(0, 160), lat: f.lat, lng: f.lng, city: f.city, country: f.country,
-      starts_at: f.when, note: f.note, cover_url: await uploadIfNeeded(me, f.cover), sponsors: f.sponsors,
+      starts_at: f.when, ends_at: f.endWhen || null, note: f.note, cover_url: await uploadIfNeeded(me, f.cover), sponsors: f.sponsors,
       driver_cap: f.caps.driver, attendee_cap: f.caps.attendee,
+      plan: f.plan || "free", recurring: f.recurring || "none", approve_drivers: !!f.approveDrivers, featured: !!f.featured, driver_note: f.driverNote || "",
     };
     if (isNew) await must(sb().from("meets").insert({ id, organizer_id: me, ...row }));
     else await must(sb().from("meets").update(row).eq("id", id));
@@ -393,6 +405,18 @@ export const write = {
     if (had) return must(sb().from("meet_attendees").update({ role }).eq("meet_id", meetId).eq("user_id", userId));
     return must(sb().from("meet_attendees").insert({ meet_id: meetId, user_id: userId, role }));
   },
+  meetCar: (me, meetId, carId) => must(sb().from("meet_attendees").update({ car_id: carId }).eq("meet_id", meetId).eq("user_id", me)),
+  approveDriver: (me, meetId, userId, ok) => (ok
+    ? must(sb().from("meet_attendees").update({ approved: true }).eq("meet_id", meetId).eq("user_id", userId))
+    : must(sb().from("meet_attendees").delete().eq("meet_id", meetId).eq("user_id", userId))),
+  checkIn: (me, meetId, userId, on) => must(sb().from("meet_attendees").update({ checked_in_at: on ? new Date().toISOString() : null }).eq("meet_id", meetId).eq("user_id", userId)),
+  announce: (me, meetId, a) => must(sb().from("meet_announcements").insert({ id: a.id, meet_id: meetId, author_id: me, text: a.text })),
+  meetSpot: async (me, meetId, carId, verified) => {
+    const { error } = await sb().from("meet_spots").insert({ meet_id: meetId, car_id: carId, user_id: me, verified });
+    if (error && error.code === "23505") { if (verified) await must(sb().from("meet_spots").update({ verified: true }).eq("meet_id", meetId).eq("car_id", carId).eq("user_id", me)); }
+    else if (error) throw error;
+  },
+  meetView: (me, meetId) => insertOnce("meet_views", { meet_id: meetId, user_id: me }),
   meetCaps: (me, meetId, caps) => must(sb().rpc("set_meet_caps", { p_meet: meetId, p_driver: caps.driver, p_attendee: caps.attendee })),
 
   // communities
@@ -419,6 +443,9 @@ export const write = {
 export function writeMessage(error) {
   const m = (error?.message || "").toLowerCase();
   if (m === "full" || m.includes(" full")) return "That list is full";
+  if (m.includes("free plan") || m.includes("pro only")) return "That's a Pro feature (or over the Free limit) for this meet.";
+  if (m.includes("wait a few minutes")) return "One announcement every 10 minutes, please.";
+  if (m.includes("not your car")) return "You can only bring your own car.";
   if (m.includes("communities_name_unique") || (error?.code === "23505" && m.includes("communit"))) return "A community with that name already exists";
   if (m.includes("not allowed words")) return "That includes words we don't allow on Carfooly. Please keep it respectful.";
   if (m === "banned" || m.includes("banned")) return "Your account has been suspended, so you can't post right now.";

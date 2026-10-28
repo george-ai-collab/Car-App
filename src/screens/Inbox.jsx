@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Car, User, MapPin, Heart, MessageCircle, Bell } from "lucide-react";
+import { Car, User, MapPin, Heart, MessageCircle, Bell, Megaphone } from "lucide-react";
 import { T } from "../theme";
 import { timeAgo, notifText } from "../lib/utils";
 import { Avatar, EmptyState } from "../components/ui";
@@ -14,10 +14,11 @@ export function notifIcon(type) {
   if (type === "commentLike") return <Heart size={16} color={T.accent} fill={T.accent} />;
   if (type === "tag") return <User size={16} color={T.accent2} />;
   if (type === "threadReply") return <MessageCircle size={16} color={T.accent2} />;
+  if (type === "meetUpdate") return <Megaphone size={16} color={T.accentWarm} />;
   return null;
 }
 
-export function InboxView({ me, notifications, posts, cars, discussions = {}, onMount, openPost, openCar, openProfile, openThread }) {
+export function InboxView({ me, notifications, posts, cars, discussions = {}, meets = {}, onMount, openPost, openCar, openProfile, openThread, openMeet }) {
   useEffect(() => { onMount(); }, []);
   const list = [...notifications].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -26,6 +27,7 @@ export function InboxView({ me, notifications, posts, cars, discussions = {}, on
     else if ((n.type === "spot" || n.type === "followBuild") && cars[n.carId]) openCar(n.carId);
     else if (n.type === "follow") openProfile(n.from);
     else if (n.type === "threadReply" && discussions[n.threadId] && openThread) openThread(n.threadId);
+    else if (n.type === "meetUpdate" && meets[n.meetId] && openMeet) openMeet(n.meetId);
   };
 
   return (

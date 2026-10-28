@@ -4,6 +4,7 @@ import { SEED_NEWS } from "../lib/seedNews";
 import { REMOTE, REFRESH_MS } from "../backend/config";
 import { cleanText, MAX_LINES } from "../lib/text";
 import { findBanned, handleProblem, RESPECT_MESSAGE } from "../lib/moderation";
+import { PLANS } from "../lib/meets";
 import * as remote from "../backend/remote";
 
 // All app data lives here. Screens call these actions; actions only change data
@@ -423,10 +424,10 @@ export function useStore(flash) {
     else await dropNotif(car.ownerUsername, { type: "followBuild", carId });
   };
 
-  const spotCar = async (carId) => {
+  const spotCar = async (carId, detail) => {
     const car = get().cars[carId];
     if (!car || car.spotterUsernames.includes(me) || car.ownerUsername === me) return;
-    const event = { id: newId("t"), type: "spot", by: me, date: now() };
+    const event = { id: newId("t"), type: "spot", by: me, date: now(), ...(typeof detail === "string" ? { detail } : {}) };
     const updated = { ...car, spotterUsernames: [...car.spotterUsernames, me], timeline: [...car.timeline, event] };
     await save("cars", { ...get().cars, [carId]: updated });
     sync((id) => remote.write.spot(id, carId, event));
@@ -633,7 +634,19 @@ export function useStore(flash) {
       when: f.when, note: cleanText(f.note, MAX_LINES.note), cover: f.cover || null,
       sponsors: (f.sponsors || []).map((x) => x.trim()).filter(Boolean).slice(0, 8),
       caps: { driver: capNum(f.caps?.driver), attendee: capNum(f.caps?.attendee) },
+      endWhen: f.endWhen && f.endWhen > f.when ? f.endWhen : null,
+      plan: f.plan === "pro" ? "pro" : "free",
+      driverNote: cleanText(f.driverNote, 6).slice(0, 300),
     };
+    // Pro-only extras (the database enforces this too). No payments yet: organizers pick a plan while we test.
+    const pro = fields.plan === "pro";
+    fields.sponsors = pro ? fields.sponsors : [];
+    fields.recurring = pro && f.recurring === "weekly" ? "weekly" : "none";
+    fields.approveDrivers = pro && !!f.approveDrivers;
+    fields.featured = pro && !!f.featured;
+    if (!pro && (fields.caps.driver || 0) + (fields.caps.attendee || 0) > PLANS.free.maxPeople) {
+      flash(`Free meets have up to ${PLANS.free.maxPeople} people. Lower the limits or pick Pro.`); return null;
+    }
     const meets = get().meets;
     if (editingId) {
       const existing = meets[editingId];
@@ -644,7 +657,7 @@ export function useStore(flash) {
       return editingId;
     }
     const id = newId("meet");
-    await save("meets", { ...meets, [id]: { id, ...fields, submittedBy: me, createdAt: now(), attendees: [{ username: me, role: "organizer" }] } });
+    await save("meets", { ...meets, [id]: { id, ...fields, submittedBy: me, createdAt: now(), attendees: [{ username: me, role: "organizer", approved: true }], announcements: [], spots: [], views: 0 } });
     sync((uid2) => remote.write.saveMeet(uid2, id, fields, true));
     flash("Meet posted");
     return id;
@@ -674,9 +687,14 @@ export function useStore(flash) {
     }
     const cap = item.caps?.[role];
     if (cap && item.attendees.filter((a) => a.role === role).length >= cap) { flash(`${role === "driver" ? "Driving" : "Attending"} is full`); return; }
+    const free = item.plan !== "pro";
+    if (free && role !== "organizer" && !existing && item.attendees.filter((a) => a.role !== "organizer").length >= PLANS.free.maxPeople) { flash("This meet is full"); return; }
+    // Pro meets can ask drivers to wait for the organizer's OK.
+    const approved = !(role === "driver" && item.approveDrivers && !isOrganizer(item, me));
     const attendees = existing
-      ? item.attendees.map((a) => (a.username === me ? { ...a, role } : a))
-      : [...item.attendees, { username: me, role }];
+      ? item.attendees.map((a) => (a.username === me ? { ...a, role, approved: role === "driver" ? approved : true } : a))
+      : [...item.attendees, { username: me, role, approved }];
+    if (!approved) flash("Asked to drive. The organizer will confirm.");
     await save("meets", { ...get().meets, [id]: { ...item, attendees } });
     sync((uid2) => remote.write.setAttendance(uid2, id, uid2, role, !!existing));
   };
@@ -700,6 +718,75 @@ export function useStore(flash) {
     await save("meets", { ...get().meets, [meetId]: { ...item, caps: nextCaps } });
     sync((id) => remote.write.meetCaps(id, meetId, nextCaps));
     flash("Limits saved");
+  };
+
+  // ---------- meet day: your car, approvals, check-in, announcements, spotting, views ----------
+  const patchMeet = async (meetId, fn) => {
+    const m = get().meets[meetId];
+    if (!m) return null;
+    const next = fn(m);
+    await save("meets", { ...get().meets, [meetId]: next });
+    return next;
+  };
+  const setMeetCar = async (meetId, carId) => {
+    const car = carId ? get().cars[carId] : null;
+    if (carId && (!car || car.ownerUsername !== me)) return;
+    await patchMeet(meetId, (m) => ({ ...m, attendees: m.attendees.map((a) => (a.username === me ? { ...a, carId: carId || null } : a)) }));
+    sync((id) => remote.write.meetCar(id, meetId, carId || null));
+  };
+  const approveDriver = async (meetId, username, ok) => {
+    const m = get().meets[meetId];
+    if (!m || !isOrganizer(m, me)) return;
+    await patchMeet(meetId, (x) => ({ ...x, attendees: ok ? x.attendees.map((a) => (a.username === username ? { ...a, approved: true } : a)) : x.attendees.filter((a) => a.username !== username) }));
+    const themId = idOf(username);
+    if (themId) sync((id) => remote.write.approveDriver(id, meetId, themId, ok));
+  };
+  // returns "ok" | "not_listed" | "already"
+  const checkIn = async (meetId, username, on = true) => {
+    const m = get().meets[meetId];
+    if (!m || !isOrganizer(m, me)) return null;
+    const a = m.attendees.find((x) => x.username === username);
+    if (!a) return "not_listed";
+    if (on && a.checkedIn) return "already";
+    await patchMeet(meetId, (x) => ({ ...x, attendees: x.attendees.map((y) => (y.username === username ? { ...y, checkedIn: on } : y)) }));
+    const themId = idOf(username);
+    if (themId) sync((id) => remote.write.checkIn(id, meetId, themId, on));
+    return "ok";
+  };
+  const announce = async (meetId, text) => {
+    const m = get().meets[meetId];
+    const clean = cleanText(text, 6).slice(0, 300);
+    if (!m || !isOrganizer(m, me) || !clean) return false;
+    if (refuse(clean)) return false;
+    const list = m.announcements || [];
+    if (m.plan !== "pro" && list.length >= PLANS.free.announcements) { flash("Free meets get 1 announcement. Pro has unlimited."); return false; }
+    if (list[0] && Date.now() - new Date(list[0].date).getTime() < 10 * 60e3) { flash("One announcement every 10 minutes, please."); return false; }
+    const a = { id: newId("ann"), author: me, text: clean, date: now() };
+    await patchMeet(meetId, (x) => ({ ...x, announcements: [a, ...(x.announcements || [])] }));
+    sync((id) => remote.write.announce(id, meetId, a));
+    if (!REMOTE) for (const p of m.attendees) if (p.username !== me) await pushNotif(p.username, { type: "meetUpdate", meetId, text: clean.slice(0, 60) });
+    flash("Sent to everyone going");
+    return true;
+  };
+  // Spot a car at a meet: tapping = a spot; scanning its tag = a verified spot. Also counts as a normal spot.
+  const spotAtMeet = async (meetId, carId, verified) => {
+    const m = get().meets[meetId];
+    const car = get().cars[carId];
+    if (!m || !car || car.ownerUsername === me) return;
+    if (refuse()) return;
+    if (!isDriverAcct()) { flash("Spotting is for driver accounts."); return; }
+    const had = (m.spots || []).find((x) => x.carId === carId && x.user === me);
+    if (had && (had.verified || !verified)) { flash("Already spotted"); return; }
+    await patchMeet(meetId, (x) => ({ ...x, spots: [...(x.spots || []).filter((y) => !(y.carId === carId && y.user === me)), { carId, user: me, verified: !!verified }] }));
+    sync((id) => remote.write.meetSpot(id, meetId, carId, !!verified));
+    if (!car.spotterUsernames.includes(me) && car.hasPage !== false) await spotCar(carId, `at ${m.title}`);
+    else flash(verified ? "Scanned. Verified spot!" : "Spotted");
+  };
+  const isDriverAcct = () => { const t = get().users[me]?.accountType; return !t || t === "personal"; };
+  const viewMeet = (meetId) => {
+    const m = get().meets[meetId];
+    if (!m || !REMOTE) return;
+    sync((id) => remote.write.meetView(id, meetId));
   };
 
   const nameTaken = (name, exceptId) => Object.values(get().communities).some((c) => c.id !== exceptId && c.name.trim().toLowerCase() === name.trim().toLowerCase());
@@ -976,6 +1063,7 @@ export function useStore(flash) {
       toggleCommentLike,
       createThread, replyThread, toggleThreadLike, deleteThread, editThread, deleteThreadReply, deleteComment,
       setMeetRole, setMeetCaps, editCommunity, deleteCommunity,
+      setMeetCar, approveDriver, checkIn, announce, spotAtMeet, viewMeet,
       report, hidePost, undoHide, toggleBlock, adminResolve,
     },
   };

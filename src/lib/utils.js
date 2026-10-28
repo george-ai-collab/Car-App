@@ -50,7 +50,7 @@ export function hueForId(id) {
 export function verbPhrase(t) {
   if (t.type === "created") return "added this car to Carfooly";
   if (t.type === "mod") return `added ${t.modName || t.detail || "a mod"}`;
-  if (t.type === "spot") return "spotted this car";
+  if (t.type === "spot") return t.detail ? `spotted this car ${t.detail}` : "spotted this car";
   if (t.type === "post") return t.detail ? `posted: "${t.detail}"` : "posted a photo";
   if (t.type === "followBuild") return "started following this build";
   return "";
@@ -66,6 +66,7 @@ export function notifText(n) {
   if (n.type === "commentLike") return "liked your comment";
   if (n.type === "tag") return "tagged you in a post";
   if (n.type === "threadReply") return `replied to your discussion: "${n.text}"`;
+  if (n.type === "meetUpdate") return `meet update: "${n.text}"`;
   return "";
 }
 
