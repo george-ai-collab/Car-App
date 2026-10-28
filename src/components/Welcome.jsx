@@ -80,7 +80,7 @@ export function Welcome({ me, user = {}, onDone }) {
         {step === 1 && (
           <>
             <div className="display" style={{ fontSize: 26, color: T.text }}>What brings you here?</div>
-            <div style={{ color: T.textDim, fontSize: 14, marginTop: 6, marginBottom: 20 }}>This only changes the label on your profile. You can change it later in Settings.</div>
+            <div style={{ color: T.textDim, fontSize: 14, marginTop: 6, marginBottom: 20 }}>Pick carefully: this can't be changed later. Most people are drivers.</div>
             <AccountTypePicker value={type} onChange={setType} />
           </>
         )}

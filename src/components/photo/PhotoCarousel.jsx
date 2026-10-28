@@ -22,7 +22,10 @@ export function PhotoCarousel({ photos, mode = "feed" }) {
   return (
     <div style={box}>
       <div data-testid="carousel" {...(many ? { "data-noswipe": true } : {})} onScroll={onScroll} style={{
-        position: "absolute", inset: 0, display: "flex", overflowX: many ? "auto" : "hidden", scrollSnapType: "x mandatory", overscrollBehavior: "contain",
+        // Sideways swipes stay here (next photo); up/down swipes must reach the feed, from anywhere
+        // on the photo. (Containing both directions made only the caption area scroll the feed.)
+        position: "absolute", inset: 0, display: "flex", overflowX: many ? "auto" : "hidden", overflowY: "hidden",
+        scrollSnapType: "x mandatory", overscrollBehaviorX: "contain", overscrollBehaviorY: "auto", touchAction: "pan-x pan-y",
       }}>
         {photos.map((p, k) => (
           <div key={k} style={{ position: "relative", flex: "0 0 100%", height: "100%", scrollSnapAlign: "center", overflow: "hidden" }}>

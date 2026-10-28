@@ -9,7 +9,7 @@ import { cleanText, tokenize } from "../lib/text";
 
 // Captions, bios and comments: @handles open that profile, website links open the browser
 // (after a "you're leaving Carfooly" check). Long text can be clamped with "more".
-export function RichText({ text, maxLines, clamp, style, linkColor, onDark }) {
+export function RichText({ text, maxLines, clamp, style, linkColor, onDark, onMore }) {
   const users = useContext(UsersContext);
   const safety = useSafety();
   const [open, setOpen] = useState(false);
@@ -40,7 +40,7 @@ export function RichText({ text, maxLines, clamp, style, linkColor, onDark }) {
         })}
       </span>
       {long && (
-        <button onPointerDown={stop} onClick={(e) => { stop(e); setOpen((x) => !x); }}
+        <button data-testid="caption-more" onPointerDown={stop} onClick={(e) => { stop(e); if (onMore) onMore(); else setOpen((x) => !x); }}
           style={{ background: "none", border: "none", padding: 0, marginTop: 2, font: "inherit", fontWeight: 700, color: onDark ? "rgba(255,255,255,0.75)" : T.textDim }}>
           {open ? "less" : "more"}
         </button>

@@ -148,7 +148,7 @@ export function TextInput({ value, onChange, placeholder, icon, autoFocus, maxLe
   );
 }
 
-export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh" }) {
+export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh", fixedHeight }) {
   const sheets = useContext(SheetContext);
   const kb = useKeyboardOffset();
   const wasTyping = useRef(false);
@@ -253,15 +253,18 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
         position: "fixed", left: "50%", bottom: kb, transform: "translateX(-50%)",
         width: "100%", maxWidth: 480, zIndex: 41,
         maxHeight: kb ? `min(${maxHeight}, ${Math.max(200, window.innerHeight - kb - 40)}px)` : maxHeight,
+        // Fixed-height panels (comments) leave room above them while typing, so a tap there closes the keyboard.
+        ...(fixedHeight ? { height: kb ? `min(${maxHeight}, ${Math.max(200, window.innerHeight - kb - 110)}px)` : maxHeight, ...(kb ? { maxHeight: `${Math.max(200, window.innerHeight - kb - 110)}px` } : {}) } : {}),
         borderRadius: kb ? 26 : "26px 26px 0 0",
         padding: kb ? "10px 20px 12px" : "10px 20px calc(24px + env(safe-area-inset-bottom))",
         overflowY: "auto", overscrollBehavior: "contain", transition: "bottom 0.18s ease",
       }}>
-        {/* The handle: a bigger invisible grab area around the little bar. */}
-        <div data-sheet-handle style={{ margin: "-10px -20px 0", padding: "14px 0 16px", touchAction: "none", cursor: "grab" }}>
-          <div style={{ width: 36, height: 4, borderRadius: 99, background: "rgba(255,255,255,0.25)", margin: "0 auto" }} />
+        {/* Handle + title stay pinned at the top while the content scrolls (and the handle can
+            always be dragged to close). A bigger invisible grab area surrounds the little bar. */}
+        <div data-sheet-handle style={{ position: "sticky", top: -10, zIndex: 2, margin: "-10px -20px 0", padding: "14px 20px 0", background: "#141417", touchAction: "none", cursor: "grab" }}>
+          <div style={{ width: 36, height: 4, borderRadius: 99, background: "rgba(255,255,255,0.25)", margin: "0 auto 16px" }} />
+          {title && <div className="display" style={{ fontSize: 18, color: T.text, paddingBottom: 14 }}>{title}</div>}
         </div>
-        {title && <div className="display" style={{ fontSize: 18, color: T.text, marginBottom: 16 }}>{title}</div>}
         {children}
       </div>
     </>

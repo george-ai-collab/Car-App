@@ -1,7 +1,7 @@
 import { useState, useRef, useLayoutEffect } from "react";
 import { Car, Compass, Heart, MessageCircle, Search, Bell, MapPin, Share2, Maximize2 } from "lucide-react";
 import { T } from "../theme";
-import { hueForId } from "../lib/utils";
+import { hueForId, timeAgo } from "../lib/utils";
 import { Avatar, FollowAvatar, EmptyState, TextInput, BottomSheet, AccountLabel } from "../components/ui";
 import { CommentRow } from "./PostDetail";
 import { PostMenu } from "../components/PostMenu";
@@ -106,15 +106,33 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
         <QuickActions post={holdPost} me={me} car={cars[holdPost.carId]} onClose={() => setHoldId(null)}
           onLike={() => toggleLike(holdPost.id)} onComment={() => setCommentsPostId(holdPost.id)} onOpen={() => openPost && openPost(holdPost.id)} />
       )}
-      <BottomSheet open={!!commentsPost} onClose={() => setCommentsPostId(null)} title="Comments">
+      <BottomSheet open={!!commentsPost} onClose={() => setCommentsPostId(null)} maxHeight="74vh" fixedHeight
+        title={commentsPost ? `${commentsPost.comments.length} ${commentsPost.comments.length === 1 ? "comment" : "comments"}` : ""}>
         {commentsPost && (
-          <>
-            {commentsPost.comments.length === 0 && <div style={{ color: T.textDim, fontSize: 13, marginBottom: 14 }}>No comments yet.</div>}
+          // Fills the panel so the comment box stays pinned at the bottom, even with few comments.
+          <div style={{ minHeight: "calc(74vh - 96px)", display: "flex", flexDirection: "column" }}>
+            {commentsPost.caption && (
+              <div data-testid="comments-caption" style={{ display: "flex", gap: 10, paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${T.lineDark}` }}>
+                <button onClick={() => { setCommentsPostId(null); openProfile(commentsPost.authorUsername); }} style={{ background: "none", border: "none", padding: 0, alignSelf: "flex-start" }}>
+                  <Avatar username={commentsPost.authorUsername} size={32} />
+                </button>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                    <span style={{ color: T.text, fontWeight: 700, fontSize: 13.5 }}>{commentsPost.authorUsername}</span>
+                    <AccountLabel username={commentsPost.authorUsername} />
+                    <span style={{ color: T.textDim, fontSize: 12 }}>· {timeAgo(commentsPost.date)}</span>
+                  </div>
+                  <RichText text={commentsPost.caption} maxLines={MAX_LINES.caption} style={{ color: T.text, fontSize: 14, lineHeight: 1.45 }} />
+                </div>
+              </div>
+            )}
+            {commentsPost.comments.length === 0 && <div style={{ color: T.textDim, fontSize: 13, marginBottom: 14 }}>No comments yet. Be the first.</div>}
             {commentsPost.comments.map((c) => (
               <CommentRow key={c.id} comment={c} postId={commentsPost.id} addReply={addReply} />
             ))}
+            <div style={{ flex: 1 }} />
             <FeedCommentInput postId={commentsPost.id} addComment={addComment} />
-          </>
+          </div>
         )}
       </BottomSheet>
     </div>
@@ -125,7 +143,8 @@ export function FeedCommentInput({ postId, addComment }) {
   const [text, setTextState] = useState(() => drafts.get(postId) || "");
   const setText = (v) => { setTextState(v); if (v) drafts.set(postId, v); else drafts.delete(postId); };
   return (
-    <div style={{ display: "flex", gap: 8, marginTop: 8, position: "sticky", bottom: -12, paddingTop: 8, paddingBottom: 4, background: "rgba(24,24,27,0.96)", marginLeft: -20, marginRight: -20, paddingLeft: 20, paddingRight: 20 }}>
+    // Pinned to the very bottom of the panel (covers the panel's bottom padding too).
+    <div style={{ display: "flex", gap: 8, marginTop: 8, position: "sticky", bottom: "calc(-24px - env(safe-area-inset-bottom))", paddingTop: 10, paddingBottom: "calc(14px + env(safe-area-inset-bottom))", marginBottom: "calc(-24px - env(safe-area-inset-bottom))", background: "rgba(24,24,27,0.98)", borderTop: `1px solid ${T.lineDark}`, marginLeft: -20, marginRight: -20, paddingLeft: 20, paddingRight: 20 }}>
       <div style={{ flex: 1 }}>
         <TextInput value={text} onChange={setText} placeholder="Add a comment…" maxLength={220} />
       </div>
@@ -215,9 +234,9 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
           </div>
         )}
         {post.caption && pics.length > 0 && (
-          <div style={{ maxHeight: "38vh", overflowY: "auto" }} data-noswipe>
-            <RichText text={post.caption} maxLines={MAX_LINES.caption} clamp={2} onDark style={{ color: "#fff", fontSize: 13.5, lineHeight: 1.4, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }} />
-          </div>
+          // Two lines here; "more" opens the comments panel with the full caption on top (like TikTok).
+          <RichText text={post.caption} maxLines={MAX_LINES.caption} clamp={2} onDark onMore={openComments}
+            style={{ color: "#fff", fontSize: 13.5, lineHeight: 1.4, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }} />
         )}
       </div>
     </div>
