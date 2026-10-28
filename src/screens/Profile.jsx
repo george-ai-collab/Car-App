@@ -33,7 +33,14 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         <FollowAvatar username={username} size={76} showFollow={!isMe && !blocked} following={iFollow} onFollow={onToggleFollow} />
         <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
           <div className="display" style={{ fontSize: 20, color: T.text, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name || username}</div>
-          <div className="plate" style={{ fontSize: 11.5, color: T.textDim, marginTop: 2 }}>@{username}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+            <span className="plate" style={{ fontSize: 11.5, color: T.textDim }}>@{username}</span>
+            {(user.accountType === "club" || user.accountType === "business") && (
+              <span data-testid="account-label" className="plate" style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", color: T.ink, background: T.paper, borderRadius: 5, padding: "2px 6px" }}>
+                {user.accountType === "club" ? "CLUB" : "BUSINESS"}
+              </span>
+            )}
+          </div>
           <div style={{ display: "flex", flexWrap: "wrap", columnGap: 12, rowGap: 4, marginTop: 8 }}>
             <MiniStat value={myPosts.length} label="Posts" />
             <MiniStat value={myCars.length} label="Cars" />

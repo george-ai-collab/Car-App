@@ -38,6 +38,8 @@ const authMessage = (error) => {
   if (m.includes("email not confirmed")) return "Confirm your email first (check your inbox), then log in.";
   if (m.includes("database error")) return "That handle was just taken. Try another.";
   if (m.includes("rate") || m.includes("too many") || error?.status === 429) return "Too many tries. Wait a minute and try again.";
+  if (m.includes("token") || m.includes("otp")) return "That code is wrong or has expired. Check the latest email, or send a new code.";
+  if (m.includes("different from the old")) return "Pick a password you haven't used here before.";
   if (m.includes("password")) return "Password needs at least 8 characters.";
   if (m.includes("email")) return "That email doesn't look right.";
   if (m.includes("fetch") || m.includes("network")) return "No connection. Check your internet and try again.";
@@ -61,9 +63,19 @@ export async function signOut() {
   try { await sb().auth.signOut(); } catch { /* already signed out */ }
 }
 
+// Forgot password, in two steps:
+//  1. we email a short code (the "Reset password" email template shows it as {{ .Token }})
+//  2. the person types the code and a new password; that signs them in with the new password.
 export async function resetPassword(email) {
   const { error } = await sb().auth.resetPasswordForEmail(email.trim());
   return error ? { error: authMessage(error) } : {};
+}
+export async function confirmReset({ email, code, password }) {
+  const { data, error } = await sb().auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "recovery" });
+  if (error) return { error: authMessage(error) };
+  const { error: e2 } = await sb().auth.updateUser({ password });
+  if (e2) return { error: authMessage(e2), userId: data.user?.id };
+  return { userId: data.user.id };
 }
 
 // Deletes your photos, then your account (everything you made goes with it).
@@ -107,7 +119,7 @@ export async function load(userId) {
     communities, members, threads, threadReplies, threadLikes,
     posts, postLikes, comments, commentLikes, meets, attendees, newsLikes, notifications, blocks, hidden,
   ] = await Promise.all([
-    t("profiles", "id,handle,name,bio,avatar_url,created_at"),
+    t("profiles", "id,handle,name,bio,avatar_url,account_type,created_at"),
     t("follows", "follower_id,followee_id"),
     t("cars"), t("car_mods"), t("car_events"),
     t("car_follows", "car_id,user_id"), t("car_spots", "car_id,user_id"),
@@ -134,7 +146,7 @@ export async function load(userId) {
   const users = {};
   profiles.forEach((p) => {
     users[p.handle] = {
-      id: p.id, name: p.name || p.handle, bio: p.bio || "", avatar: p.avatar_url || null, joinedAt: p.created_at,
+      id: p.id, name: p.name || p.handle, bio: p.bio || "", avatar: p.avatar_url || null, accountType: p.account_type || "personal", joinedAt: p.created_at,
       followers: handles(followersOf[p.id] || [], "follower_id"),
       following: handles(followingOf[p.id] || [], "followee_id"),
     };
@@ -255,9 +267,9 @@ export async function load(userId) {
 // ---------- writes ----------
 // `me` is your user id. Other people are passed as their user ids.
 export const write = {
-  profile: async (me, { name, bio, avatar }) => {
+  profile: async (me, { name, bio, avatar, accountType }) => {
     const avatar_url = await uploadIfNeeded(me, avatar);
-    await must(sb().from("profiles").update({ name, bio, avatar_url }).eq("id", me));
+    await must(sb().from("profiles").update({ name, bio, avatar_url, ...(accountType ? { account_type: accountType } : {}) }).eq("id", me));
   },
 
   // cars

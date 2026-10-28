@@ -28,6 +28,29 @@ function current() {
 function emit() {
   const v = current();
   listeners.forEach((fn) => fn(v));
+  if (v) setTimeout(() => reveal(document.activeElement), 80); // after pages add room for it
+}
+
+// Move the box you're typing in so it sits just above the keyboard (not behind it).
+export function reveal(el) {
+  if (!el?.matches?.("input, textarea") || el.closest("[data-sheet]")) return;
+  const kb = current();
+  const r = el.getBoundingClientRect();
+  const visibleBottom = window.innerHeight - kb - 24;
+  const visibleTop = 70;
+  let delta = 0;
+  if (r.bottom > visibleBottom) delta = r.bottom - visibleBottom;
+  else if (r.top < visibleTop) delta = r.top - visibleTop;
+  if (!delta) return;
+  // Scroll whichever box actually scrolls: a full-screen panel, or the page.
+  let box = el.parentElement;
+  while (box && box !== document.body) {
+    const st = getComputedStyle(box);
+    if (/(auto|scroll)/.test(st.overflowY) && box.scrollHeight > box.clientHeight) break;
+    box = box.parentElement;
+  }
+  if (box && box !== document.body) box.scrollBy({ top: delta, behavior: "smooth" });
+  else window.scrollBy({ top: delta, behavior: "smooth" });
 }
 
 let installed = false;
@@ -51,7 +74,7 @@ function install() {
   document.addEventListener("focusin", (e) => {
     const el = e.target;
     if (!el.matches?.("input, textarea") || el.closest("[data-sheet]")) return;
-    setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 320);
+    setTimeout(() => reveal(el), 320);
   });
 }
 
@@ -66,4 +89,8 @@ export function useKeyboardOffset() {
   return kb;
 }
 
-export function initKeyboard() { install(); }
+export function initKeyboard() {
+  install();
+  // Tests on a computer have no keyboard: let them pretend one is open.
+  if (!Capacitor.isNativePlatform()) window.__fakeKeyboard = (h) => { nativeKb = h; emit(); };
+}
