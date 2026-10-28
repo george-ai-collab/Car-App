@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Car, Heart, MapPin } from "lucide-react";
 import { T } from "../theme";
 import { timeAgo, hueForId } from "../lib/utils";
-import { Avatar, TextInput, SectionLabel } from "../components/ui";
+import { Avatar, TextInput, SectionLabel, AccountLabel } from "../components/ui";
 import { PostMenu } from "../components/PostMenu";
 import { PhotoCarousel, postPhotos } from "../components/photo/PhotoCarousel";
 import { ReportSheet, useSafety } from "../components/Safety";
@@ -31,6 +31,7 @@ export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, ad
           <button onClick={() => openProfile(post.authorUsername)} style={{ background: "none", border: "none", padding: 0, color: T.text, fontSize: 14, fontWeight: 600 }}>
             {post.authorUsername}
           </button>
+          <AccountLabel username={post.authorUsername} />
           {car && (
             <div>
               <button onClick={() => openCar(car.id)} style={{ background: "none", border: "none", padding: 0, color: T.accent, fontSize: 12 }}>

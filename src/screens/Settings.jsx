@@ -2,7 +2,7 @@ import { useState } from "react";
 import { User, Car, Archive, LogOut, Trash2, ChevronRight, Info, Pencil, Image as ImageIcon, Users } from "lucide-react";
 import { T } from "../theme";
 import { fmtDate } from "../lib/utils";
-import { Avatar, EmptyState, Field, TextInput, TextArea, ConfirmDialog, SectionLabel, BottomSheet } from "../components/ui";
+import { Avatar, EmptyState, Field, TextInput, TextArea, ConfirmDialog, SectionLabel, BottomSheet, isDriver } from "../components/ui";
 import { CameraCapture } from "../components/photo/CameraCapture";
 import { REMOTE } from "../backend/config";
 import { AccountTypePicker, ACCOUNT_TYPES } from "../components/Welcome";
@@ -63,7 +63,7 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour }) 
       <SectionLabel>Account</SectionLabel>
       <Group>
         <Row icon={<User size={16} />} label="Edit profile" sub="Photo, name, bio" onClick={() => go("editProfile")} />
-        <Row icon={<Car size={16} />} label="My cars" sub={`${carCount} ${carCount === 1 ? "car" : "cars"} · edit or delete`} onClick={() => go("manageCars")} />
+        {(isDriver(user) || carCount > 0) && <Row icon={<Car size={16} />} label="My cars" sub={`${carCount} ${carCount === 1 ? "car" : "cars"} · edit or delete`} onClick={() => go("manageCars")} />}
         <Row icon={<Users size={16} />} label="Account type" sub={ACCOUNT_TYPES.find((t) => t.id === (user.accountType || "personal"))?.title} onClick={() => setTypeOpen(true)} />
         <Row icon={<Archive size={16} />} label="Archived posts" sub={archivedCount ? `${archivedCount} hidden` : "None"} onClick={() => go("archive")} />
       </Group>

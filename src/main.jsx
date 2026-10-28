@@ -10,15 +10,29 @@ initKeyboard();
 
 // Android hardware/gesture back: close an open sheet first, then use the app's
 // own back arrow, otherwise send the app to the background (like Instagram).
-if (Capacitor.isNativePlatform()) {
-  CapApp.addListener("backButton", () => {
-    const backdrops = document.querySelectorAll("[data-sheet-backdrop]");
-    if (backdrops.length) return backdrops[backdrops.length - 1].click(); // top-most sheet
-    // Go back one page; on the Feed there's nowhere to go, so leave the app.
-    if (window.__carfoolyBack && window.__carfoolyBack()) return;
-    CapApp.minimizeApp();
-  });
+// On the Feed or the sign-in screen there's nowhere to go back to: the first press only shows
+// "Press back again to exit", so a stray swipe doesn't close the app.
+let lastExitPress = 0;
+function exitHint() {
+  document.getElementById("exit-hint")?.remove();
+  const el = document.createElement("div");
+  el.id = "exit-hint";
+  el.textContent = "Press back again to exit";
+  el.style.cssText = "position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:100;background:#F5F4F2;color:#141414;padding:10px 18px;border-radius:999px;font:600 13.5px system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,0.3);white-space:nowrap;pointer-events:none";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2000);
 }
+function handleBack() {
+  const backdrops = document.querySelectorAll("[data-sheet-backdrop]");
+  if (backdrops.length) return backdrops[backdrops.length - 1].click(); // top-most sheet
+  if (window.__carfoolyBack && window.__carfoolyBack()) return; // back one page
+  const now = Date.now();
+  if (now - lastExitPress < 2000) { document.getElementById("exit-hint")?.remove(); CapApp.minimizeApp(); return; }
+  lastExitPress = now;
+  exitHint();
+}
+window.__hwBack = handleBack; // tests
+if (Capacitor.isNativePlatform()) CapApp.addListener("backButton", handleBack);
 
 // Share tags: a carfooly:// link opened from outside (another app, or the phone's camera).
 // If the app isn't ready yet, Shell picks it up when it opens.

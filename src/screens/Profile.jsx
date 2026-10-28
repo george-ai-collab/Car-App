@@ -4,7 +4,7 @@ import { MoreMenu, useSafety } from "../components/Safety";
 import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus, Layers, QrCode } from "lucide-react";
 import { T } from "../theme";
 import { computeBadges, nextBadgeProgress } from "../lib/badges";
-import { Avatar, FollowAvatar, IconTab, IconBadge, EmptyState, BottomSheet, MiniStat } from "../components/ui";
+import { Avatar, FollowAvatar, IconTab, IconBadge, EmptyState, BottomSheet, MiniStat, AccountLabel, isDriver } from "../components/ui";
 import { CarCard, SightingCard } from "./Cars";
 
 export function Profile({ username, me, cars, posts, users, sightings, tab = "posts", setTab, onToggleFollow, openCar, openPost, onAddCar, onOpenSettings }) {
@@ -18,6 +18,8 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
   });
   const user = users[username] || { name: username, joinedAt: null, followers: [], following: [] };
   const isMe = username === me;
+  const driver = isDriver(user);
+  const view = driver ? tab : "posts";
   const iFollow = (users[me]?.following || []).includes(username);
 
   const myPosts = Object.values(posts).filter((p) => p.authorUsername === username && !p.archived).sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -35,15 +37,11 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
           <div className="display" style={{ fontSize: 20, color: T.text, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name || username}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
             <span className="plate" style={{ fontSize: 11.5, color: T.textDim }}>@{username}</span>
-            {(user.accountType === "club" || user.accountType === "business") && (
-              <span data-testid="account-label" className="plate" style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", color: T.ink, background: T.paper, borderRadius: 5, padding: "2px 6px" }}>
-                {user.accountType === "club" ? "CLUB" : "BUSINESS"}
-              </span>
-            )}
+            <AccountLabel username={username} />
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", columnGap: 12, rowGap: 4, marginTop: 8 }}>
             <MiniStat value={myPosts.length} label="Posts" />
-            <MiniStat value={myCars.length} label="Cars" />
+            {driver && <MiniStat value={myCars.length} label="Cars" />}
             <MiniStat value={user.followers.length} label="Followers" />
             <MiniStat value={user.following.length} label="Following" />
           </div>
@@ -83,14 +81,15 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
       )}
       {!blocked && <>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative", marginBottom: 14 }}>
+      {/* Clubs and businesses just have posts: no garage, spots or badges. */}
+      {driver && <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "center", gap: 10 }}>
           <IconTab active={tab === "posts"} onClick={() => { setTab("posts"); setShowBadges(false); }} icon={<ImageIcon size={17} />} />
           <IconTab active={tab === "cars"} onClick={() => { setTab("cars"); setShowBadges(false); }} icon={<Car size={17} />} />
           <IconTab active={tab === "spotted"} onClick={() => setTab("spotted")} icon={<MapPin size={17} />} />
         </div>
-      </div>
-      {tab === "spotted" && (
+      </div>}
+      {view === "spotted" && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
           <button onClick={() => setShowBadges(true)} className="press" style={{
             width: 34, height: 34, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface,
@@ -101,7 +100,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         </div>
       )}
 
-      {tab === "posts" && (
+      {view === "posts" && (
         myPosts.length === 0 ? <EmptyState icon={<Compass size={20} color={T.textDim} />} title="No posts yet" body="" /> :
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
           {myPosts.map((p) => (
@@ -112,7 +111,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
           ))}
         </div>
       )}
-      {tab === "cars" && (
+      {view === "cars" && (
         <div>
           {isMe && onAddCar && (
             <button onClick={onAddCar} className="press" style={{ width: "100%", marginBottom: 14, padding: "10px 14px", borderRadius: 16, border: `1px dashed ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
@@ -123,7 +122,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{myCars.map((c) => <CarCard key={c.id} car={c} onOpen={openCar} showPrivate={isMe} />)}</div>}
         </div>
       )}
-      {tab === "spotted" && (
+      {view === "spotted" && (
         spottedCars.length === 0 && unmatchedSightings.length === 0 ? <EmptyState icon={<MapPin size={20} color={T.textDim} />} title="No spots logged" body="" /> :
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {spottedCars.map((c) => <CarCard key={c.id} car={c} onOpen={openCar} />)}

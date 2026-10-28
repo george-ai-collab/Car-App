@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { T } from "./theme";
 import { useNav } from "./nav/useNav";
 import { useKeyboardOffset } from "./lib/keyboard";
-import { SheetContext } from "./components/ui";
+import { SheetContext, isDriver } from "./components/ui";
 import { SafetyContext, PermissionNotice } from "./components/Safety";
 import { BottomNav } from "./components/BottomNav";
 import { Feed } from "./screens/Feed";
@@ -31,29 +31,28 @@ export function Shell({ store, toast }) {
   const { current: cur, stack, go, back, tab, replace, reset, patch } = nav;
   const p = cur.params || {};
   const [sheets, setSheets] = useState(0);
-  // First time on this phone for this account: show the short intro.
+  // Only brand-new accounts see the intro: first the short "make it yours" setup, then the tour.
+  // Logging back in to an existing account never shows it (it's in Settings → How Carfooly works).
   const [tour, setTour] = useState(false);
-  useEffect(() => {
-    window.storage.get(`carfooly-tour:${me}`, false).then((r) => { if (!r) setTour(true); }).catch(() => {});
-  }, [me]);
-  // Brand-new account: the short "make it yours" setup comes first (then the intro).
   const [setup, setSetup] = useState(false);
   useEffect(() => {
-    if (window.__skipWelcome) return; // tests
-    window.storage.get(`carfooly-setup:${me}`, false).then((r) => { if (r?.value === "pending") setSetup(true); }).catch(() => {});
+    window.storage.get(`carfooly-setup:${me}`, false).then((r) => {
+      if (r?.value !== "pending") return;
+      if (window.__skipWelcome) { window.storage.set(`carfooly-setup:${me}`, "done", false).catch(() => {}); setTour(true); } // tests
+      else setSetup(true);
+    }).catch(() => {});
   }, [me]);
   const finishSetup = async (data, addCar) => {
     await a.updateProfile(data, true);
     window.storage.set(`carfooly-setup:${me}`, "done", false).catch(() => {});
     setSetup(false);
-    // "Add my car": open the car form once the intro (if any) is done.
-    if (addCar) { if (tour) addCarAfterTour.current = true; else go("addCar"); }
+    setTour(true);
+    if (addCar) { addCarAfterTour.current = true; return; }
   };
   const addCarAfterTour = useRef(false);
   const endTour = () => {
     if (addCarAfterTour.current) { addCarAfterTour.current = false; go("addCar"); }
     setTour(false);
-    window.storage.set(`carfooly-tour:${me}`, "seen", false).catch(() => {});
   };
   const pickAdd = (kind) => {
     if (kind === "post") go("compose", { fromAdd: true });
@@ -206,7 +205,7 @@ export function Shell({ store, toast }) {
       page = cars[p.id] && <AddCarForm initial={cars[p.id]} onSubmit={async (data) => { await a.editCar(p.id, data); back(); }} />;
       break;
     case "addChoice":
-      page = <AddPage onPick={pickAdd} />;
+      page = <AddPage onPick={pickAdd} driver={isDriver(users[me])} />;
       break;
     case "compose":
       page = <ComposerFlow me={me} cars={cars} communities={communities} users={users} initialCommunityId={p.communityId} onCancel={back}

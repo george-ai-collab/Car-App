@@ -48,7 +48,7 @@ export function Welcome({ me, user = {}, onDone }) {
   const [avatar, setAvatar] = useState(user.avatar || null);
   const [type, setType] = useState(user.accountType || "personal");
   const finish = (addCar) => onDone({ name, bio, avatar, accountType: type }, addCar);
-  const steps = 3;
+  const steps = type === "personal" ? 3 : 2;
 
   return (
     <div data-testid="welcome" style={{ position: "fixed", inset: 0, zIndex: 70, background: T.bg, overflowY: "auto" }}>
@@ -60,7 +60,7 @@ export function Welcome({ me, user = {}, onDone }) {
               <div key={i} style={{ width: i === step ? 22 : 8, height: 8, borderRadius: 99, background: i <= step ? T.accent : "rgba(255,255,255,0.15)", transition: "width 0.2s" }} />
             ))}
           </div>
-          {step < 2 && <button data-testid="welcome-skip" onClick={() => setStep(step + 1)} style={{ background: "none", border: "none", color: T.textDim, fontSize: 13.5, fontWeight: 600 }}>Skip</button>}
+          {step < steps - 1 && <button data-testid="welcome-skip" onClick={() => setStep(step + 1)} style={{ background: "none", border: "none", color: T.textDim, fontSize: 13.5, fontWeight: 600 }}>Skip</button>}
         </div>
 
         {step === 0 && (
@@ -97,7 +97,10 @@ export function Welcome({ me, user = {}, onDone }) {
         )}
 
         <div style={{ flex: 1, minHeight: 24 }} />
-        {step < 2 ? (
+        {step === 1 && type !== "personal" ? (
+          // Clubs and businesses don't keep cars: this is the last step for them.
+          <button data-testid="welcome-done" onClick={() => finish(false)} className="press" style={primary}>Take me in <ChevronRight size={17} /></button>
+        ) : step < 2 ? (
           <button data-testid="welcome-next" onClick={() => setStep(step + 1)} className="press" style={primary}>Next <ChevronRight size={17} /></button>
         ) : (
           <>

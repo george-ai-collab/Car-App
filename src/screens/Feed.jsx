@@ -2,7 +2,7 @@ import { useState, useRef, useLayoutEffect } from "react";
 import { Car, Compass, Heart, MessageCircle, Search, Bell, MapPin, Share2, Maximize2 } from "lucide-react";
 import { T } from "../theme";
 import { hueForId } from "../lib/utils";
-import { Avatar, FollowAvatar, EmptyState, TextInput, BottomSheet } from "../components/ui";
+import { Avatar, FollowAvatar, EmptyState, TextInput, BottomSheet, AccountLabel } from "../components/ui";
 import { CommentRow } from "./PostDetail";
 import { PostMenu } from "../components/PostMenu";
 import { PhotoCarousel, postPhotos } from "../components/photo/PhotoCarousel";
@@ -176,6 +176,7 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
           <button onClick={() => openProfile(post.authorUsername)} style={{ background: "none", border: "none", padding: 0, color: "#fff", fontSize: 14, fontWeight: 700, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
             {post.authorUsername}
           </button>
+          <AccountLabel username={post.authorUsername} onDark />
         </div>
         {(post.location || (post.tags || []).length > 0) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: 600, marginBottom: 8, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>

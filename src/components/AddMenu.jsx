@@ -8,14 +8,16 @@ const OPTIONS = [
   { id: "car", label: "Add car", sub: "To your garage", icon: Car, color: T.accentWarm },
 ];
 
-// The "Add" page: four big square tiles.
-export function AddPage({ onPick }) {
+// The "Add" page: big square tiles. Clubs and businesses get Post and Meet only
+// (cars and spots are for drivers).
+export function AddPage({ onPick, driver = true }) {
+  const options = driver ? OPTIONS : OPTIONS.filter((o) => o.id === "post" || o.id === "meet");
   return (
     <div>
       <div className="display" style={{ fontSize: 26, color: T.text }}>Create</div>
       <div style={{ color: T.textDim, fontSize: 13.5, marginBottom: 18 }}>What do you want to share?</div>
       <div data-testid="add-menu" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        {OPTIONS.map(({ id, label, sub, icon: Icon, color }) => (
+        {options.map(({ id, label, sub, icon: Icon, color }) => (
           <button key={id} data-testid={`add-${id}`} onClick={() => onPick(id)} className="press" style={{
             aspectRatio: "1", display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "flex-start",
             padding: 16, borderRadius: 24, border: `1px solid ${T.lineDark}`, textAlign: "left",
