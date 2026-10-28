@@ -29,7 +29,7 @@ export function GlobalStyle() {
       @keyframes bigHeart { 0% { transform: translate(-50%,-50%) scale(0.3); opacity: 0; } 25% { transform: translate(-50%,-50%) scale(1.15); opacity: 1; } 70% { transform: translate(-50%,-50%) scale(1); opacity: 1; } 100% { transform: translate(-50%,-70%) scale(0.9); opacity: 0; } }
       .big-heart { animation: bigHeart 0.8s ease forwards; }
       .pop-in { animation: popIn 0.2s cubic-bezier(0.32, 0.72, 0, 1) both; }
-      .sheet-in { animation: sheetIn 0.3s cubic-bezier(0.32, 0.72, 0, 1) both; }
+      .sheet-in { animation: sheetIn 0.3s cubic-bezier(0.32, 0.72, 0, 1) backwards; }
       .glass {
         background: ${T.glassBg};
         backdrop-filter: blur(22px) saturate(170%);
@@ -150,10 +150,78 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
   const sheets = useContext(SheetContext);
   const kb = useKeyboardOffset();
   const wasTyping = useRef(false);
+  const sheetRef = useRef(null);
+  const backRef = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open || !sheets) return;
     sheets(1);
     return () => sheets(-1);
+  }, [open]);
+
+  // Drag down to close: grab the sheet anywhere while it's scrolled to the top (or the handle any
+  // time) and pull down. Let go past ~1/4 of its height, or flick down, and it closes; otherwise
+  // it springs back.
+  useEffect(() => {
+    const el = sheetRef.current;
+    if (!open || !el) return;
+    let startY = 0, startT = 0, dy = 0, tracking = false, dragging = false, fromHandle = false;
+    const skip = (t) => t.closest?.("input, textarea, select, [contenteditable], [data-noswipe], input[type=range]");
+    const set = (y, animate) => {
+      el.style.transition = animate ? "transform 0.22s ease, bottom 0.18s ease" : "bottom 0.18s ease";
+      el.style.transform = `translate(-50%, ${y}px)`;
+      if (backRef.current) {
+        backRef.current.style.transition = animate ? "opacity 0.22s ease" : "none";
+        backRef.current.style.opacity = String(Math.max(0.15, 1 - y / (el.offsetHeight || 400)));
+      }
+    };
+    const begin = (y, target) => {
+      if (skip(target)) return;
+      fromHandle = !!target.closest?.("[data-sheet-handle]");
+      if (!fromHandle && el.scrollTop > 0) return;
+      tracking = true; dragging = false; startY = y; startT = Date.now(); dy = 0;
+    };
+    const move = (y, e) => {
+      if (!tracking) return;
+      dy = y - startY;
+      if (!dragging) {
+        if (dy < -4 && !fromHandle) { tracking = false; return; } // scrolling the content up
+        if (dy > 6 && (fromHandle || el.scrollTop <= 0)) dragging = true;
+      }
+      if (dragging) {
+        if (e.cancelable) e.preventDefault();
+        set(Math.max(0, dy), false);
+      }
+    };
+    const end = () => {
+      if (!tracking) return;
+      tracking = false;
+      if (!dragging) return;
+      const speed = dy / Math.max(1, Date.now() - startT); // px per ms
+      if (dy > (el.offsetHeight || 400) * 0.25 || (dy > 40 && speed > 0.6)) {
+        set(el.offsetHeight + 40, true);
+        setTimeout(() => closeRef.current(), 200);
+      } else set(0, true);
+      dragging = false;
+    };
+    const ts = (e) => begin(e.touches[0].clientY, e.target);
+    const tm = (e) => move(e.touches[0].clientY, e);
+    const md = (e) => { if (e.pointerType === "mouse" && e.button === 0) begin(e.clientY, e.target); };
+    const mm = (e) => { if (e.pointerType === "mouse") move(e.clientY, e); };
+    el.addEventListener("touchstart", ts, { passive: true });
+    el.addEventListener("touchmove", tm, { passive: false });
+    el.addEventListener("touchend", end);
+    el.addEventListener("touchcancel", end);
+    el.addEventListener("pointerdown", md);
+    window.addEventListener("pointermove", mm);
+    window.addEventListener("pointerup", end);
+    return () => {
+      el.removeEventListener("touchstart", ts); el.removeEventListener("touchmove", tm);
+      el.removeEventListener("touchend", end); el.removeEventListener("touchcancel", end);
+      el.removeEventListener("pointerdown", md);
+      window.removeEventListener("pointermove", mm); window.removeEventListener("pointerup", end);
+    };
   }, [open]);
   if (!open) return null;
 
@@ -175,19 +243,22 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
 
   return (
     <>
-      <div data-sheet-backdrop onPointerDown={onBackdropDown} onClick={onBackdrop} className="fade-in" style={{
+      <div ref={backRef} data-sheet-backdrop onPointerDown={onBackdropDown} onClick={onBackdrop} className="fade-in" style={{
         position: "fixed", inset: 0, zIndex: 40, background: "rgba(6,6,7,0.78)",
         backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
       }} />
-      <div data-sheet className="glass sheet-in" style={{
+      <div ref={sheetRef} data-sheet className="glass sheet-in" style={{
         position: "fixed", left: "50%", bottom: kb, transform: "translateX(-50%)",
         width: "100%", maxWidth: 480, zIndex: 41,
         maxHeight: kb ? `min(${maxHeight}, ${Math.max(200, window.innerHeight - kb - 40)}px)` : maxHeight,
         borderRadius: kb ? 26 : "26px 26px 0 0",
         padding: kb ? "10px 20px 12px" : "10px 20px calc(24px + env(safe-area-inset-bottom))",
-        overflowY: "auto", transition: "bottom 0.18s ease",
+        overflowY: "auto", overscrollBehavior: "contain", transition: "bottom 0.18s ease",
       }}>
-        <div style={{ width: 36, height: 4, borderRadius: 99, background: "rgba(255,255,255,0.25)", margin: "4px auto 16px" }} />
+        {/* The handle: a bigger invisible grab area around the little bar. */}
+        <div data-sheet-handle style={{ margin: "-10px -20px 0", padding: "14px 0 16px", touchAction: "none", cursor: "grab" }}>
+          <div style={{ width: 36, height: 4, borderRadius: 99, background: "rgba(255,255,255,0.25)", margin: "0 auto" }} />
+        </div>
         {title && <div className="display" style={{ fontSize: 18, color: T.text, marginBottom: 16 }}>{title}</div>}
         {children}
       </div>
