@@ -106,6 +106,7 @@ await step("B: likes, comments on and follows A", B, async () => {
   await B.waitForTimeout(4000);
 });
 await step("B: sees A's bio and Club label (saved online in the welcome steps)", B, async () => {
+  await B.reload(); // close the comments panel (it stays open on purpose to keep drafts)
   await B.locator("[data-testid=feed-slide]", { hasText: caption }).getByRole("button", { name: `Open ${a}` }).first().click();
   await B.getByText(`Bio ${run}`).waitFor();
   await B.getByTestId("account-label").filter({ hasText: "CLUB" }).waitFor();
