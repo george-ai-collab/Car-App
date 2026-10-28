@@ -427,3 +427,17 @@ export function ChipPicker({ value, onChange, options, testid }) {
     </div>
   );
 }
+
+// Clubs and businesses: a small label next to their name (profiles, posts).
+export const isDriver = (user) => !user?.accountType || user.accountType === "personal";
+export function AccountLabel({ username, onDark }) {
+  const users = useContext(UsersContext);
+  const t = users?.[username]?.accountType;
+  if (t !== "club" && t !== "business") return null;
+  return (
+    <span data-testid="account-label" className="plate" style={{
+      fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", borderRadius: 5, padding: "2px 6px", marginLeft: 6, verticalAlign: "middle",
+      color: T.ink, background: T.paper, boxShadow: onDark ? "0 1px 3px rgba(0,0,0,0.4)" : "none",
+    }}>{t === "club" ? "CLUB" : "BUSINESS"}</span>
+  );
+}

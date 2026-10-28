@@ -53,8 +53,23 @@ export async function signUp({ email, password, handle, name }) {
   return { userId: data.user.id };
 }
 
+// Log in with an email, or with a handle (the "login" server function looks up the email
+// privately, so handles never reveal anyone's email).
 export async function signIn({ email, password }) {
-  const { data, error } = await sb().auth.signInWithPassword({ email: email.trim(), password });
+  const id = email.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id)) { // not an email: treat it as a handle ("@" in front is fine)
+    const { data, error } = await sb().functions.invoke("login", { body: { handle: id.replace(/^@/, "").toLowerCase(), password } });
+    if (error) {
+      const status = error.context?.status;
+      if (status === 429) return { error: "Too many wrong passwords. Try again in 15 minutes, or reset your password." };
+      if (status === 400) return { error: "Wrong handle or password." };
+      return { error: "No connection. Check your internet and try again." };
+    }
+    const { data: s, error: e2 } = await sb().auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
+    if (e2) return { error: authMessage(e2) };
+    return { userId: s.user.id };
+  }
+  const { data, error } = await sb().auth.signInWithPassword({ email: id, password });
   if (error) return { error: authMessage(error) };
   return { userId: data.user.id };
 }

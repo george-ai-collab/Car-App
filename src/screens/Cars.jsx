@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Car, Plus, MapPin, Wrench, Check, Pencil, Gauge, Camera, Layers, QrCode } from "lucide-react";
 import { T } from "../theme";
 import { fmtDate, hueForId, verbPhrase } from "../lib/utils";
-import { Avatar, EmptyState, TextInput, SectionLabel, Section, Segmented } from "../components/ui";
+import { Avatar, EmptyState, TextInput, SectionLabel, Section, Segmented, isDriver } from "../components/ui";
 import { useSwipe } from "../lib/useSwipe";
 import { PhotoPicker } from "../components/photo/PhotoPicker";
 import { MoreMenu, useSafety } from "../components/Safety";
@@ -182,6 +182,7 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
   const [adding, setAdding] = useState(false);
   const isOwner = car.ownerUsername === me;
   const alreadySpotted = car.spotterUsernames.includes(me);
+  const viewerIsDriver = isDriver(users[me]); // clubs and businesses don't log spots
   const following = (car.followerUsernames || []).includes(me);
   const owner = users[car.ownerUsername] || {};
   const followsOwner = (users[me]?.following || []).includes(car.ownerUsername);
@@ -269,7 +270,7 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
         ) : (
           <>
             <button onClick={onFollowBuild} className="press" style={actBtn(!following)}>{following ? <Check size={15} /> : <Plus size={15} />} {following ? "Following build" : "Follow build"}</button>
-            <button onClick={onSpot} disabled={alreadySpotted} className="press" style={{ ...actBtn(false), color: alreadySpotted ? T.textDim : "#8EC3D6" }}><MapPin size={15} /> {alreadySpotted ? "Spotted" : "I spotted this"}</button>
+            {viewerIsDriver && <button onClick={onSpot} disabled={alreadySpotted} className="press" style={{ ...actBtn(false), color: alreadySpotted ? T.textDim : "#8EC3D6" }}><MapPin size={15} /> {alreadySpotted ? "Spotted" : "I spotted this"}</button>}
           </>
         )}
       </div>

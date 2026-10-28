@@ -28,7 +28,8 @@ function current() {
 function emit() {
   const v = current();
   listeners.forEach((fn) => fn(v));
-  if (v) setTimeout(() => reveal(document.activeElement), 80); // after pages add room for it
+  // After pages add room for the keyboard (that can take a moment), so check twice.
+  if (v) { setTimeout(() => reveal(document.activeElement), 80); setTimeout(() => reveal(document.activeElement), 400); }
 }
 
 // Move the box you're typing in so it sits just above the keyboard (not behind it).

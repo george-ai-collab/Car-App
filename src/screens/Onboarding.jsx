@@ -148,7 +148,8 @@ function OnlineOnboarding({ actions }) {
 
   const taken = valid && free[clean] === false;
   const canCreate = valid && !taken && displayName.trim() && emailOk && passOk;
-  const canLogin = emailOk && password.length > 0;
+  const loginId = email.trim().replace(/^@/, "");
+  const canLogin = (emailOk || /^[a-zA-Z0-9_.]{2,24}$/.test(loginId)) && password.length > 0;
   const switchMode = (m) => { setMode(m); setError(null); setInfo(null); };
 
   const run = async (fn) => {
@@ -210,7 +211,7 @@ function OnlineOnboarding({ actions }) {
         </>
       ) : mode === "login" && (
         <>
-          <Input icon={<Mail size={16} />} value={email} onChange={setEmail} placeholder="you@example.com" label="Email" maxLength={120} type="email" testid="email" />
+          <Input icon={<AtSign size={16} />} value={email} onChange={setEmail} placeholder="Email or handle" label="Email or handle" maxLength={120} type="email" testid="email" />
           {passField}
           <button type="button" data-testid="forgot" onClick={() => switchMode("reset")} disabled={busy} style={{ background: "none", border: "none", color: T.textDim, fontSize: 12.5, padding: "0 2px", margin: "-6px 0 14px", textDecoration: "underline" }}>Forgot password?</button>
         </>

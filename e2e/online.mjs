@@ -134,6 +134,22 @@ await step("B: unlike quietly removes those notifications for A", B, async () =>
   // The app first shows the copy saved on the phone, then swaps in fresh data.
   await A.getByText("liked your post").waitFor({ state: "detached", timeout: 20000 }).catch(() => { throw new Error("like notification still there"); });
 });
+await step("A: log out, then log back in with the handle (not the email), no tour again", A, async () => {
+  await A.locator("[data-tab=profile]").click();
+  await A.locator("button[aria-label=Settings]").click();
+  await A.getByText("Log out", { exact: true }).first().click();
+  await btn(A, "Log out").last().click();
+  await A.getByTestId("mode-login").click();
+  await A.getByTestId("email").fill("@" + a);
+  await A.getByTestId("password").fill("wrong-password");
+  await A.getByTestId("submit-login").click();
+  await A.getByText("Wrong handle or password.").waitFor();
+  await A.getByTestId("password").fill(`Test-${run}-pass`);
+  await A.getByTestId("submit-login").click();
+  await A.getByText("For You").waitFor();
+  await A.waitForTimeout(1500);
+  if (await A.getByTestId("tour").count()) throw new Error("tour showed again on login");
+});
 await step("B: delete account", B, () => deleteAccount(B));
 await step("A: delete account", A, () => deleteAccount(A));
 await step("A: deleted account can't log in any more", A, async () => {
