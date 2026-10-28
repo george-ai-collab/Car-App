@@ -68,7 +68,7 @@ function LocalOnboarding({ onSubmit, users }) {
                         <Avatar username={h} size={36} />
                         <div style={{ flex: 1 }}>
                           <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>{u.name}</div>
-                          <div className="plate" style={{ color: T.textDim, fontSize: 10.5 }}>@{h}</div>
+                          <div className="plate handle" style={{ color: T.textDim, fontSize: 10.5 }}>@{h}</div>
                         </div>
                         <ChevronRight size={16} color={T.textDim} />
                       </button>

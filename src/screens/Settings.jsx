@@ -6,6 +6,7 @@ import { Avatar, EmptyState, Field, TextInput, TextArea, ConfirmDialog, SectionL
 import { CameraCapture } from "../components/photo/CameraCapture";
 import { REMOTE } from "../backend/config";
 import { AccountTypePicker, ACCOUNT_TYPES } from "../components/Welcome";
+import { MAX_LINES } from "../lib/text";
 
 export const APP_VERSION = `0.2${import.meta.env?.VITE_BUILD ? `.${import.meta.env.VITE_BUILD}` : ".0"} beta`;
 
@@ -55,7 +56,7 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour }) 
         <Avatar username={me} size={52} />
         <div style={{ flex: 1 }}>
           <div style={{ color: T.text, fontSize: 16, fontWeight: 700 }}>{user.name || me}</div>
-          <div className="plate" style={{ color: T.textDim, fontSize: 11, marginTop: 2 }}>@{me}</div>
+          <div className="plate handle" style={{ color: T.textDim, fontSize: 11, marginTop: 2 }}>@{me}</div>
         </div>
         <Pencil size={15} color={T.textDim} />
       </button>
@@ -128,7 +129,7 @@ export function EditProfile({ me, users, onSave }) {
         <div style={{ padding: "11px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, color: T.textDim, fontSize: 14.5 }}>@{me}</div>
         <div style={{ fontSize: 11.5, color: T.textDim, marginTop: 6 }}>Handles can't be changed yet.</div>
       </Field>
-      <Field label="Bio"><TextArea value={bio} onChange={setBio} placeholder="Your cars, your scene, your plans" maxLength={150} rows={3} /></Field>
+      <Field label="Bio"><TextArea value={bio} onChange={setBio} placeholder="Your cars, your scene, your plans" maxLength={150} maxLines={MAX_LINES.bio} rows={3} /></Field>
 
       <button disabled={busy} className="press" onClick={async () => { setBusy(true); await onSave({ name, bio, avatar }); setBusy(false); }} style={{
         width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", marginTop: 6, background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15, opacity: busy ? 0.7 : 1,

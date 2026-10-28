@@ -3,6 +3,7 @@ import { Pencil, Archive, ArchiveRestore, Trash2 } from "lucide-react";
 import { T } from "../theme";
 import { BottomSheet, ConfirmDialog, TextArea } from "./ui";
 import { MoreMenu, useSafety } from "./Safety";
+import { MAX_LINES } from "../lib/text";
 
 // The "···" on a post. Yours: edit caption, archive, delete, share.
 // Someone else's: share, not interested, report, block.
@@ -35,7 +36,7 @@ export function PostMenu({ post, me, actions, onDeleted, overlay, carName }) {
       ]} />
 
       <BottomSheet open={editing} onClose={() => setEditing(false)} title="Edit caption" maxHeight="70vh">
-        <TextArea value={caption} onChange={setCaption} maxLength={280} rows={4} autoFocus />
+        <TextArea value={caption} onChange={setCaption} maxLength={280} maxLines={MAX_LINES.caption} rows={4} autoFocus />
         <button onClick={async () => { await actions.editPost(post.id, caption); setEditing(false); }} className="press" style={{
           width: "100%", marginTop: 12, padding: "13px 16px", borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15,
         }}>

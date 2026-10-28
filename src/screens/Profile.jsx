@@ -6,6 +6,8 @@ import { T } from "../theme";
 import { computeBadges, nextBadgeProgress } from "../lib/badges";
 import { Avatar, FollowAvatar, IconTab, IconBadge, EmptyState, BottomSheet, MiniStat, AccountLabel, isDriver } from "../components/ui";
 import { CarCard, SightingCard } from "./Cars";
+import { MAX_LINES } from "../lib/text";
+import { RichText } from "../components/RichText";
 
 export function Profile({ username, me, cars, posts, users, sightings, tab = "posts", setTab, onToggleFollow, openCar, openPost, onAddCar, onOpenSettings }) {
   const [showBadges, setShowBadges] = useState(false);
@@ -36,7 +38,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
           <div className="display" style={{ fontSize: 20, color: T.text, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name || username}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-            <span className="plate" style={{ fontSize: 11.5, color: T.textDim }}>@{username}</span>
+            <span className="plate handle" style={{ fontSize: 11.5, color: T.textDim }}>@{username}</span>
             <AccountLabel username={username} />
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", columnGap: 12, rowGap: 4, marginTop: 8 }}>
@@ -45,7 +47,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
             <MiniStat value={user.followers.length} label="Followers" />
             <MiniStat value={user.following.length} label="Following" />
           </div>
-          {user.bio && <div style={{ color: T.text, fontSize: 13, lineHeight: 1.45, marginTop: 10, whiteSpace: "pre-wrap" }}>{user.bio}</div>}
+          {user.bio && <RichText text={user.bio} maxLines={MAX_LINES.bio} style={{ color: T.text, fontSize: 13, lineHeight: 1.45, marginTop: 10 }} />}
         </div>
         {isMe && safety?.openTag && (
           <button onClick={() => safety.openTag({ kind: "user", id: username, title: user.name || username, subtitle: `@${username}` })} aria-label="Share tag" data-testid="profile-tag" className="press" style={{

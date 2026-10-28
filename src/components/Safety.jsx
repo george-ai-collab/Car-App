@@ -31,7 +31,7 @@ export function ReportSheet({ open, onClose, what, onSend }) {
           }}>{r}</button>
         ))}
       </div>
-      {reason && <div style={{ marginTop: 12 }}><TextArea value={note} onChange={setNote} placeholder="Anything else we should know? (optional)" maxLength={300} rows={2} /></div>}
+      {reason && <div style={{ marginTop: 12 }}><TextArea maxLines={6} value={note} onChange={setNote} placeholder="Anything else we should know? (optional)" maxLength={300} rows={2} /></div>}
       <button disabled={!reason} onClick={async () => { await onSend(reason, note); close(); }} className="press" style={{
         width: "100%", marginTop: 12, padding: 13, borderRadius: 16, border: "none", fontWeight: 600, fontSize: 15,
         background: reason ? T.accent : T.surface2, color: reason ? "#fff" : T.textDim,

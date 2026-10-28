@@ -3,6 +3,7 @@ import { Loader2, ArrowLeft } from "lucide-react";
 import { T, FONT_STACK, MONO_STACK } from "../theme";
 import { hueForId } from "../lib/utils";
 import { useKeyboardOffset } from "../lib/keyboard";
+import { limitTyping } from "../lib/text";
 
 export function GlobalStyle() {
   return (
@@ -15,6 +16,7 @@ export function GlobalStyle() {
       input, textarea { font-family: inherit; }
       ::placeholder { color: ${T.textDim}; }
       .plate { font-family: ${MONO_STACK}; letter-spacing: 0.06em; text-transform: uppercase; }
+      .plate.handle { text-transform: none; } /* handles are always lowercase */
       .display { font-family: ${FONT_STACK}; font-weight: 600; letter-spacing: 0.01em; }
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -307,12 +309,13 @@ export function TopBar({ onBack, title, right }) {
   );
 }
 
-export function TextArea({ value, onChange, placeholder, maxLength, rows = 4, autoFocus }) {
+export function TextArea({ value, onChange, placeholder, maxLength, rows = 4, autoFocus, maxLines }) {
+  const lines = (value || "").split("\n").length;
   return (
     <div>
-      <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows} maxLength={maxLength} autoFocus={autoFocus}
+      <textarea value={value} onChange={(e) => onChange(limitTyping(e.target.value, value, maxLines))} placeholder={placeholder} rows={rows} maxLength={maxLength} autoFocus={autoFocus}
         style={{ width: "100%", padding: "11px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 14.5, outline: "none", resize: "none", lineHeight: 1.45 }} />
-      {maxLength && <div style={{ textAlign: "right", fontSize: 11, color: T.textDim, marginTop: 4 }}>{value.length}/{maxLength}</div>}
+      {maxLength && <div style={{ textAlign: "right", fontSize: 11, color: T.textDim, marginTop: 4 }}>{maxLines && lines > 1 ? `${lines}/${maxLines} lines · ` : ""}{value.length}/{maxLength}</div>}
     </div>
   );
 }

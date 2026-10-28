@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { uid } from "../lib/utils";
 import { SEED_NEWS } from "../lib/seedNews";
 import { REMOTE, REFRESH_MS } from "../backend/config";
+import { cleanText, MAX_LINES } from "../lib/text";
 import * as remote from "../backend/remote";
 
 // All app data lives here. Screens call these actions; actions only change data
@@ -248,7 +249,7 @@ export function useStore(flash) {
     const users = get().users;
     const rec = users[me] || { joinedAt: now(), followers: [], following: [] };
     const type = ["personal", "club", "business"].includes(accountType) ? accountType : rec.accountType || "personal";
-    const next = { ...rec, name: (name ?? rec.name ?? "").trim() || me, bio: (bio ?? rec.bio ?? "").trim(), avatar: avatar === undefined ? rec.avatar || null : avatar || null, accountType: type };
+    const next = { ...rec, name: (name ?? rec.name ?? "").replace(/\s+/g, " ").trim() || me, bio: cleanText(bio ?? rec.bio ?? "", MAX_LINES.bio), avatar: avatar === undefined ? rec.avatar || null : avatar || null, accountType: type };
     await save("users", { ...users, [me]: next });
     sync((id) => remote.write.profile(id, { name: next.name.slice(0, 40), bio: next.bio.slice(0, 150), avatar: next.avatar, accountType: type }));
     if (!quiet) flash("Profile updated");
@@ -441,7 +442,8 @@ export function useStore(flash) {
 
   // ---------- posts ----------
   // A post: up to 10 photos, an optional car tag, location, tagged people and community.
-  const createPost = async ({ carId, carLabel, photos = [], photoUrl, photoAspect, caption, communityId, location, tags = [] }) => {
+  const createPost = async ({ carId, carLabel, photos = [], photoUrl, photoAspect, caption: rawCaption, communityId, location, tags = [] }) => {
+    const caption = cleanText(rawCaption, MAX_LINES.caption);
     const car = carId ? get().cars[carId] : null;
     const pics = photos.length ? photos.slice(0, 10) : photoUrl ? [{ url: photoUrl, aspect: photoAspect || null }] : [];
     if (!pics.length && !caption.trim()) return null;
@@ -478,7 +480,8 @@ export function useStore(flash) {
     return id;
   };
 
-  const editPost = async (postId, caption) => {
+  const editPost = async (postId, rawCaption) => {
+    const caption = cleanText(rawCaption, MAX_LINES.caption);
     const post = get().posts[postId];
     if (!post || post.authorUsername !== me) return;
     await save("posts", { ...get().posts, [postId]: { ...post, caption: caption.trim(), editedAt: now() } });
@@ -602,7 +605,7 @@ export function useStore(flash) {
     const fields = {
       title: f.title.trim(), location: f.location.trim(), lat: f.lat ?? null, lng: f.lng ?? null,
       city: (f.city || "").trim(), country: (f.country || "").trim(),
-      when: f.when, note: (f.note || "").trim(), cover: f.cover || null,
+      when: f.when, note: cleanText(f.note, MAX_LINES.note), cover: f.cover || null,
       sponsors: (f.sponsors || []).map((x) => x.trim()).filter(Boolean).slice(0, 8),
       caps: { driver: capNum(f.caps?.driver), attendee: capNum(f.caps?.attendee) },
     };
@@ -680,7 +683,7 @@ export function useStore(flash) {
     if (!name.trim()) return null;
     if (nameTaken(name)) { flash("A community with that name already exists"); return null; }
     const id = newId("community");
-    const c = { id, name: name.trim().slice(0, 40), description: description.trim().slice(0, 200), kind: "custom", createdBy: me, members: [me], createdAt: now() };
+    const c = { id, name: name.trim().slice(0, 40), description: cleanText(description, MAX_LINES.description).slice(0, 200), kind: "custom", createdBy: me, members: [me], createdAt: now() };
     await save("communities", { ...get().communities, [id]: c });
     sync((uid2) => remote.write.createCommunity(uid2, c));
     flash("Community created");
@@ -691,8 +694,9 @@ export function useStore(flash) {
     const c = get().communities[id];
     if (!c || c.createdBy !== me || !name.trim()) return false;
     if (nameTaken(name, id)) { flash("A community with that name already exists"); return false; }
-    await save("communities", { ...get().communities, [id]: { ...c, name: name.trim(), description: (description || "").trim() } });
-    sync((uid2) => remote.write.editCommunity(uid2, id, name.trim().slice(0, 40), (description || "").trim().slice(0, 200)));
+    const desc = cleanText(description, MAX_LINES.description).slice(0, 200);
+    await save("communities", { ...get().communities, [id]: { ...c, name: name.trim(), description: desc } });
+    sync((uid2) => remote.write.editCommunity(uid2, id, name.trim().slice(0, 40), desc));
     flash("Community updated");
     return true;
   };
@@ -732,7 +736,7 @@ export function useStore(flash) {
   const createThread = async ({ communityId, title, body }) => {
     if (!title.trim() || !get().communities[communityId]) return null;
     const id = newId("thread");
-    const t = { id, communityId, author: me, title: title.trim().slice(0, 100), body: (body || "").trim().slice(0, 1000), date: now(), likes: [], replies: [] };
+    const t = { id, communityId, author: me, title: title.replace(/\s+/g, " ").trim().slice(0, 100), body: cleanText(body, MAX_LINES.body).slice(0, 1000), date: now(), likes: [], replies: [] };
     await save("discussions", { ...get().discussions, [id]: t });
     sync((uid2) => remote.write.createThread(uid2, t));
     await joinIfNeeded(communityId);
@@ -770,8 +774,9 @@ export function useStore(flash) {
   const editThread = async (threadId, { title, body }) => {
     const t = get().discussions[threadId];
     if (!t || t.author !== me || !title.trim()) return;
-    await save("discussions", { ...get().discussions, [threadId]: { ...t, title: title.trim(), body: (body || "").trim(), editedAt: now() } });
-    sync((id) => remote.write.editThread(id, threadId, title.trim().slice(0, 100), (body || "").trim().slice(0, 1000)));
+    const cleanBody = cleanText(body, MAX_LINES.body).slice(0, 1000);
+    await save("discussions", { ...get().discussions, [threadId]: { ...t, title: title.trim(), body: cleanBody, editedAt: now() } });
+    sync((id) => remote.write.editThread(id, threadId, title.trim().slice(0, 100), cleanBody));
     flash("Discussion updated");
   };
   const deleteThreadReply = async (threadId, replyId) => {

@@ -239,7 +239,7 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
           <Avatar username={car.ownerUsername} size={36} />
           <div style={{ minWidth: 0 }}>
             <div style={{ color: T.textDim, fontSize: 11 }}>Kept by</div>
-            <div style={{ color: T.text, fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{owner.name || car.ownerUsername} <span className="plate" style={{ color: T.textDim, fontSize: 10.5, fontWeight: 400 }}>@{car.ownerUsername}</span></div>
+            <div style={{ color: T.text, fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{owner.name || car.ownerUsername} <span className="plate handle" style={{ color: T.textDim, fontSize: 10.5, fontWeight: 400 }}>@{car.ownerUsername}</span></div>
           </div>
         </button>
         {!isOwner && onFollowOwner && (
@@ -356,7 +356,7 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
                   <button key={u} onClick={() => openProfile(u)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 0", background: "none", border: "none", textAlign: "left" }}>
                     <Avatar username={u} size={32} />
                     <span style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{users[u]?.name || u}</span>
-                    <span className="plate" style={{ color: T.textDim, fontSize: 10.5 }}>@{u}</span>
+                    <span className="plate handle" style={{ color: T.textDim, fontSize: 10.5 }}>@{u}</span>
                   </button>
                 ))}
               </>

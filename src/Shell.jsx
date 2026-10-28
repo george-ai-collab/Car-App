@@ -22,6 +22,7 @@ import { ShareTagSheet } from "./components/ShareTag";
 import { Welcome } from "./components/Welcome";
 import { parseTag } from "./lib/tag";
 import { scanTag } from "./lib/scan";
+import { LinkNotice } from "./components/RichText";
 
 const ADD_VIEWS = ["addChoice", "compose", "quickSpot", "addCar", "addMeet"];
 
@@ -137,6 +138,11 @@ export function Shell({ store, toast }) {
         openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
         openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
       break;
+    case "userPosts":
+      page = <Feed me={me} cars={cars} posts={posts} users={users} onlyUser={p.username} startId={p.id}
+        openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
+        actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
+      break;
     case "inbox":
       page = <InboxView me={me} notifications={notifications[me] || []} posts={posts} cars={cars} discussions={discussions}
         onMount={a.markNotificationsRead} openPost={openPost} openCar={openCar} openProfile={openProfile} openThread={openThread} />;
@@ -224,7 +230,7 @@ export function Shell({ store, toast }) {
     case "profile":
       page = p.username && <Profile username={p.username} me={me} cars={cars} posts={posts} users={users} sightings={sightings}
         tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })}
-        onToggleFollow={() => a.toggleFollow(p.username)} openCar={openCar} openPost={openPost}
+        onToggleFollow={() => a.toggleFollow(p.username)} openCar={openCar} openPost={(id) => go("userPosts", { username: p.username, id })}
         onAddCar={() => go("addCar")} onOpenSettings={() => go("settings")} />;
       break;
     case "postDetail": {
@@ -261,12 +267,12 @@ export function Shell({ store, toast }) {
   }
 
   return (
-    <SafetyContext.Provider value={{ me, prefs: store.prefs, actions: a, flash: store.flash, openTag: setTagFor, scanTag: scan }}>
+    <SafetyContext.Provider value={{ me, prefs: store.prefs, actions: a, flash: store.flash, openTag: setTagFor, scanTag: scan, openProfile }}>
     <SheetContext.Provider value={sheetDelta}>
       <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", position: "relative", paddingBottom: 96 + kb, overflowX: "clip" }}>
         {/* No on-screen back arrow: the phone's back gesture/button goes back (see main.jsx). */}
         <div key={cur.key} className="fade-in" data-view={cur.view} style={
-          cur.view === "feed" ? { padding: 0 } : cur.view === "car" ? { padding: "0 16px" } : { padding: "18px 16px 0" }}>
+          cur.view === "feed" || cur.view === "userPosts" ? { padding: 0 } : cur.view === "car" ? { padding: "0 16px" } : { padding: "18px 16px 0" }}>
           {page}
         </div>
 
@@ -279,6 +285,7 @@ export function Shell({ store, toast }) {
         {setup && <Welcome me={me} user={users[me]} onDone={finishSetup} />}
         {tour && !setup && <Tour onDone={endTour} />}
         <PermissionNotice />
+        <LinkNotice />
         <ShareTagSheet open={!!tagFor} onClose={() => setTagFor(null)} {...(tagFor || {})} flash={store.flash} onScan={() => { setTagFor(null); scan(); }} />
         <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0 || setup} />
       </div>

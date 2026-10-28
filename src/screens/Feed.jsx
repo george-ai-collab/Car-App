@@ -9,6 +9,8 @@ import { PhotoCarousel, postPhotos } from "../components/photo/PhotoCarousel";
 import { useTapGestures } from "../lib/useTapGestures";
 import { shareText } from "../lib/share";
 import { ActionMenu } from "../components/ui";
+import { MAX_LINES } from "../lib/text";
+import { RichText } from "../components/RichText";
 
 // Remembers how far down the feed you were, so coming back lands on the same post.
 const feedScroll = new Map();
@@ -18,11 +20,13 @@ const railBtn = { width: 52, background: "none", border: "none", padding: 0, dis
 const railCount = { color: "#fff", fontSize: 12, fontWeight: 600, textShadow: "0 1px 3px rgba(0,0,0,0.5)" };
 const topIcon = { width: 46, height: 46, border: "none", borderRadius: 999, pointerEvents: "auto", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 };
 
-export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile, openPost, toggleLike, addComment, addReply, openSearch, openInbox, unreadCount, actions, scrollKey, onFollow, prefs }) {
+// onlyUser: one person's posts (opened from their profile), starting at startId; scroll down for the next.
+export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile, openPost, toggleLike, addComment, addReply, openSearch, openInbox, unreadCount, actions, scrollKey, onFollow, prefs, onlyUser, startId }) {
   const following = (users[me]?.following) || [];
   const hidden = prefs?.hidden || [], blocked = prefs?.blocked || [];
   let list = Object.values(posts).filter((p) => !p.archived && !hidden.includes(p.id) && !blocked.includes(p.authorUsername)).sort((a, b) => new Date(b.date) - new Date(a.date));
-  if (tab === "following") list = list.filter((p) => following.includes(p.authorUsername));
+  if (onlyUser) list = list.filter((p) => p.authorUsername === onlyUser);
+  else if (tab === "following") list = list.filter((p) => following.includes(p.authorUsername));
   const [commentsPostId, setCommentsPostId] = useState(null);
   const [holdId, setHoldId] = useState(null);
   const holdPost = holdId ? posts[holdId] : null;
@@ -30,7 +34,13 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
   const scroller = useRef(null);
   const memoKey = `${scrollKey}-${tab}`;
   useLayoutEffect(() => {
-    if (scroller.current) scroller.current.scrollTop = feedScroll.get(memoKey) || 0;
+    const el = scroller.current;
+    if (!el) return;
+    if (feedScroll.has(memoKey)) el.scrollTop = feedScroll.get(memoKey);
+    else if (startId) {
+      const i = list.findIndex((p) => p.id === startId);
+      if (i > 0) el.scrollTop = i * el.clientHeight;
+    } else el.scrollTop = 0;
   }, [memoKey, list.length > 0]);
 
   return (
@@ -42,6 +52,11 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
         background: "linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0))",
         pointerEvents: "none",
       }}>
+        {onlyUser ? (
+          <div data-testid="user-posts-title" className="glass-light" style={{ margin: "0 auto", borderRadius: 999, padding: "9px 16px", color: "#fff", fontSize: 14, fontWeight: 700 }}>
+            @{onlyUser} · {list.length} {list.length === 1 ? "post" : "posts"}
+          </div>
+        ) : <>
         <button onClick={openSearch} aria-label="Search" className="glass-light press" style={topIcon}>
           <Search size={21} color="#fff" />
         </button>
@@ -65,6 +80,7 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
             }} />
           )}
         </button>
+        </>}
       </div>
 
       {list.length === 0 ? (
@@ -146,7 +162,7 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
       ) : (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "90px 28px 160px" }}>
           {post.caption
-            ? <div className="display" style={{ color: "#fff", fontSize: post.caption.length > 120 ? 20 : 27, lineHeight: 1.25, textAlign: "center" }}>{post.caption}</div>
+            ? <RichText text={post.caption} maxLines={MAX_LINES.caption} clamp={8} onDark style={{ color: "#fff", fontSize: post.caption.length > 120 ? 20 : 27, lineHeight: 1.25, textAlign: "center", fontWeight: 700 }} />
             : <Car size={52} color="rgba(245,244,242,0.3)" />}
         </div>
       )}
@@ -199,11 +215,8 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
           </div>
         )}
         {post.caption && pics.length > 0 && (
-          <div style={{
-            color: "#fff", fontSize: 13.5, lineHeight: 1.4, textShadow: "0 1px 3px rgba(0,0,0,0.5)",
-            display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
-          }}>
-            {post.caption}
+          <div style={{ maxHeight: "38vh", overflowY: "auto" }} data-noswipe>
+            <RichText text={post.caption} maxLines={MAX_LINES.caption} clamp={2} onDark style={{ color: "#fff", fontSize: 13.5, lineHeight: 1.4, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }} />
           </div>
         )}
       </div>

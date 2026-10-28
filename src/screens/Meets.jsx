@@ -10,6 +10,8 @@ import { PhotoPicker } from "../components/photo/PhotoPicker";
 import { MoreMenu, useSafety } from "../components/Safety";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { LocationPicker, LeafletMap, directionsUrl, labelFor, placeArea } from "../components/LocationPicker";
+import { MAX_LINES } from "../lib/text";
+import { RichText } from "../components/RichText";
 
 export const MEET_ROLES = [
   { id: "organizer", label: "Organizing" },
@@ -251,7 +253,7 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
 
       {meet.note && (
         <div style={section}>
-          <div style={{ color: T.text, fontSize: 15, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{meet.note}</div>
+          <RichText text={meet.note} maxLines={MAX_LINES.note} style={{ color: T.text, fontSize: 15, lineHeight: 1.65 }} />
         </div>
       )}
 
@@ -414,7 +416,7 @@ export function AddMeetForm({ onSubmit, editing }) {
       </Section>
 
       <Section title="About" icon={<FileText size={16} color={T.accent} />} hint="Reads like the article on the meet page.">
-        <TextArea value={note} onChange={setNote} placeholder="What's the plan? Route, entry, rules, food…" maxLength={500} rows={5} />
+        <TextArea value={note} onChange={setNote} placeholder="What's the plan? Route, entry, rules, food…" maxLength={500} rows={5} maxLines={MAX_LINES.note} />
       </Section>
 
       <Section title="Who can come" icon={<Users size={16} color={T.accentWarm} />} hint="You're on the organizing list. Leave a limit empty for no limit.">

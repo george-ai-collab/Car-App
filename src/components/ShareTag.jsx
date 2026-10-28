@@ -55,7 +55,7 @@ export function ShareTagSheet({ open, onClose, kind, id, title, subtitle, onScan
         }}>
           <div className="plate" style={{ fontSize: 10.5, color: T.textDim, letterSpacing: "0.18em" }}>CARFOOLY</div>
           <div className="display" data-testid="tag-title" style={{ fontSize: 22, color: T.text, marginTop: 8, lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
-          {subtitle && <div className="plate" style={{ fontSize: 12, color: T.textDim, marginTop: 4 }}>{subtitle}</div>}
+          {subtitle && <div className={subtitle.startsWith("@") ? "plate handle" : "plate"} style={{ fontSize: 12, color: T.textDim, marginTop: 4 }}>{subtitle}</div>}
           <div style={{ display: "inline-block", background: "#fff", borderRadius: 22, padding: 12, marginTop: 16, boxShadow: "0 10px 40px rgba(0,0,0,0.45)" }}>
             <TagQR text={link} size={216} />
           </div>

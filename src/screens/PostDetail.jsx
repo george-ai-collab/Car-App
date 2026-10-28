@@ -7,6 +7,8 @@ import { PostMenu } from "../components/PostMenu";
 import { PhotoCarousel, postPhotos } from "../components/photo/PhotoCarousel";
 import { ReportSheet, useSafety } from "../components/Safety";
 import { useTapGestures } from "../lib/useTapGestures";
+import { MAX_LINES } from "../lib/text";
+import { RichText } from "../components/RichText";
 
 export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, addComment, addReply, actions, onGone }) {
   const [text, setText] = useState("");
@@ -59,7 +61,7 @@ export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, ad
         </div>
       )}
 
-      {post.caption && <div style={{ color: T.text, fontSize: postPhotos(post).length ? 14.5 : 20, fontWeight: postPhotos(post).length ? 400 : 600, lineHeight: 1.4, marginBottom: 12, whiteSpace: "pre-wrap" }}>{post.caption}</div>}
+      {post.caption && <RichText text={post.caption} maxLines={MAX_LINES.caption} style={{ color: T.text, fontSize: postPhotos(post).length ? 14.5 : 20, fontWeight: postPhotos(post).length ? 400 : 600, lineHeight: 1.4, marginBottom: 12 }} />}
       {(post.location || (post.tags || []).length > 0) && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 12px", color: T.textDim, fontSize: 12.5, marginBottom: 10 }}>
           {post.location && <span style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={12} /> {post.location.label}</span>}
@@ -142,7 +144,7 @@ export function CommentRow({ comment, postId, addReply }) {
         <Avatar username={comment.author} size={26} />
         <div style={{ flex: 1 }} data-testid="comment-body" {...dbl}>
           <div style={{ fontSize: 13, color: T.text }}>
-            <span style={{ fontWeight: 600 }}>{comment.author}</span> {comment.text}
+            <span style={{ fontWeight: 600 }}>{comment.author}</span> <RichText text={comment.text} maxLines={4} style={{ display: "inline" }} />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 3 }}>
             <span style={{ fontSize: 10.5, color: T.textDim }}>{timeAgo(comment.date)}</span>
@@ -181,7 +183,7 @@ export function CommentRow({ comment, postId, addReply }) {
                   <Avatar username={r.author} size={21} />
                   <div style={{ flex: 1 }} onDoubleClick={() => { if (!(r.likes || []).includes(me)) likeIt(r.id); }}>
                     <div style={{ fontSize: 12.5, color: T.text }}>
-                      <span style={{ fontWeight: 600 }}>{r.author}</span> {r.text}
+                      <span style={{ fontWeight: 600 }}>{r.author}</span> <RichText text={r.text} maxLines={4} style={{ display: "inline" }} />
                     </div>
                     <div style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 10, color: T.textDim, marginTop: 2 }}>
                       {timeAgo(r.date)}

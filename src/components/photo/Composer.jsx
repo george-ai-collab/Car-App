@@ -7,6 +7,7 @@ import { canPickNatively, pickFromGallery, takePhoto } from "../../lib/media";
 import { SHAPES, FILTERS, TEXT_COLORS, blankEdit, shapeRatio, angleOf, coverScale, clampPan, dragToPan, cssFilter, warmthLayer, bakeEdit } from "./edit";
 import { Avatar, BottomSheet, ChipPicker, Section, TextArea, TextInput } from "../ui";
 import { labelFor, placeArea } from "../LocationPicker";
+import { MAX_LINES } from "../../lib/text";
 
 const MAX_PHOTOS = 10;
 
@@ -366,7 +367,7 @@ function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, 
             {edits.length > 1 && <span style={{ position: "absolute", right: 4, top: 4, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 10.5, fontWeight: 700, padding: "2px 6px", borderRadius: 999 }}>{edits.length}</span>}
           </div>
         )}
-        <div style={{ flex: 1 }}><TextArea value={caption} onChange={setCaption} placeholder="Write a caption…" maxLength={280} rows={4} /></div>
+        <div style={{ flex: 1 }}><TextArea value={caption} onChange={setCaption} placeholder="Write a caption…" maxLength={280} maxLines={MAX_LINES.caption} rows={4} /></div>
       </div>
 
       <Section title="Car" icon={<Car size={16} color={T.accent} />} testid="post-details">

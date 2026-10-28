@@ -4,6 +4,7 @@ import { T } from "../theme";
 import { Avatar, Field, TextInput, TextArea } from "./ui";
 import { AvatarPicker } from "../screens/Settings";
 import { useKeyboardOffset } from "../lib/keyboard";
+import { MAX_LINES } from "../lib/text";
 
 // Account types. Most people are "personal"; clubs and businesses just get a small label
 // on their profile. They don't get pushed in the feed, so the app stays a place for drivers.
@@ -72,7 +73,7 @@ export function Welcome({ me, user = {}, onDone }) {
               <AvatarPicker onPick={setAvatar} />
             </div>
             <Field label="Name"><TextInput value={name} onChange={setName} placeholder="Your name" maxLength={40} /></Field>
-            <Field label="Bio"><TextArea value={bio} onChange={setBio} placeholder="Your cars, your scene, your plans" maxLength={150} rows={3} /></Field>
+            <Field label="Bio"><TextArea value={bio} onChange={setBio} placeholder="Your cars, your scene, your plans" maxLength={150} maxLines={MAX_LINES.bio} rows={3} /></Field>
           </>
         )}
 

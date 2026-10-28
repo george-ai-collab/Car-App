@@ -5,6 +5,8 @@ import { hueForId, timeAgo } from "../lib/utils";
 import { useSwipe } from "../lib/useSwipe";
 import { MoreMenu, ReportSheet, useSafety } from "../components/Safety";
 import { Avatar, EmptyState, Field, TextInput, TextArea, SectionLabel, Segmented, ConfirmDialog, BottomSheet } from "../components/ui";
+import { MAX_LINES } from "../lib/text";
+import { RichText } from "../components/RichText";
 
 export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
   const joined = community.members.includes(me);
@@ -126,7 +128,7 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
             report={isOwner ? null : { what: "community", onSend: (reason, note) => safety.actions.report({ kind: "community", id: community.id, reason, note }) }} />
         )}
       </div>
-      {community.description && <div style={{ color: T.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }}>{community.description}</div>}
+      {community.description && <RichText text={community.description} maxLines={MAX_LINES.description} style={{ color: T.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }} />}
       {isOwner && <EditCommunitySheet open={editing} onClose={() => setEditing(false)} community={community} onSave={onEdit} />}
       <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title={`Delete ${community.name}?`}
         body="Its discussions are removed. Posts stay on people's profiles and the feed, just without this community." onConfirm={() => onDelete(community.id)} />
@@ -167,7 +169,7 @@ function EditCommunitySheet({ open, onClose, community, onSave }) {
   return (
     <BottomSheet open={open} onClose={onClose} title="Edit community" maxHeight="80vh">
       <Field label="Name"><TextInput value={name} onChange={setName} maxLength={40} /></Field>
-      <Field label="Description"><TextArea value={description} onChange={setDescription} maxLength={150} rows={3} /></Field>
+      <Field label="Description"><TextArea value={description} onChange={setDescription} maxLength={150} rows={3} maxLines={MAX_LINES.description} /></Field>
       <button disabled={!name.trim()} onClick={async () => { if (await onSave(community.id, { name, description })) onClose(); }} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>Save</button>
     </BottomSheet>
   );
@@ -239,7 +241,7 @@ function People({ community, users, posts, threads, openProfile }) {
       <Avatar username={u} size={36} />
       <div style={{ flex: 1 }}>
         <div style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{users[u]?.name || u}</div>
-        <div className="plate" style={{ color: T.textDim, fontSize: 10.5 }}>@{u}</div>
+        <div className="plate handle" style={{ color: T.textDim, fontSize: 10.5 }}>@{u}</div>
       </div>
       {right}
     </button>
@@ -283,7 +285,7 @@ export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, o
         <span style={{ color: T.text, fontSize: 13, fontWeight: 600 }}>{thread.author}</span>
         <span style={{ color: T.textDim, fontSize: 12 }}>· {timeAgo(thread.date)}</span>
       </button>
-      {thread.body && <div style={{ color: T.text, fontSize: 14.5, lineHeight: 1.55, marginTop: 14, whiteSpace: "pre-wrap" }}>{thread.body}</div>}
+      {thread.body && <RichText text={thread.body} maxLines={MAX_LINES.body} style={{ color: T.text, fontSize: 14.5, lineHeight: 1.55, marginTop: 14 }} />}
       <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 0", margin: "14px 0", borderTop: `1px solid ${T.lineDark}`, borderBottom: `1px solid ${T.lineDark}` }}>
         <button onClick={() => onLike(thread.id)} aria-label="Like discussion" style={{ background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", gap: 6, color: T.textDim, fontSize: 13 }}>
           <Heart size={18} color={liked ? T.accent : T.textDim} fill={liked ? T.accent : "none"} /> {thread.likes.length}
@@ -313,7 +315,7 @@ export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, o
                 ? <button onClick={() => onDeleteReply(thread.id, r.id)} style={{ background: "none", border: "none", padding: 0, color: T.textDim, fontSize: 11, fontWeight: 600 }}>Delete</button>
                 : <button onClick={() => setReportReply(r.id)} style={{ background: "none", border: "none", padding: 0, color: T.textDim, fontSize: 11, fontWeight: 600 }}>Report</button>}
             </div>
-            <div style={{ color: T.text, fontSize: 14, lineHeight: 1.45, marginTop: 2, whiteSpace: "pre-wrap" }}>{r.text}</div>
+            <RichText text={r.text} maxLines={8} style={{ color: T.text, fontSize: 14, lineHeight: 1.45, marginTop: 2 }} />
           </div>
         </div>
       ))}
@@ -327,7 +329,7 @@ export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, o
       {safety && <ReportSheet open={!!reportReply} onClose={() => setReportReply(null)} what="reply" onSend={(reason, note) => safety.actions.report({ kind: "threadReply", id: reportReply, reason, note })} />}
       <BottomSheet open={editing} onClose={() => setEditing(false)} title="Edit discussion" maxHeight="85vh">
         <Field label="Title"><TextInput value={title} onChange={setTitle} maxLength={100} /></Field>
-        <Field label="Details"><TextArea value={body} onChange={setBody} maxLength={1000} rows={5} /></Field>
+        <Field label="Details"><TextArea value={body} onChange={setBody} maxLength={1000} rows={5} maxLines={MAX_LINES.body} /></Field>
         <button disabled={!title.trim()} onClick={async () => { await onEdit(thread.id, { title, body }); setEditing(false); }} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>Save</button>
       </BottomSheet>
       <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title="Delete this discussion?" body="The discussion and all its replies will be removed." onConfirm={async () => { await onDelete(thread.id); onGone(); }} />
@@ -344,7 +346,7 @@ export function NewThreadForm({ community, onSubmit }) {
       <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>Start a discussion</div>
       <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 20 }}>In {community.name}. New mods, opinions, questions, plans.</div>
       <Field label="Title"><TextInput value={title} onChange={setTitle} placeholder="e.g. Best coilovers for daily + track?" maxLength={100} /></Field>
-      <Field label="Details (optional)"><TextArea value={body} onChange={setBody} placeholder="Add context, your setup, what you've tried…" maxLength={1000} rows={6} /></Field>
+      <Field label="Details (optional)"><TextArea value={body} onChange={setBody} placeholder="Add context, your setup, what you've tried…" maxLength={1000} rows={6} maxLines={MAX_LINES.body} /></Field>
       <button disabled={!title.trim() || busy} className="press" onClick={async () => { setBusy(true); await onSubmit({ title, body }); setBusy(false); }}
         style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", marginTop: 8, background: title.trim() ? T.accent : T.surface2, color: title.trim() ? "#fff" : T.textDim, fontWeight: 600, fontSize: 15 }}>
         {busy ? "Posting…" : "Post discussion"}
