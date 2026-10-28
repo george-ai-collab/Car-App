@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 // Videos: read one, trim it to at most 60 seconds, and shrink it on the phone before upload
 // (720p, ~1.6 Mbit/s, so a full minute is ~12 MB instead of 100+ MB). Original sound is kept.
 export const MAX_SECONDS = 60;
@@ -13,7 +14,7 @@ export function readVideo(file) {
       if (!Number.isFinite(v.duration)) { v.currentTime = 1e7; v.ontimeupdate = () => { v.ontimeupdate = null; resolve({ url, duration: v.duration, w: v.videoWidth, h: v.videoHeight }); }; return; }
       resolve({ url, duration: v.duration, w: v.videoWidth, h: v.videoHeight });
     };
-    v.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Couldn't read that video")); };
+    v.onerror = () => { URL.revokeObjectURL(url); reject(new Error(tr("Couldn't read that video"))); };
   });
 }
 
@@ -27,10 +28,10 @@ const seek = (v, t) => new Promise((res) => { v.onseeked = () => { v.onseeked = 
 // Plays the chosen part once (quietly) while recording it at a smaller size.
 // Returns { blob, type, poster (jpeg data URL), aspect, duration }.
 export async function processVideo(url, start, end, { muted = false, onProgress, signal } = {}) {
-  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) throw new Error("This phone can't prepare videos");
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream) throw new Error(tr("This phone can't prepare videos"));
   const v = document.createElement("video");
   v.src = url; v.playsInline = true; v.preload = "auto"; v.crossOrigin = "anonymous";
-  await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error("Couldn't read that video")); });
+  await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error(tr("Couldn't read that video"))); });
   const scale = Math.min(1, MAX_SIDE / Math.max(v.videoWidth, v.videoHeight));
   const w = Math.round((v.videoWidth * scale) / 2) * 2, h = Math.round((v.videoHeight * scale) / 2) * 2;
   const canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;

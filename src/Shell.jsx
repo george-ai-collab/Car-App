@@ -24,6 +24,7 @@ import { parseTag } from "./lib/tag";
 import { scanTag } from "./lib/scan";
 import { LinkNotice } from "./components/RichText";
 import { AdminReports } from "./screens/Admin";
+import { tr } from "./lib/i18n";
 
 const ADD_VIEWS = ["addChoice", "compose", "quickSpot", "addCar", "addMeet"];
 
@@ -93,7 +94,7 @@ export function Shell({ store, toast }) {
   // Cars without a public page can only be opened by their owner.
   const openCar = (id) => {
     const car = cars[id];
-    if (car && car.hasPage === false && car.ownerUsername !== me) { store.flash("This car doesn't have a public page"); return; }
+    if (car && car.hasPage === false && car.ownerUsername !== me) { store.flash(tr("This car doesn't have a public page")); return; }
     go("car", { id });
   };
   const openPost = (id) => go("postDetail", { id });
@@ -105,13 +106,13 @@ export function Shell({ store, toast }) {
   const [tagFor, setTagFor] = useState(null); // { kind, id, title, subtitle }
   const openFromTag = (text) => {
     const t = parseTag(text);
-    if (!t) { store.flash("That's not a Carfooly tag"); return; }
+    if (!t) { store.flash(tr("That's not a Carfooly tag")); return; }
     if (t.kind === "user") {
-      if (!users[t.id]) { store.flash("No one on Carfooly has that tag"); return; }
+      if (!users[t.id]) { store.flash(tr("No one on Carfooly has that tag")); return; }
       setTagFor(null); openProfile(t.id);
     } else {
       const car = cars[t.id];
-      if (!car || (car.hasPage === false && car.ownerUsername !== me)) { store.flash("This car's page isn't available"); return; }
+      if (!car || (car.hasPage === false && car.ownerUsername !== me)) { store.flash(tr("This car's page isn't available")); return; }
       setTagFor(null); go("car", { id: t.id });
     }
   };
@@ -266,7 +267,7 @@ export function Shell({ store, toast }) {
   if (!page) {
     page = (
       <div style={{ paddingTop: 60, textAlign: "center", color: T.textDim, fontSize: 14 }}>
-        This isn't available anymore.
+        {tr("This isn't available anymore.")}
       </div>
     );
   }

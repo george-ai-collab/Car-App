@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Volume2, VolumeX, Play } from "lucide-react";
 import { T } from "../../theme";
+import { tr } from "../../lib/i18n";
 
 // Sound for videos is one setting for the whole app (off until you turn it on, like TikTok/Instagram).
 let soundOn = false;
@@ -31,11 +32,11 @@ export function PostVideo({ item, mode }) {
       <video ref={ref} data-testid="post-video" src={item.url} poster={item.poster || undefined} muted={!sound} loop playsInline preload="metadata"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
       {paused && (
-        <button aria-label="Play" onClick={() => ref.current?.play().then(() => setPaused(false)).catch(() => {})} style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: 64, height: 64, borderRadius: 999, border: "none", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+        <button aria-label={tr("Play")} onClick={() => ref.current?.play().then(() => setPaused(false)).catch(() => {})} style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: 64, height: 64, borderRadius: 999, border: "none", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
           <Play size={28} color="#fff" fill="#fff" />
         </button>
       )}
-      <button aria-label={sound ? "Mute" : "Turn sound on"} data-testid="video-sound" onClick={(e) => { e.stopPropagation(); setSound(!sound); }}
+      <button aria-label={sound ? tr("Mute") : tr("Turn sound on")} data-testid="video-sound" onClick={(e) => { e.stopPropagation(); setSound(!sound); }}
         style={{ position: "absolute", left: 12, top: mode === "feed" ? 76 : 10, zIndex: 3, width: 36, height: 36, borderRadius: 999, border: "none", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
         {sound ? <Volume2 size={17} color="#fff" /> : <VolumeX size={17} color="#fff" />}
       </button>
@@ -55,7 +56,7 @@ export function PhotoCarousel({ photos, mode = "feed" }) {
   const many = photos.length > 1;
   const onScroll = (e) => {
     const el = e.currentTarget;
-    setI(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)));
+    setI(Math.round(Math.abs(el.scrollLeft) / Math.max(1, el.clientWidth))); // abs: scrollLeft is negative right-to-left
   };
   const box = mode === "feed"
     ? { position: "absolute", inset: 0 }

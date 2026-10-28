@@ -3,10 +3,14 @@ import { App as CapApp } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
 import { installStorage } from "./storage";
 import { initKeyboard } from "./lib/keyboard";
+import { applyLanguage, tr } from "./lib/i18n";
+import { applyFonts } from "./lib/fonts";
 import App from "./App.jsx";
 
 installStorage();
 initKeyboard();
+applyLanguage();
+applyFonts();
 
 // Android hardware/gesture back: close an open sheet first, then use the app's
 // own back arrow, otherwise send the app to the background (like Instagram).
@@ -17,7 +21,7 @@ function exitHint() {
   document.getElementById("exit-hint")?.remove();
   const el = document.createElement("div");
   el.id = "exit-hint";
-  el.textContent = "Press back again to exit";
+  el.textContent = tr("Press back again to exit");
   el.style.cssText = "position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:100;background:#F5F4F2;color:#141414;padding:10px 18px;border-radius:999px;font:600 13.5px system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,0.3);white-space:nowrap;pointer-events:none";
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 2000);

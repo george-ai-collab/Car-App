@@ -3,13 +3,15 @@ import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 import { T } from "../theme";
 import { fmtWhen } from "../lib/utils";
 import { BottomSheet } from "./ui";
+import { tr, locale } from "../lib/i18n";
 
 // Our own date + time picker. The phone's built-in one was unreliable inside the app.
 // Value is a local time string: "YYYY-MM-DDTHH:mm".
 
 const pad = (n) => String(n).padStart(2, "0");
 const toValue = (d, h24, m) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(h24)}:${pad(m)}`;
-const DAYS = ["S", "M", "T", "W", "T", "F", "S"];
+// One-letter weekday names in the app language (Sunday first).
+const DAYS = Array.from({ length: 7 }, (_, i) => new Date(2023, 0, 1 + i).toLocaleDateString(locale(), { weekday: "narrow" }));
 const MINUTES = [0, 15, 30, 45];
 
 function parse(value) {
@@ -19,18 +21,18 @@ function parse(value) {
   return { date: new Date(+m[1], +m[2] - 1, +m[3]), h: +m[4], min: +m[5] };
 }
 
-export function DateTimePicker({ value, onChange, placeholder = "Pick a date and time" }) {
+export function DateTimePicker({ value, onChange, placeholder = tr("Pick a date and time") }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button type="button" data-testid="when-field" onClick={() => setOpen(true)} className="press" style={{
         width: "100%", padding: "11px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface,
-        color: value ? T.text : T.textDim, fontSize: 14.5, textAlign: "left", display: "flex", alignItems: "center", gap: 10,
+        color: value ? T.text : T.textDim, fontSize: 14.5, textAlign: "start", display: "flex", alignItems: "center", gap: 10,
       }}>
         <Calendar size={15} color={value ? T.accent : T.textDim} />
         {value ? fmtWhen(value) : placeholder}
       </button>
-      <BottomSheet open={open} onClose={() => setOpen(false)} title="When is it?" maxHeight="88vh">
+      <BottomSheet open={open} onClose={() => setOpen(false)} title={tr("When is it?")} maxHeight="88vh">
         {open && <PickerBody value={value} onDone={(v) => { onChange(v); setOpen(false); }} />}
       </BottomSheet>
     </>
@@ -70,14 +72,14 @@ function PickerBody({ value, onDone }) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-        <button aria-label="Previous month" disabled={!canGoBack} onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+        <button aria-label={tr("Previous month")} disabled={!canGoBack} onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
           className="press" style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 999, padding: 7, display: "flex", opacity: canGoBack ? 1 : 0.3 }}>
           <ChevronLeft size={16} color={T.text} />
         </button>
         <div data-testid="month-label" style={{ color: T.text, fontWeight: 700, fontSize: 15 }}>
-          {month.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+          {month.toLocaleDateString(locale(), { month: "long", year: "numeric" })}
         </div>
-        <button aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+        <button aria-label={tr("Next month")} onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
           className="press" style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 999, padding: 7, display: "flex" }}>
           <ChevronRight size={16} color={T.text} />
         </button>
@@ -102,7 +104,7 @@ function PickerBody({ value, onDone }) {
         })}
       </div>
 
-      <div className="plate" style={{ fontSize: 10.5, color: T.textDim, marginBottom: 8 }}>Time</div>
+      <div className="plate" style={{ fontSize: 10.5, color: T.textDim, marginBottom: 8 }}>{tr("Time")}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 6, marginBottom: 8 }}>
         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((h) => (
           <button key={h} data-hour={h} onClick={() => setHour12(h)} className="press" style={chip(hour12 === h)}>{h}</button>
@@ -119,13 +121,13 @@ function PickerBody({ value, onDone }) {
       </div>
 
       <div style={{ fontSize: 13, color: inPast ? T.accent : T.textDim, marginBottom: 10, minHeight: 18 }}>
-        {!day ? "Pick a day" : inPast ? "That time has already passed" : fmtWhen(toValue(day, h24, minute))}
+        {!day ? tr("Pick a day") : inPast ? tr("That time has already passed") : fmtWhen(toValue(day, h24, minute))}
       </div>
       <button disabled={!day || inPast} onClick={() => onDone(toValue(day, h24, minute))} className="press" style={{
         width: "100%", padding: "13px 16px", borderRadius: 16, border: "none",
         background: day && !inPast ? T.accent : T.surface2, color: day && !inPast ? "#fff" : T.textDim, fontWeight: 600, fontSize: 15,
       }}>
-        Done
+        {tr("Done")}
       </button>
     </div>
   );

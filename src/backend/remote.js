@@ -1,5 +1,6 @@
 import { sb } from "./client";
 import { SEED_NEWS } from "../lib/seedNews";
+import { tr } from "../lib/i18n";
 
 // The online backend. Two jobs:
 //  1. load(): read everything the app shows and turn it into the same shape the
@@ -34,17 +35,17 @@ export async function handleStatus(handle) {
 
 const authMessage = (error) => {
   const m = (error?.message || "").toLowerCase();
-  if (m.includes("already registered") || m.includes("already been registered")) return "That email already has an account. Log in instead.";
-  if (m.includes("invalid login")) return "Wrong email or password.";
-  if (m.includes("email not confirmed")) return "Confirm your email first (check your inbox), then log in.";
-  if (m.includes("database error")) return "That handle was just taken. Try another.";
-  if (m.includes("rate") || m.includes("too many") || error?.status === 429) return "Too many tries. Wait a minute and try again.";
-  if (m.includes("token") || m.includes("otp")) return "That code is wrong or has expired. Check the latest email, or send a new code.";
-  if (m.includes("different from the old")) return "Pick a password you haven't used here before.";
-  if (m.includes("password")) return "Password needs at least 8 characters.";
-  if (m.includes("email")) return "That email doesn't look right.";
-  if (m.includes("fetch") || m.includes("network")) return "No connection. Check your internet and try again.";
-  return "Something went wrong. Try again.";
+  if (m.includes("already registered") || m.includes("already been registered")) return tr("That email already has an account. Log in instead.");
+  if (m.includes("invalid login")) return tr("Wrong email or password.");
+  if (m.includes("email not confirmed")) return tr("Confirm your email first (check your inbox), then log in.");
+  if (m.includes("database error")) return tr("That handle was just taken. Try another.");
+  if (m.includes("rate") || m.includes("too many") || error?.status === 429) return tr("Too many tries. Wait a minute and try again.");
+  if (m.includes("token") || m.includes("otp")) return tr("That code is wrong or has expired. Check the latest email, or send a new code.");
+  if (m.includes("different from the old")) return tr("Pick a password you haven't used here before.");
+  if (m.includes("password")) return tr("Password needs at least 8 characters.");
+  if (m.includes("email")) return tr("That email doesn't look right.");
+  if (m.includes("fetch") || m.includes("network")) return tr("No connection. Check your internet and try again.");
+  return tr("Something went wrong. Try again.");
 };
 
 export async function signUp({ email, password, handle, name }) {
@@ -62,9 +63,9 @@ export async function signIn({ email, password }) {
     const { data, error } = await sb().functions.invoke("login", { body: { handle: id.replace(/^@/, "").toLowerCase(), password } });
     if (error) {
       const status = error.context?.status;
-      if (status === 429) return { error: "Too many wrong passwords. Try again in 15 minutes, or reset your password." };
-      if (status === 400) return { error: "Wrong handle or password." };
-      return { error: "No connection. Check your internet and try again." };
+      if (status === 429) return { error: tr("Too many wrong passwords. Try again in 15 minutes, or reset your password.") };
+      if (status === 400) return { error: tr("Wrong handle or password.") };
+      return { error: tr("No connection. Check your internet and try again.") };
     }
     const { data: s, error: e2 } = await sb().auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
     if (e2) return { error: authMessage(e2) };
@@ -453,15 +454,15 @@ export const write = {
 // Friendly words for errors the database sends back.
 export function writeMessage(error) {
   const m = (error?.message || "").toLowerCase();
-  if (m === "full" || m.includes(" full")) return "That list is full";
-  if (m.includes("free plan") || m.includes("pro only")) return "That's a Pro feature (or over the Free limit) for this meet.";
-  if (m.includes("wait a few minutes")) return "One announcement every 10 minutes, please.";
-  if (m.includes("not your car")) return "You can only bring your own car.";
-  if (m.includes("communities_name_unique") || (error?.code === "23505" && m.includes("communit"))) return "A community with that name already exists";
-  if (m.includes("not allowed words")) return "That includes words we don't allow on Carfooly. Please keep it respectful.";
-  if (m === "banned" || m.includes("banned")) return "Your account has been suspended, so you can't post right now.";
-  if (m.includes("blocked")) return "You can't do that with this person";
-  if (m.includes("reports_once") || (error?.code === "23505" && m.includes("report"))) return "You already reported this. Thanks!";
-  if (m.includes("fetch") || m.includes("network") || m.includes("failed to")) return "No connection. That change wasn't saved.";
-  return "Couldn't save that. Try again.";
+  if (m === "full" || m.includes(" full")) return tr("That list is full");
+  if (m.includes("free plan") || m.includes("pro only")) return tr("That's a Pro feature (or over the Free limit) for this meet.");
+  if (m.includes("wait a few minutes")) return tr("One announcement every 10 minutes, please.");
+  if (m.includes("not your car")) return tr("You can only bring your own car.");
+  if (m.includes("communities_name_unique") || (error?.code === "23505" && m.includes("communit"))) return tr("A community with that name already exists");
+  if (m.includes("not allowed words")) return tr("That includes words we don't allow on Carfooly. Please keep it respectful.");
+  if (m === "banned" || m.includes("banned")) return tr("Your account has been suspended, so you can't post right now.");
+  if (m.includes("blocked")) return tr("You can't do that with this person");
+  if (m.includes("reports_once") || (error?.code === "23505" && m.includes("report"))) return tr("You already reported this. Thanks!");
+  if (m.includes("fetch") || m.includes("network") || m.includes("failed to")) return tr("No connection. That change wasn't saved.");
+  return tr("Couldn't save that. Try again.");
 }

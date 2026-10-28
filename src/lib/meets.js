@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 // Meet timing, ordering and plans. Times are "YYYY-MM-DDTHH:MM" in local time (as picked).
 
 export const DEFAULT_HOURS = 4;          // no end time given: assume 4 hours
@@ -65,7 +66,7 @@ export function groupMeets(meets, { me, users = {}, now = new Date() } = {}) {
   const order = (a, b) => feat(b) - feat(a) || b._score - a._score || (a._start || 0) - (b._start || 0);
   Object.keys(buckets).forEach((k) => buckets[k].sort(k === "recent" ? (a, b) => b._end - a._end : order));
   return [
-    ["live", "Happening now"], ["today", "Today"], ["weekend", "This weekend"], ["week", "This week"], ["later", "Later"], ["recent", "Recently ended"],
+    ["live", tr("Happening now")], ["today", tr("Today")], ["weekend", tr("This weekend")], ["week", tr("This week")], ["later", tr("Later")], ["recent", tr("Recently ended")],
   ].map(([id, label]) => ({ id, label, meets: buckets[id] })).filter((g) => g.meets.length);
 }
 
@@ -76,17 +77,17 @@ export const PLANS = {
 };
 export const PLAN_FEATURES = [
   // [feature, free, pro]
-  ["Meet page, map, cover photo", "✓", "✓"],
-  ["Driving / Attending RSVPs", "Up to 50 people", "Unlimited"],
-  ["Co-organizers", "1", "Unlimited"],
-  ["Cars at the meet + spotting", "✓", "✓"],
-  ["Check-in by scanning tags", "✓", "✓ with live counts"],
-  ["Announcements to everyone going", "1", "Unlimited"],
-  ["Sponsors", "—", "✓"],
-  ["Approve drivers", "—", "✓"],
-  ["Repeats every week", "—", "✓"],
-  ["Featured in Local (labelled)", "—", "✓"],
-  ["Stats: views, RSVPs, check-ins", "—", "✓"],
-  ["Export the attendee list", "—", "✓"],
+  [tr("Meet page, map, cover photo"), "✓", "✓"],
+  [tr("Driving / Attending RSVPs"), tr("Up to 50 people"), tr("Unlimited")],
+  ["Co-organizers", "1", tr("Unlimited")],
+  [tr("Cars at the meet + spotting"), "✓", "✓"],
+  [tr("Check-in by scanning tags"), "✓", tr("✓ with live counts")],
+  [tr("Announcements to everyone going"), "1", tr("Unlimited")],
+  [tr("Sponsors"), "—", "✓"],
+  [tr("Approve drivers"), "—", "✓"],
+  [tr("Repeats every week"), "—", "✓"],
+  [tr("Featured in Local (labelled)"), "—", "✓"],
+  [tr("Stats: views, RSVPs, check-ins"), "—", "✓"],
+  [tr("Export the attendee list"), "—", "✓"],
 ];
 export const isPro = (meet) => meet?.plan === "pro";

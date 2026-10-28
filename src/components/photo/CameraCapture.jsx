@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Camera } from "lucide-react";
 import { T } from "../../theme";
 import { IconBadge } from "../ui";
+import { tr } from "../../lib/i18n";
 
 // Shrinks a picked photo so it isn't huge. Resolves to { src, w, h }.
 export function readPhoto(file, maxDim = 1440, quality = 0.8) {
@@ -64,7 +65,7 @@ export function CameraCapture({ value, onChange, allowLibrary, maxDim = 1440, qu
             position: "absolute", bottom: 10, right: 10, border: "none", padding: "8px 12px", borderRadius: 999,
             display: "flex", alignItems: "center", gap: 6,
           }}>
-            <Camera size={14} color="#fff" /><span style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>{allowLibrary ? "Change" : "Retake"}</span>
+            <Camera size={14} color="#fff" /><span style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>{allowLibrary ? tr("Change") : tr("Retake")}</span>
           </button>
         </div>
       ) : (
@@ -73,7 +74,7 @@ export function CameraCapture({ value, onChange, allowLibrary, maxDim = 1440, qu
           display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8,
         }}>
           <IconBadge size={42}><Camera size={19} color={T.accent} /></IconBadge>
-          <span style={{ color: T.textDim, fontSize: 12.5, fontWeight: 600 }}>{busy ? "Processing…" : label || (allowLibrary ? "Choose a photo" : "Take a photo")}</span>
+          <span style={{ color: T.textDim, fontSize: 12.5, fontWeight: 600 }}>{busy ? tr("Processing…") : label || (allowLibrary ? tr("Choose a photo") : tr("Take a photo"))}</span>
         </button>
       )}
     </div>

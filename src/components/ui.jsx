@@ -4,6 +4,7 @@ import { T, FONT_STACK, MONO_STACK } from "../theme";
 import { hueForId } from "../lib/utils";
 import { useKeyboardOffset } from "../lib/keyboard";
 import { limitTyping } from "../lib/text";
+import { tr } from "../lib/i18n";
 
 export function GlobalStyle() {
   return (
@@ -39,6 +40,11 @@ export function GlobalStyle() {
         border: 1px solid ${T.glassBorder};
         box-shadow: ${T.glassHighlight}, ${T.shadowRaised};
       }
+      /* Right-to-left languages: no letter spacing (it breaks joined Arabic letters); typed text follows its own direction */
+      [dir=rtl] .plate { letter-spacing: 0; }
+      [dir=rtl] input, [dir=rtl] textarea { unicode-bidi: plaintext; }
+      /* Right-to-left languages: arrows point the other way */
+      [dir=rtl] .lucide-chevron-left, [dir=rtl] .lucide-chevron-right, [dir=rtl] .lucide-arrow-left, [dir=rtl] .lucide-arrow-right, [dir=rtl] .flip-rtl { transform: scaleX(-1); }
       .glass-light {
         background: rgba(255,255,255,0.10);
         backdrop-filter: blur(16px) saturate(160%);
@@ -53,7 +59,7 @@ export function LoadingScreen() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: T.text }}>
       <Loader2 size={28} color={T.accent} style={{ animation: "spin 1s linear infinite" }} />
-      <div style={{ fontFamily: MONO_STACK, fontSize: 12, color: T.textDim, letterSpacing: "0.08em" }}>LOADING CARFOOLY</div>
+      <div style={{ fontFamily: MONO_STACK, fontSize: 12, color: T.textDim, letterSpacing: "0.08em" }}>{tr("LOADING CARFOOLY")}</div>
     </div>
   );
 }
@@ -302,7 +308,7 @@ export function TopBar({ onBack, title, right }) {
   return (
     <div className="glass" style={{ position: "sticky", top: 0, zIndex: 10, padding: "12px 16px", borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none", display: "flex", alignItems: "center", gap: 12, minHeight: 58 }}>
       {onBack && (
-        <button data-nav-back onClick={onBack} aria-label="Back" className="press" style={{ background: "rgba(255,255,255,0.08)", border: "none", padding: 8, borderRadius: 999, display: "flex" }}>
+        <button data-nav-back onClick={onBack} aria-label={tr("Back")} className="press" style={{ background: "rgba(255,255,255,0.08)", border: "none", padding: 8, borderRadius: 999, display: "flex" }}>
           <ArrowLeft size={18} color={T.text} />
         </button>
       )}
@@ -318,7 +324,7 @@ export function TextArea({ value, onChange, placeholder, maxLength, rows = 4, au
     <div>
       <textarea value={value} onChange={(e) => onChange(limitTyping(e.target.value, value, maxLines))} placeholder={placeholder} rows={rows} maxLength={maxLength} autoFocus={autoFocus}
         style={{ width: "100%", padding: "11px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 14.5, outline: "none", resize: "none", lineHeight: 1.45 }} />
-      {maxLength && <div style={{ textAlign: "right", fontSize: 11, color: T.textDim, marginTop: 4 }}>{maxLines && lines > 1 ? `${lines}/${maxLines} lines · ` : ""}{value.length}/{maxLength}</div>}
+      {maxLength && <div style={{ textAlign: "right", fontSize: 11, color: T.textDim, marginTop: 4 }}>{maxLines && lines > 1 ? tr("{0}/{1} lines · ", lines, maxLines) : ""}{value.length}/{maxLength}</div>}
     </div>
   );
 }
@@ -331,7 +337,7 @@ export function ActionMenu({ open, onClose, items }) {
         {items.filter(Boolean).map((it) => (
           <button key={it.label} onClick={() => { onClose(); it.onClick(); }} className="press" style={{
             display: "flex", alignItems: "center", gap: 12, padding: "14px 14px", borderRadius: 16, border: "none",
-            background: "rgba(255,255,255,0.06)", color: it.danger ? T.accent : T.text, fontSize: 15, fontWeight: 600, textAlign: "left",
+            background: "rgba(255,255,255,0.06)", color: it.danger ? T.accent : T.text, fontSize: 15, fontWeight: 600, textAlign: "start",
           }}>
             {it.icon}{it.label}
           </button>
@@ -347,7 +353,7 @@ export function ConfirmDialog({ open, title, body, confirmLabel = "Delete", onCo
     <BottomSheet open={open} onClose={onClose} title={title}>
       {body && <div style={{ color: T.textDim, fontSize: 14, lineHeight: 1.5, marginBottom: 18 }}>{body}</div>}
       <div style={{ display: "flex", gap: 10 }}>
-        <button onClick={onClose} className="press" style={{ flex: 1, padding: "13px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: "transparent", color: T.text, fontWeight: 600, fontSize: 15 }}>Cancel</button>
+        <button onClick={onClose} className="press" style={{ flex: 1, padding: "13px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: "transparent", color: T.text, fontWeight: 600, fontSize: 15 }}>{tr("Cancel")}</button>
         <button onClick={() => { onClose(); onConfirm(); }} className="press" style={{ flex: 1, padding: "13px", borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>{confirmLabel}</button>
       </div>
     </BottomSheet>
@@ -359,11 +365,11 @@ export function FollowAvatar({ username, size, showFollow, following, onFollow, 
   const b = Math.max(18, Math.round(size * 0.32));
   return (
     <div style={{ position: "relative", flexShrink: 0, width: size, height: size + (showFollow ? b / 2 : 0) }}>
-      <button onClick={onOpen} aria-label={`Open ${username}`} style={{ background: "none", border: "none", padding: 0, display: "flex" }} disabled={!onOpen}>
+      <button onClick={onOpen} aria-label={tr("Open {0}", username)} style={{ background: "none", border: "none", padding: 0, display: "flex" }} disabled={!onOpen}>
         <Avatar username={username} size={size} />
       </button>
       {showFollow && (
-        <button data-testid="follow-badge" aria-label={following ? "Unfollow" : "Follow"} onClick={onFollow} className="press" style={{
+        <button data-testid="follow-badge" aria-label={following ? tr("Unfollow") : tr("Follow")} onClick={onFollow} className="press" style={{
           position: "absolute", left: "50%", top: size - b / 2, transform: "translateX(-50%)",
           width: b, height: b, borderRadius: 999, padding: 0, border: `2px solid ${T.bg}`,
           background: following ? "#fff" : T.accent, color: following ? T.accent : "#fff",
@@ -422,7 +428,7 @@ export function ChipPicker({ value, onChange, options, testid }) {
         const on = value === o.id;
         return (
           <button key={o.id} type="button" onClick={() => onChange(o.id)} className="press" style={{
-            flexShrink: 0, padding: o.sub ? "8px 14px" : "9px 14px", borderRadius: 16, textAlign: "left",
+            flexShrink: 0, padding: o.sub ? "8px 14px" : "9px 14px", borderRadius: 16, textAlign: "start",
             border: `1px solid ${on ? T.accent : T.lineDark}`, background: on ? "rgba(230,56,70,0.14)" : T.surface2, color: on ? T.text : T.textDim,
           }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: on ? T.text : T.text, whiteSpace: "nowrap" }}>{o.label}</div>
@@ -442,8 +448,8 @@ export function AccountLabel({ username, onDark }) {
   if (t !== "club" && t !== "business") return null;
   return (
     <span data-testid="account-label" className="plate" style={{
-      fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", borderRadius: 5, padding: "2px 6px", marginLeft: 6, verticalAlign: "middle",
+      fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", borderRadius: 5, padding: "2px 6px", marginInlineStart: 6, verticalAlign: "middle",
       color: T.ink, background: T.paper, boxShadow: onDark ? "0 1px 3px rgba(0,0,0,0.4)" : "none",
-    }}>{t === "club" ? "CLUB" : "BUSINESS"}</span>
+    }}>{t === "club" ? tr("CLUB") : tr("BUSINESS")}</span>
   );
 }

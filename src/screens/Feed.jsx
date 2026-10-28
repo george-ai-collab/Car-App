@@ -11,6 +11,7 @@ import { shareText } from "../lib/share";
 import { ActionMenu } from "../components/ui";
 import { MAX_LINES } from "../lib/text";
 import { RichText } from "../components/RichText";
+import { tr , AT } from "../lib/i18n";
 
 // Remembers how far down the feed you were, so coming back lands on the same post.
 const feedScroll = new Map();
@@ -54,14 +55,14 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
       }}>
         {onlyUser ? (
           <div data-testid="user-posts-title" className="glass-light" style={{ margin: "0 auto", borderRadius: 999, padding: "9px 16px", color: "#fff", fontSize: 14, fontWeight: 700 }}>
-            @{onlyUser} · {list.length} {list.length === 1 ? "post" : "posts"}
+            {AT}{onlyUser} · {list.length} {list.length === 1 ? tr("post") : tr("posts")}
           </div>
         ) : <>
-        <button onClick={openSearch} aria-label="Search" className="glass-light press" style={topIcon}>
+        <button onClick={openSearch} aria-label={tr("Search")} className="glass-light press" style={topIcon}>
           <Search size={21} color="#fff" />
         </button>
         <div className="glass-light" style={{ display: "flex", borderRadius: 999, padding: 4, pointerEvents: "auto" }}>
-          {[["foryou", "For You"], ["following", "Following"]].map(([id, label]) => (
+          {[["foryou", tr("For You")], ["following", tr("Following")]].map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} className="press" style={{
               background: tab === id ? "rgba(255,255,255,0.92)" : "none", border: "none",
               padding: "9px 17px", borderRadius: 999,
@@ -71,7 +72,7 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
             </button>
           ))}
         </div>
-        <button onClick={openInbox} aria-label="Notifications" className="glass-light press" style={{ ...topIcon, position: "relative" }}>
+        <button onClick={openInbox} aria-label={tr("Notifications")} className="glass-light press" style={{ ...topIcon, position: "relative" }}>
           <Bell size={21} color="#fff" />
           {unreadCount > 0 && (
             <span style={{
@@ -86,8 +87,8 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
       {list.length === 0 ? (
         <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <EmptyState icon={<Compass size={22} color={T.textDim} />}
-            title={tab === "following" ? "No posts yet" : "Nothing here yet"}
-            body={tab === "following" ? "Follow people to see their posts here." : "Be the first to post about a car."} />
+            title={tab === "following" ? tr("No posts yet") : tr("Nothing here yet")}
+            body={tab === "following" ? tr("Follow people to see their posts here.") : tr("Be the first to post about a car.")} />
         </div>
       ) : (
         <div ref={scroller} data-testid="feed-scroller" onScroll={(e) => feedScroll.set(memoKey, e.currentTarget.scrollTop)} style={{
@@ -120,13 +121,13 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                     <span style={{ color: T.text, fontWeight: 700, fontSize: 13.5 }}>{commentsPost.authorUsername}</span>
                     <AccountLabel username={commentsPost.authorUsername} />
-                    <span style={{ color: T.textDim, fontSize: 12 }}>· {timeAgo(commentsPost.date)}{commentsPost.editedAt ? " · edited" : ""}</span>
+                    <span style={{ color: T.textDim, fontSize: 12 }}>· {timeAgo(commentsPost.date)}{commentsPost.editedAt ? tr(" · edited") : ""}</span>
                   </div>
                   <RichText text={commentsPost.caption} maxLines={MAX_LINES.caption} style={{ color: T.text, fontSize: 14, lineHeight: 1.45 }} />
                 </div>
               </div>
             )}
-            {commentsPost.comments.length === 0 && <div style={{ color: T.textDim, fontSize: 13, marginBottom: 14 }}>No comments yet. Be the first.</div>}
+            {commentsPost.comments.length === 0 && <div style={{ color: T.textDim, fontSize: 13, marginBottom: 14 }}>{tr("No comments yet. Be the first.")}</div>}
             {commentsPost.comments.map((c) => (
               <CommentRow key={c.id} comment={c} postId={commentsPost.id} addReply={addReply} />
             ))}
@@ -146,12 +147,12 @@ export function FeedCommentInput({ postId, addComment }) {
     // Pinned to the very bottom of the panel (covers the panel's bottom padding too).
     <div style={{ display: "flex", gap: 8, marginTop: 8, position: "sticky", bottom: "calc(-24px - env(safe-area-inset-bottom))", paddingTop: 10, paddingBottom: "calc(14px + env(safe-area-inset-bottom))", marginBottom: "calc(-24px - env(safe-area-inset-bottom))", background: "rgba(24,24,27,0.98)", borderTop: `1px solid ${T.lineDark}`, marginLeft: -20, marginRight: -20, paddingLeft: 20, paddingRight: 20 }}>
       <div style={{ flex: 1 }}>
-        <TextInput value={text} onChange={setText} placeholder="Add a comment…" maxLength={220} />
+        <TextInput value={text} onChange={setText} placeholder={tr("Add a comment…")} maxLength={220} />
       </div>
       <button disabled={!text.trim()} className="press"
         onClick={async () => { const t = text; setText(""); const r = await addComment(postId, t); if (r === false) setText(t); }}
         style={{ padding: "0 16px", borderRadius: 16, border: "none", background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim, fontWeight: 600 }}>
-        Post
+        {tr("Post")}
       </button>
     </div>
   );
@@ -193,11 +194,11 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
 
       {/* Right-side action column: like, comment, and (on your own posts) the ··· menu, all lined up. */}
       <div style={{ position: "absolute", right: 6, bottom: 20, zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-        <button onClick={doLike} aria-label="Like" style={railBtn}>
+        <button onClick={doLike} aria-label={tr("Like")} style={railBtn}>
           <Heart size={30} color={liked ? T.accent : "#fff"} fill={liked ? T.accent : "none"} className={pop ? "heart-pop" : ""} style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }} />
           <span style={railCount}>{post.likes.length}</span>
         </button>
-        <button onClick={openComments} aria-label="Comments" style={railBtn}>
+        <button onClick={openComments} aria-label={tr("Comments")} style={railBtn}>
           <MessageCircle size={29} color="#fff" style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }} />
           <span style={railCount}>{post.comments.length}</span>
         </button>
@@ -212,13 +213,13 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
             {post.authorUsername}
           </button>
           <AccountLabel username={post.authorUsername} onDark />
-          {post.hidden && <span data-testid="hidden-mark" style={{ color: "#fff", fontSize: 10.5, fontWeight: 700, background: "rgba(230,56,70,0.85)", borderRadius: 5, padding: "2px 6px" }}>HIDDEN · REPORTED</span>}
-          {post.editedAt && <span data-testid="edited" style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>edited</span>}
+          {post.hidden && <span data-testid="hidden-mark" style={{ color: "#fff", fontSize: 10.5, fontWeight: 700, background: "rgba(230,56,70,0.85)", borderRadius: 5, padding: "2px 6px" }}>{tr("HIDDEN · REPORTED")}</span>}
+          {post.editedAt && <span data-testid="edited" style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>{tr("edited")}</span>}
         </div>
         {(post.location || (post.tags || []).length > 0) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: 600, marginBottom: 8, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
             {post.location && <span data-testid="feed-location" style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={12} /> {post.location.label}</span>}
-            {(post.tags || []).length > 0 && <span data-testid="feed-tags">with {post.tags.map((h, k) => <button key={h} onClick={() => openProfile(h)} style={{ background: "none", border: "none", padding: 0, color: "#fff", fontWeight: 700, fontSize: 12 }}>@{h}{k < post.tags.length - 1 ? ", " : ""}</button>)}</span>}
+            {(post.tags || []).length > 0 && <span data-testid="feed-tags">{tr("with")} {post.tags.map((h, k) => <button key={h} onClick={() => openProfile(h)} style={{ background: "none", border: "none", padding: 0, color: "#fff", fontWeight: 700, fontSize: 12 }}>{AT}{h}{k < post.tags.length - 1 ? ", " : ""}</button>)}</span>}
           </div>
         )}
         {car && (
@@ -251,10 +252,10 @@ function QuickActions({ post, me, car, onClose, onLike, onComment, onOpen }) {
   const carName = car ? `${car.make} ${car.model}` : post.carLabel;
   return (
     <ActionMenu open onClose={onClose} items={[
-      { label: liked ? "Unlike" : "Like", icon: <Heart size={17} />, onClick: onLike },
-      { label: "Comment", icon: <MessageCircle size={17} />, onClick: onComment },
-      { label: "Share", icon: <Share2 size={17} />, onClick: () => shareText({ title: "Carfooly", text: `${post.authorUsername}${carName ? `'s ${carName}` : ""} on Carfooly${post.caption ? `: "${post.caption}"` : ""}` }) },
-      { label: "Open post", icon: <Maximize2 size={17} />, onClick: onOpen },
+      { label: liked ? tr("Unlike") : tr("Like"), icon: <Heart size={17} />, onClick: onLike },
+      { label: tr("Comment"), icon: <MessageCircle size={17} />, onClick: onComment },
+      { label: tr("Share"), icon: <Share2 size={17} />, onClick: () => shareText({ title: tr("Carfooly"), text: tr("{0}{1} on Carfooly{2}", post.authorUsername, carName ? `'s ${carName}` : "", post.caption ? `: "${post.caption}"` : "") }) },
+      { label: tr("Open post"), icon: <Maximize2 size={17} />, onClick: onOpen },
     ]} />
   );
 }

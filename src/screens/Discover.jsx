@@ -6,33 +6,34 @@ import { Avatar, IconBadge, EmptyState, TextInput, SectionLabel, Segmented } fro
 import { useSwipe } from "../lib/useSwipe";
 import { CarCard } from "./Cars";
 import { CommunityCard } from "./Communities";
+import { tr } from "../lib/i18n";
 
 // Discover is a set of doors: tap one to open that section (like the + menu).
 export function DiscoverView({ meets, communities, news, onOpenSearch, onOpenCommunities, onOpenMeets, onOpenNews, onScan }) {
   const upcoming = Object.values(meets).filter((m) => !m.when || new Date(m.when) >= new Date()).length;
   const tiles = [
-    { id: "meets", title: "Meets", sub: "Find meets near you, or anywhere in the world", count: `${upcoming} upcoming`, icon: <Calendar size={24} color="#BFE0EC" />, tone: "accent2", onClick: onOpenMeets },
-    { id: "communities", title: "Communities", sub: "Your make, your scene, your people", count: `${Object.keys(communities).length} communities`, icon: <Users size={24} color={T.accent} />, tone: "accent", onClick: onOpenCommunities },
-    { id: "news", title: "News", sub: "What's happening in cars and racing", count: `${Object.keys(news).length} stories`, icon: <Rss size={24} color={T.accentWarm} />, tone: "warm", onClick: onOpenNews },
+    { id: "meets", title: tr("Meets"), sub: tr("Find meets near you, or anywhere in the world"), count: tr("{0} upcoming", upcoming), icon: <Calendar size={24} color="#BFE0EC" />, tone: "accent2", onClick: onOpenMeets },
+    { id: "communities", title: tr("Communities"), sub: tr("Your make, your scene, your people"), count: tr("{0} communities", Object.keys(communities).length), icon: <Users size={24} color={T.accent} />, tone: "accent", onClick: onOpenCommunities },
+    { id: "news", title: tr("News"), sub: tr("What's happening in cars and racing"), count: tr("{0} stories", Object.keys(news).length), icon: <Rss size={24} color={T.accentWarm} />, tone: "warm", onClick: onOpenNews },
   ];
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-        <div className="display" style={{ fontSize: 24, color: T.text }}>Discover</div>
+        <div className="display" style={{ fontSize: 24, color: T.text }}>{tr("Discover")}</div>
         <div style={{ display: "flex", gap: 8 }}>
           {onScan && (
-            <button onClick={onScan} aria-label="Scan a tag" data-testid="scan-tag" className="press" style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 999, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <button onClick={onScan} aria-label={tr("Scan a tag")} data-testid="scan-tag" className="press" style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 999, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <ScanLine size={19} color={T.text} />
             </button>
           )}
-          <button onClick={onOpenSearch} aria-label="Search" className="press" style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 999, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button onClick={onOpenSearch} aria-label={tr("Search")} className="press" style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 999, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Search size={19} color={T.text} />
           </button>
         </div>
       </div>
       {tiles.map((t) => (
         <button key={t.id} data-testid={`door-${t.id}`} onClick={t.onClick} className="press" style={{
-          width: "100%", display: "flex", alignItems: "center", gap: 16, padding: "22px 18px", marginBottom: 12, textAlign: "left",
+          width: "100%", display: "flex", alignItems: "center", gap: 16, padding: "22px 18px", marginBottom: 12, textAlign: "start",
           background: `linear-gradient(135deg, ${T.surface2}, ${T.surface})`, border: `1px solid ${T.lineDark}`, borderRadius: 24, boxShadow: T.shadowCard,
         }}>
           <IconBadge size={56} tone={t.tone}>{t.icon}</IconBadge>
@@ -61,7 +62,7 @@ export function DivisionCard({ title, icon, tone, onSeeAll, children }) {
           <div style={{ color: T.text, fontSize: 15.5, fontWeight: 700 }}>{title}</div>
         </div>
         <button onClick={onSeeAll} className="press" style={{ background: "none", border: "none", color: T.accent, fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 2, padding: 0 }}>
-          See all <ChevronRight size={14} />
+          {tr("See all")} <ChevronRight size={14} />
         </button>
       </div>
       {children}
@@ -87,18 +88,18 @@ export function SearchScreen({ me, cars, users, communities, openCar, openProfil
 
   return (
     <div style={{ paddingTop: 18 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 14 }}>Search</div>
-      <TextInput value={q} onChange={setQ} placeholder="Find a person, car, or community…" icon={<Search size={14} />} autoFocus />
-      {noResults && <div style={{ color: T.textDim, fontSize: 13, marginTop: 20 }}>No matches for "{q}"</div>}
+      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 14 }}>{tr("Search")}</div>
+      <TextInput value={q} onChange={setQ} placeholder={tr("Find a person, car, or community…")} icon={<Search size={14} />} autoFocus />
+      {noResults && <div style={{ color: T.textDim, fontSize: 13, marginTop: 20 }}>{tr("No matches for \"{0}\"", q)}</div>}
       {matchedCommunities.length > 0 && (
         <div style={{ marginTop: 20 }}>
-          <SectionLabel>Communities</SectionLabel>
+          <SectionLabel>{tr("Communities")}</SectionLabel>
           {matchedCommunities.map((c) => <CommunityCard key={c.id} community={c} me={me} onToggle={onToggleCommunity} onOpen={openCommunity} />)}
         </div>
       )}
       {matchedUsers.length > 0 && (
         <div style={{ marginTop: 20 }}>
-          <SectionLabel>People</SectionLabel>
+          <SectionLabel>{tr("People")}</SectionLabel>
           {matchedUsers.map((u) => (
             <button key={u} onClick={() => openProfile(u)} style={{
               width: "100%", background: "none", border: "none", padding: "10px 0",
@@ -112,7 +113,7 @@ export function SearchScreen({ me, cars, users, communities, openCar, openProfil
       )}
       {matchedCars.length > 0 && (
         <div style={{ marginTop: 20 }}>
-          <SectionLabel>Cars</SectionLabel>
+          <SectionLabel>{tr("Cars")}</SectionLabel>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             {matchedCars.map((c) => <CarCard key={c.id} car={c} onOpen={openCar} />)}
           </div>
@@ -126,12 +127,12 @@ export function CommunitiesScreen({ me, communities, onToggle, onOpen, onCreate 
   const list = Object.values(communities).sort((a, b) => b.members.length - a.members.length);
   return (
     <div>
-      <div className="display" style={{ fontSize: 24, color: T.text, marginBottom: 14 }}>Communities</div>
+      <div className="display" style={{ fontSize: 24, color: T.text, marginBottom: 14 }}>{tr("Communities")}</div>
       <button onClick={onCreate} style={{ width: "100%", marginBottom: 14, padding: "10px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-        <Plus size={14} /> Start a community
+        <Plus size={14} /> {tr("Start a community")}
       </button>
       {list.length === 0 ? (
-        <EmptyState icon={<Users size={20} color={T.textDim} />} title="No communities yet" body="Add a car or start one yourself." />
+        <EmptyState icon={<Users size={20} color={T.textDim} />} title={tr("No communities yet")} body={tr("Add a car or start one yourself.")} />
       ) : (
         list.map((c) => <CommunityCard key={c.id} community={c} me={me} onToggle={onToggle} onOpen={onOpen} />)
       )}
@@ -145,10 +146,10 @@ export function NewsScreen({ me, news, onLike }) {
   const list = Object.values(news).filter((n) => n.category === tab).sort((a, b) => new Date(b.date) - new Date(a.date));
   return (
     <div {...sw.bind} style={{ ...sw.bind.style, minHeight: "70vh" }}>
-      <div className="display" style={{ fontSize: 24, color: T.text, marginBottom: 6 }}>News</div>
-      <Segmented value={tab} onChange={setTab} options={[["general", "General"], ["racing", "Racing"]]} />
+      <div className="display" style={{ fontSize: 24, color: T.text, marginBottom: 6 }}>{tr("News")}</div>
+      <Segmented value={tab} onChange={setTab} options={[["general", tr("General")], ["racing", tr("Racing")]]} />
       {list.length === 0 ? (
-        <EmptyState icon={<Rss size={20} color={T.textDim} />} title="Nothing here yet" body="Check back soon." />
+        <EmptyState icon={<Rss size={20} color={T.textDim} />} title={tr("Nothing here yet")} body={tr("Check back soon.")} />
       ) : (
         list.map((n) => <NewsCard key={n.id} item={n} me={me} onLike={onLike} />)
       )}

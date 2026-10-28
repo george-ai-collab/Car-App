@@ -3,10 +3,11 @@ import { Camera, Image as ImageIcon, Loader2 } from "lucide-react";
 import { T } from "../../theme";
 import { readPhoto } from "./CameraCapture";
 import { canPickNatively, pickFromGallery, takePhoto } from "../../lib/media";
+import { tr } from "../../lib/i18n";
 
 // Big "add a photo" area with two choices: take one now, or pick from the gallery.
 // aspect = width ÷ height of the empty area. children = extra art inside (e.g. viewfinder corners).
-export function PhotoPicker({ onPick, aspect = 4 / 5, title = "Add a photo", hint, maxDim = 1440, quality = 0.8, children, testid = "photo-picker" }) {
+export function PhotoPicker({ onPick, aspect = 4 / 5, title = tr("Add a photo"), hint, maxDim = 1440, quality = 0.8, children, testid = "photo-picker" }) {
   const cam = useRef(null), lib = useRef(null);
   const [busy, setBusy] = useState(false);
   const handle = async (file) => {
@@ -31,12 +32,12 @@ export function PhotoPicker({ onPick, aspect = 4 / 5, title = "Add a photo", hin
       <input ref={lib} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { handle(e.target.files[0]); e.target.value = ""; }} />
       <div style={{ position: "absolute", top: "38%", left: 0, right: 0, transform: "translateY(-50%)", textAlign: "center", padding: "0 20px", pointerEvents: "none" }}>
         {busy ? <Loader2 size={28} color={T.accent} style={{ animation: "spin 1s linear infinite" }} /> : <Camera size={30} color="rgba(255,255,255,0.75)" />}
-        <div style={{ color: T.text, fontSize: 16, fontWeight: 700, marginTop: 10 }}>{busy ? "Processing…" : title}</div>
+        <div style={{ color: T.text, fontSize: 16, fontWeight: 700, marginTop: 10 }}>{busy ? tr("Processing…") : title}</div>
         {hint && <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 4, lineHeight: 1.4 }}>{hint}</div>}
       </div>
       <div style={{ display: "flex", gap: 8, width: "100%", position: "relative" }}>
-        <button onClick={async () => { if (canPickNatively()) { const b = await takePhoto(); if (b) handle(b); } else cam.current.click(); }} disabled={busy} className="press" style={btn(true)}><Camera size={15} /> Camera</button>
-        <button onClick={async () => { if (canPickNatively()) { const [b] = await pickFromGallery(1); if (b) handle(b); } else lib.current.click(); }} disabled={busy} className="press" style={btn(false)}><ImageIcon size={15} /> Gallery</button>
+        <button onClick={async () => { if (canPickNatively()) { const b = await takePhoto(); if (b) handle(b); } else cam.current.click(); }} disabled={busy} className="press" style={btn(true)}><Camera size={15} /> {tr("Camera")}</button>
+        <button onClick={async () => { if (canPickNatively()) { const [b] = await pickFromGallery(1); if (b) handle(b); } else lib.current.click(); }} disabled={busy} className="press" style={btn(false)}><ImageIcon size={15} /> {tr("Gallery")}</button>
       </div>
     </div>
   );

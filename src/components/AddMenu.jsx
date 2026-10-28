@@ -1,11 +1,12 @@
 import { Image as ImageIcon, MapPin, Calendar, Car } from "lucide-react";
 import { T } from "../theme";
+import { tr } from "../lib/i18n";
 
 const OPTIONS = [
-  { id: "post", label: "Post", sub: "Photos of a car", icon: ImageIcon, color: T.accent },
-  { id: "spot", label: "Spot", sub: "A car you saw", icon: MapPin, color: T.accent2 },
-  { id: "meet", label: "Meet", sub: "Plan an event", icon: Calendar, color: "#BFE0EC" },
-  { id: "car", label: "Add car", sub: "To your garage", icon: Car, color: T.accentWarm },
+  { id: "post", label: tr("Post"), sub: tr("Photos of a car"), icon: ImageIcon, color: T.accent },
+  { id: "spot", label: tr("Spot"), sub: tr("A car you saw"), icon: MapPin, color: T.accent2 },
+  { id: "meet", label: tr("Meet"), sub: tr("Plan an event"), icon: Calendar, color: "#BFE0EC" },
+  { id: "car", label: tr("Add car"), sub: tr("To your garage"), icon: Car, color: T.accentWarm },
 ];
 
 // The "Add" page: big square tiles. Clubs and businesses get Post and Meet only
@@ -14,13 +15,13 @@ export function AddPage({ onPick, driver = true }) {
   const options = driver ? OPTIONS : OPTIONS.filter((o) => o.id === "post" || o.id === "meet");
   return (
     <div>
-      <div className="display" style={{ fontSize: 26, color: T.text }}>Create</div>
-      <div style={{ color: T.textDim, fontSize: 13.5, marginBottom: 18 }}>What do you want to share?</div>
+      <div className="display" style={{ fontSize: 26, color: T.text }}>{tr("Create")}</div>
+      <div style={{ color: T.textDim, fontSize: 13.5, marginBottom: 18 }}>{tr("What do you want to share?")}</div>
       <div data-testid="add-menu" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {options.map(({ id, label, sub, icon: Icon, color }) => (
           <button key={id} data-testid={`add-${id}`} onClick={() => onPick(id)} className="press" style={{
             aspectRatio: "1", display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "flex-start",
-            padding: 16, borderRadius: 24, border: `1px solid ${T.lineDark}`, textAlign: "left",
+            padding: 16, borderRadius: 24, border: `1px solid ${T.lineDark}`, textAlign: "start",
             background: `radial-gradient(120% 100% at 0% 0%, ${color}33, transparent 60%), linear-gradient(160deg, ${T.surface2}, ${T.surface})`,
             boxShadow: T.shadowCard,
           }}>

@@ -8,6 +8,7 @@ import { Avatar, FollowAvatar, IconTab, IconBadge, EmptyState, BottomSheet, Mini
 import { CarCard, SightingCard } from "./Cars";
 import { MAX_LINES } from "../lib/text";
 import { RichText } from "../components/RichText";
+import { tr , AT } from "../lib/i18n";
 
 export function Profile({ username, me, cars, posts, users, sightings, tab = "posts", setTab, onToggleFollow, openCar, openPost, onAddCar, onOpenSettings }) {
   const [showBadges, setShowBadges] = useState(false);
@@ -38,19 +39,19 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
           <div className="display" style={{ fontSize: 20, color: T.text, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name || username}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
-            <span className="plate handle" style={{ fontSize: 11.5, color: T.textDim }}>@{username}</span>
+            <span className="plate handle" style={{ fontSize: 11.5, color: T.textDim }}>{AT}{username}</span>
             <AccountLabel username={username} />
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", columnGap: 12, rowGap: 4, marginTop: 8 }}>
-            <MiniStat value={myPosts.length} label="Posts" />
-            {driver && <MiniStat value={myCars.length} label="Cars" />}
-            <MiniStat value={user.followers.length} label="Followers" />
-            <MiniStat value={user.following.length} label="Following" />
+            <MiniStat value={myPosts.length} label={tr("Posts")} />
+            {driver && <MiniStat value={myCars.length} label={tr("Cars")} />}
+            <MiniStat value={user.followers.length} label={tr("Followers")} />
+            <MiniStat value={user.following.length} label={tr("Following")} />
           </div>
           {user.bio && <RichText text={user.bio} maxLines={MAX_LINES.bio} style={{ color: T.text, fontSize: 13, lineHeight: 1.45, marginTop: 10 }} />}
         </div>
         {isMe && safety?.openTag && (
-          <button onClick={() => safety.openTag({ kind: "user", id: username, title: user.name || username, subtitle: `@${username}` })} aria-label="Share tag" data-testid="profile-tag" className="press" style={{
+          <button onClick={() => safety.openTag({ kind: "user", id: username, title: user.name || username, subtitle: `@${username}` })} aria-label={tr("Share tag")} data-testid="profile-tag" className="press" style={{
             width: 38, height: 38, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface,
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
@@ -58,7 +59,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
           </button>
         )}
         {isMe && onOpenSettings && (
-          <button onClick={onOpenSettings} aria-label="Settings" className="press" style={{
+          <button onClick={onOpenSettings} aria-label={tr("Settings")} className="press" style={{
             width: 38, height: 38, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface,
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
@@ -66,9 +67,9 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
           </button>
         )}
         {!isMe && safety && (
-          <MoreMenu label="Profile options" testid="profile-menu" flash={safety.flash}
-            items={safety.openTag && !blocked ? [{ label: "Show tag", icon: <QrCode size={17} />, onClick: () => safety.openTag({ kind: "user", id: username, title: user.name || username, subtitle: `@${username}` }) }] : []}
-            share={{ title: "Carfooly", text: `Check out @${username} on Carfooly` }}
+          <MoreMenu label={tr("Profile options")} testid="profile-menu" flash={safety.flash}
+            items={safety.openTag && !blocked ? [{ label: tr("Show tag"), icon: <QrCode size={17} />, onClick: () => safety.openTag({ kind: "user", id: username, title: user.name || username, subtitle: `@${username}` }) }] : []}
+            share={{ title: tr("Carfooly"), text: tr("Check out @{0} on Carfooly", username) }}
             report={{ what: "account", onSend: (reason, note) => safety.actions.report({ kind: "user", id: username, reason, note }) }}
             block={{ handle: username, blocked, onToggle: () => safety.actions.toggleBlock(username) }} />
         )}
@@ -76,9 +77,9 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
 
       {blocked && (
         <div style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 18, padding: 16, textAlign: "center", marginBottom: 14 }}>
-          <div style={{ color: T.text, fontWeight: 700, fontSize: 14.5 }}>You blocked @{username}</div>
-          <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 4 }}>You won't see their posts, comments or discussions.</div>
-          <button onClick={() => safety.actions.toggleBlock(username)} className="press" style={{ marginTop: 12, padding: "8px 16px", borderRadius: 999, border: `1px solid ${T.lineDark}`, background: "transparent", color: T.text, fontWeight: 600, fontSize: 13 }}>Unblock</button>
+          <div style={{ color: T.text, fontWeight: 700, fontSize: 14.5 }}>{tr("You blocked @")}{username}</div>
+          <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 4 }}>{tr("You won't see their posts, comments or discussions.")}</div>
+          <button onClick={() => safety.actions.toggleBlock(username)} className="press" style={{ marginTop: 12, padding: "8px 16px", borderRadius: 999, border: `1px solid ${T.lineDark}`, background: "transparent", color: T.text, fontWeight: 600, fontSize: 13 }}>{tr("Unblock")}</button>
         </div>
       )}
       {!blocked && <>
@@ -103,7 +104,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
       )}
 
       {view === "posts" && (
-        myPosts.length === 0 ? <EmptyState icon={<Compass size={20} color={T.textDim} />} title="No posts yet" body="" /> :
+        myPosts.length === 0 ? <EmptyState icon={<Compass size={20} color={T.textDim} />} title={tr("No posts yet")} body="" /> :
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
           {myPosts.map((p) => (
             <button key={p.id} onClick={() => openPost(p.id)} style={{ position: "relative", aspectRatio: "1", borderRadius: 12, overflow: "hidden", border: "none", padding: 0, background: p.photoUrl ? `url(${p.photoUrl}) center/cover` : T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -118,15 +119,15 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         <div>
           {isMe && onAddCar && (
             <button onClick={onAddCar} className="press" style={{ width: "100%", marginBottom: 14, padding: "10px 14px", borderRadius: 16, border: `1px dashed ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Plus size={14} /> Add a car
+              <Plus size={14} /> {tr("Add a car")}
             </button>
           )}
-          {myCars.length === 0 ? <EmptyState icon={<Car size={20} color={T.textDim} />} title="No cars added" body="" /> :
+          {myCars.length === 0 ? <EmptyState icon={<Car size={20} color={T.textDim} />} title={tr("No cars added")} body="" /> :
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{myCars.map((c) => <CarCard key={c.id} car={c} onOpen={openCar} showPrivate={isMe} />)}</div>}
         </div>
       )}
       {view === "spotted" && (
-        spottedCars.length === 0 && unmatchedSightings.length === 0 ? <EmptyState icon={<MapPin size={20} color={T.textDim} />} title="No spots logged" body="" /> :
+        spottedCars.length === 0 && unmatchedSightings.length === 0 ? <EmptyState icon={<MapPin size={20} color={T.textDim} />} title={tr("No spots logged")} body="" /> :
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {spottedCars.map((c) => <CarCard key={c.id} car={c} onOpen={openCar} />)}
           {unmatchedSightings.map((s) => <SightingCard key={s.id} sighting={s} />)}
@@ -134,9 +135,9 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
       )}
 
       </>}
-      <BottomSheet open={showBadges} onClose={() => setShowBadges(false)} title="Badges">
+      <BottomSheet open={showBadges} onClose={() => setShowBadges(false)} title={tr("Badges")}>
         {badges.length === 0 ? (
-          <EmptyState icon={<Award size={20} color={T.textDim} />} title="No badges yet" body="Spot cars to start earning them." />
+          <EmptyState icon={<Award size={20} color={T.textDim} />} title={tr("No badges yet")} body={tr("Spot cars to start earning them.")} />
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
             {badges.map((b) => (
@@ -149,7 +150,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         )}
         {isMe && nextBadge && (
           <div style={{ fontSize: 12.5, color: T.textDim, marginTop: 20, paddingTop: 16, borderTop: `1px solid ${T.lineDark}` }}>
-            {nextBadge.needed} more {nextBadge.needed === 1 ? "spot" : "spots"} to unlock <span style={{ color: T.text, fontWeight: 600 }}>{nextBadge.name}</span>
+            {tr("{0} more {1} to unlock", nextBadge.needed, nextBadge.needed === 1 ? tr("spot") : tr("spots"))} <span style={{ color: T.text, fontWeight: 600 }}>{nextBadge.name}</span>
           </div>
         )}
       </BottomSheet>

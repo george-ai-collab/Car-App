@@ -6,6 +6,7 @@ import { cleanText, MAX_LINES } from "../lib/text";
 import { findBanned, handleProblem, RESPECT_MESSAGE } from "../lib/moderation";
 import { PLANS } from "../lib/meets";
 import * as remote from "../backend/remote";
+import { tr } from "../lib/i18n";
 
 // All app data lives here. Screens call these actions; actions only change data
 // (they never move between pages — the Shell decides where to go next).
@@ -166,7 +167,7 @@ export function useStore(flash) {
     version.current += 1;
     if (REMOTE) return;
     try { await window.storage.set(KEYS[name], JSON.stringify(value), true); }
-    catch { if (!quiet) flash("Couldn't save. Try again."); }
+    catch { if (!quiet) flash(tr("Couldn't save. Try again.")); }
   }, [flash]);
 
   const get = () => ref.current;
@@ -197,9 +198,9 @@ export function useStore(flash) {
   // Handles are always lowercase, so "George_Q" and "george_q" can never be two different people.
   const claimUsername = async (handle, displayName) => {
     const clean = handle.trim().replace(/^@/, "").toLowerCase();
-    if (!/^[a-z0-9_.]{2,24}$/.test(clean)) { flash("Handles use 2–24 letters, numbers, _ or ."); return; }
+    if (!/^[a-z0-9_.]{2,24}$/.test(clean)) { flash(tr("Handles use 2–24 letters, numbers, _ or .")); return; }
     const problem = !get().users[clean] && handleProblem(clean);
-    if (problem) { flash(problem === "reserved" ? "That handle is reserved." : "That handle isn't allowed."); return; }
+    if (problem) { flash(problem === "reserved" ? tr("That handle is reserved.") : tr("That handle isn't allowed.")); return; }
     try {
       await window.storage.set(KEYS.me, clean, false);
       const users = get().users;
@@ -212,7 +213,7 @@ export function useStore(flash) {
           : { name: displayName.trim() || clean, joinedAt: now(), followers: [], following: [], ...((window.__localAdmins || []).includes(clean) ? { isAdmin: true } : {}) },
       });
       setMe(clean);
-    } catch { flash("Couldn't save your name. Try again."); }
+    } catch { flash(tr("Couldn't save your name. Try again.")); }
   };
 
   // Online accounts: email + password. The handle is reserved by the database.
@@ -232,7 +233,7 @@ export function useStore(flash) {
   };
   // Words we don't allow, and suspended accounts: say so and don't save.
   const refuse = (...texts) => {
-    if (me && get().users[me]?.banned) { flash("Your account has been suspended, so you can't post right now."); return true; }
+    if (me && get().users[me]?.banned) { flash(tr("Your account has been suspended, so you can't post right now.")); return true; }
     if (texts.some((t) => findBanned(t))) { flash(RESPECT_MESSAGE); return true; }
     return false;
   };
@@ -240,12 +241,12 @@ export function useStore(flash) {
     const res = await remote.signUp(f);
     if (!res.error) await markNewAccount(f.handle);
     if (res.error || res.needsConfirm) return res;
-    try { await startSession(res.userId); return {}; } catch { return { error: "Account made, but it couldn't load. Try logging in." }; }
+    try { await startSession(res.userId); return {}; } catch { return { error: tr("Account made, but it couldn't load. Try logging in.") }; }
   };
   const signIn = async (f) => {
     const res = await remote.signIn(f);
     if (res.error) return res;
-    try { await startSession(res.userId); return {}; } catch { await remote.signOut(); meId.current = null; return { error: "Couldn't load your account. Check your connection and try again." }; }
+    try { await startSession(res.userId); return {}; } catch { await remote.signOut(); meId.current = null; return { error: tr("Couldn't load your account. Check your connection and try again.") }; }
   };
   const resetPassword = (email) => remote.resetPassword(email);
   const confirmReset = async (f) => {
@@ -254,7 +255,7 @@ export function useStore(flash) {
       if (res.userId) await remote.signOut(); // code worked but the new password didn't: start again
       return { error: res.error };
     }
-    try { await startSession(res.userId); return {}; } catch { return { error: "Password changed. Log in with your new password." }; }
+    try { await startSession(res.userId); return {}; } catch { return { error: tr("Password changed. Log in with your new password.") }; }
   };
   // New accounts get a short "make it yours" setup once (remembered on this phone).
   const setupKey = (h) => `carfooly-setup:${h}`;
@@ -268,7 +269,7 @@ export function useStore(flash) {
     const next = { ...rec, name: (name ?? rec.name ?? "").replace(/\s+/g, " ").trim() || me, bio: cleanText(bio ?? rec.bio ?? "", MAX_LINES.bio), avatar: avatar === undefined ? rec.avatar || null : avatar || null, accountType: type };
     await save("users", { ...users, [me]: next });
     sync((id) => remote.write.profile(id, { name: next.name.slice(0, 40), bio: next.bio.slice(0, 150), avatar: next.avatar, accountType: type }));
-    if (!quiet) flash("Profile updated");
+    if (!quiet) flash(tr("Profile updated"));
   };
 
   const logout = async () => {
@@ -282,7 +283,7 @@ export function useStore(flash) {
     if (REMOTE) {
       await queue.current;
       try { await remote.deleteAccount(meId.current); resetToSignedOut(); }
-      catch { flash("Couldn't delete your account. Check your connection and try again."); }
+      catch { flash(tr("Couldn't delete your account. Check your connection and try again.")); }
       return;
     }
     const d = get();
@@ -366,7 +367,7 @@ export function useStore(flash) {
       const cid = newId("community");
       await save("communities", { ...communities, [cid]: { id: cid, name: brand, description: `Everything ${brand}.`, kind: "brand", createdBy: null, members: [me], createdAt: t } });
     }
-    flash("Car added");
+    flash(tr("Car added"));
     return id;
   };
 
@@ -381,7 +382,7 @@ export function useStore(flash) {
     if (typeof f.hasPage === "boolean") updated.hasPage = f.hasPage;
     await save("cars", { ...get().cars, [carId]: updated });
     sync((id) => remote.write.editCar(id, updated));
-    flash("Car updated");
+    flash(tr("Car updated"));
   };
 
   // Deleting a car keeps posts about it, but they lose the car tag.
@@ -398,7 +399,7 @@ export function useStore(flash) {
     await save("posts", posts);
     await save("sightings", sightings);
     sync((id) => remote.write.deleteCar(id, carId));
-    flash("Car deleted");
+    flash(tr("Car deleted"));
   };
 
   const addMod = async (carId, name, note) => {
@@ -410,7 +411,7 @@ export function useStore(flash) {
     const updated = { ...car, mods: [...car.mods, mod], timeline: [...car.timeline, event] };
     await save("cars", { ...get().cars, [carId]: updated });
     sync((id) => remote.write.addMod(id, carId, mod, event));
-    flash("Build updated");
+    flash(tr("Build updated"));
   };
 
   const toggleFollowCar = async (carId) => {
@@ -432,7 +433,7 @@ export function useStore(flash) {
     await save("cars", { ...get().cars, [carId]: updated });
     sync((id) => remote.write.spot(id, carId, event));
     await pushNotif(car.ownerUsername, { type: "spot", from: me, carId });
-    flash("Logged. Nice find.");
+    flash(tr("Logged. Nice find."));
   };
 
   const logSighting = async ({ make, model, year, trim, photoUrl }) => {
@@ -455,7 +456,7 @@ export function useStore(flash) {
       sync((uid2) => remote.write.spot(uid2, matched.id, event));
       await pushNotif(matched.ownerUsername, { type: "spot", from: me, carId: matched.id });
     }
-    flash(matched ? "Logged. Matched to an existing car." : "Logged. Nice find.");
+    flash(matched ? tr("Logged. Matched to an existing car.") : tr("Logged. Nice find."));
   };
 
   // ---------- posts ----------
@@ -495,7 +496,7 @@ export function useStore(flash) {
     const tagIds = tagged.map(idOf).filter(Boolean);
     sync((uid2) => remote.write.createPost(uid2, saved, tagIds, carEvents));
     for (const h of tagged) await pushNotif(h, { type: "tag", from: me, postId: id });
-    flash("Posted");
+    flash(tr("Posted"));
     return id;
   };
 
@@ -509,7 +510,7 @@ export function useStore(flash) {
     const carLabel = nextCar ? "" : post.carLabel || "";
     await save("posts", { ...get().posts, [postId]: { ...post, caption, carId: nextCar, carLabel, editedAt: now() } });
     sync((id) => remote.write.editPost(id, postId, caption.slice(0, 280), nextCar, carLabel));
-    flash("Post updated");
+    flash(tr("Post updated"));
   };
 
   // Archived posts are hidden from everyone but can be brought back from Settings.
@@ -518,7 +519,7 @@ export function useStore(flash) {
     if (!post || post.authorUsername !== me) return;
     await save("posts", { ...get().posts, [postId]: { ...post, archived } });
     sync((id) => remote.write.archivePost(id, postId, archived));
-    flash(archived ? "Post archived" : "Post restored");
+    flash(archived ? tr("Post archived") : tr("Post restored"));
   };
 
   const deletePost = async (postId) => {
@@ -537,7 +538,7 @@ export function useStore(flash) {
     const notifications = {};
     Object.entries(get().notifications).forEach(([h, list]) => { notifications[h] = list.filter((n) => n.postId !== postId); });
     await save("notifications", notifications, true);
-    flash("Post deleted");
+    flash(tr("Post deleted"));
   };
 
   const toggleLike = async (postId) => {
@@ -645,7 +646,7 @@ export function useStore(flash) {
     fields.approveDrivers = pro && !!f.approveDrivers;
     fields.featured = pro && !!f.featured;
     if (!pro && (fields.caps.driver || 0) + (fields.caps.attendee || 0) > PLANS.free.maxPeople) {
-      flash(`Free meets have up to ${PLANS.free.maxPeople} people. Lower the limits or pick Pro.`); return null;
+      flash(tr("Free meets have up to {0} people. Lower the limits or pick Pro.", PLANS.free.maxPeople)); return null;
     }
     const meets = get().meets;
     if (editingId) {
@@ -653,13 +654,13 @@ export function useStore(flash) {
       if (!existing || existing.submittedBy !== me) return null;
       await save("meets", { ...meets, [editingId]: { ...existing, ...fields } });
       sync((id) => remote.write.saveMeet(id, editingId, fields, false));
-      flash("Meet updated");
+      flash(tr("Meet updated"));
       return editingId;
     }
     const id = newId("meet");
     await save("meets", { ...meets, [id]: { id, ...fields, submittedBy: me, createdAt: now(), attendees: [{ username: me, role: "organizer", approved: true }], announcements: [], spots: [], views: 0 } });
     sync((uid2) => remote.write.saveMeet(uid2, id, fields, true));
-    flash("Meet posted");
+    flash(tr("Meet posted"));
     return id;
   };
 
@@ -669,7 +670,7 @@ export function useStore(flash) {
     const { [id]: _gone, ...rest } = meets;
     await save("meets", rest);
     sync((uid2) => remote.write.deleteMeet(uid2, id));
-    flash("Meet removed");
+    flash(tr("Meet removed"));
   };
 
   // RSVP. Only organizers can make someone an organizer; Driving/Attending can have a cap.
@@ -686,15 +687,15 @@ export function useStore(flash) {
       return;
     }
     const cap = item.caps?.[role];
-    if (cap && item.attendees.filter((a) => a.role === role).length >= cap) { flash(`${role === "driver" ? "Driving" : "Attending"} is full`); return; }
+    if (cap && item.attendees.filter((a) => a.role === role).length >= cap) { flash(tr("{0} is full", role === "driver" ? tr("Driving") : tr("Attending"))); return; }
     const free = item.plan !== "pro";
-    if (free && role !== "organizer" && !existing && item.attendees.filter((a) => a.role !== "organizer").length >= PLANS.free.maxPeople) { flash("This meet is full"); return; }
+    if (free && role !== "organizer" && !existing && item.attendees.filter((a) => a.role !== "organizer").length >= PLANS.free.maxPeople) { flash(tr("This meet is full")); return; }
     // Pro meets can ask drivers to wait for the organizer's OK.
     const approved = !(role === "driver" && item.approveDrivers && !isOrganizer(item, me));
     const attendees = existing
       ? item.attendees.map((a) => (a.username === me ? { ...a, role, approved: role === "driver" ? approved : true } : a))
       : [...item.attendees, { username: me, role, approved }];
-    if (!approved) flash("Asked to drive. The organizer will confirm.");
+    if (!approved) flash(tr("Asked to drive. The organizer will confirm."));
     await save("meets", { ...get().meets, [id]: { ...item, attendees } });
     sync((uid2) => remote.write.setAttendance(uid2, id, uid2, role, !!existing));
   };
@@ -717,7 +718,7 @@ export function useStore(flash) {
     const nextCaps = { driver: clean(caps.driver), attendee: clean(caps.attendee) };
     await save("meets", { ...get().meets, [meetId]: { ...item, caps: nextCaps } });
     sync((id) => remote.write.meetCaps(id, meetId, nextCaps));
-    flash("Limits saved");
+    flash(tr("Limits saved"));
   };
 
   // ---------- meet day: your car, approvals, check-in, announcements, spotting, views ----------
@@ -759,13 +760,13 @@ export function useStore(flash) {
     if (!m || !isOrganizer(m, me) || !clean) return false;
     if (refuse(clean)) return false;
     const list = m.announcements || [];
-    if (m.plan !== "pro" && list.length >= PLANS.free.announcements) { flash("Free meets get 1 announcement. Pro has unlimited."); return false; }
-    if (list[0] && Date.now() - new Date(list[0].date).getTime() < 10 * 60e3) { flash("One announcement every 10 minutes, please."); return false; }
+    if (m.plan !== "pro" && list.length >= PLANS.free.announcements) { flash(tr("Free meets get 1 announcement. Pro has unlimited.")); return false; }
+    if (list[0] && Date.now() - new Date(list[0].date).getTime() < 10 * 60e3) { flash(tr("One announcement every 10 minutes, please.")); return false; }
     const a = { id: newId("ann"), author: me, text: clean, date: now() };
     await patchMeet(meetId, (x) => ({ ...x, announcements: [a, ...(x.announcements || [])] }));
     sync((id) => remote.write.announce(id, meetId, a));
     if (!REMOTE) for (const p of m.attendees) if (p.username !== me) await pushNotif(p.username, { type: "meetUpdate", meetId, text: clean.slice(0, 60) });
-    flash("Sent to everyone going");
+    flash(tr("Sent to everyone going"));
     return true;
   };
   // Spot a car at a meet: tapping = a spot; scanning its tag = a verified spot. Also counts as a normal spot.
@@ -774,13 +775,13 @@ export function useStore(flash) {
     const car = get().cars[carId];
     if (!m || !car || car.ownerUsername === me) return;
     if (refuse()) return;
-    if (!isDriverAcct()) { flash("Spotting is for driver accounts."); return; }
+    if (!isDriverAcct()) { flash(tr("Spotting is for driver accounts.")); return; }
     const had = (m.spots || []).find((x) => x.carId === carId && x.user === me);
-    if (had && (had.verified || !verified)) { flash("Already spotted"); return; }
+    if (had && (had.verified || !verified)) { flash(tr("Already spotted")); return; }
     await patchMeet(meetId, (x) => ({ ...x, spots: [...(x.spots || []).filter((y) => !(y.carId === carId && y.user === me)), { carId, user: me, verified: !!verified }] }));
     sync((id) => remote.write.meetSpot(id, meetId, carId, !!verified));
     if (!car.spotterUsernames.includes(me) && car.hasPage !== false) await spotCar(carId, `at ${m.title}`);
-    else flash(verified ? "Scanned. Verified spot!" : "Spotted");
+    else flash(verified ? tr("Scanned. Verified spot!") : tr("Spotted"));
   };
   const isDriverAcct = () => { const t = get().users[me]?.accountType; return !t || t === "personal"; };
   const viewMeet = (meetId) => {
@@ -794,12 +795,12 @@ export function useStore(flash) {
   const createCommunity = async ({ name, description }) => {
     if (!name.trim()) return null;
     if (refuse(name, description)) return null;
-    if (nameTaken(name)) { flash("A community with that name already exists"); return null; }
+    if (nameTaken(name)) { flash(tr("A community with that name already exists")); return null; }
     const id = newId("community");
     const c = { id, name: name.trim().slice(0, 40), description: cleanText(description, MAX_LINES.description).slice(0, 200), kind: "custom", createdBy: me, members: [me], createdAt: now() };
     await save("communities", { ...get().communities, [id]: c });
     sync((uid2) => remote.write.createCommunity(uid2, c));
-    flash("Community created");
+    flash(tr("Community created"));
     return id;
   };
 
@@ -807,11 +808,11 @@ export function useStore(flash) {
     const c = get().communities[id];
     if (!c || c.createdBy !== me || !name.trim()) return false;
     if (refuse(name, description)) return false;
-    if (nameTaken(name, id)) { flash("A community with that name already exists"); return false; }
+    if (nameTaken(name, id)) { flash(tr("A community with that name already exists")); return false; }
     const desc = cleanText(description, MAX_LINES.description).slice(0, 200);
     await save("communities", { ...get().communities, [id]: { ...c, name: name.trim(), description: desc } });
     sync((uid2) => remote.write.editCommunity(uid2, id, name.trim().slice(0, 40), desc));
-    flash("Community updated");
+    flash(tr("Community updated"));
     return true;
   };
 
@@ -827,7 +828,7 @@ export function useStore(flash) {
     Object.values(d.discussions).forEach((t) => { if (t.communityId !== id) discussions[t.id] = t; });
     await save("communities", communities); await save("posts", posts); await save("discussions", discussions);
     sync((uid2) => remote.write.deleteCommunity(uid2, id));
-    flash("Community deleted");
+    flash(tr("Community deleted"));
   };
 
   const toggleCommunityMembership = async (id) => {
@@ -855,7 +856,7 @@ export function useStore(flash) {
     await save("discussions", { ...get().discussions, [id]: t });
     sync((uid2) => remote.write.createThread(uid2, t));
     await joinIfNeeded(communityId);
-    flash("Discussion started");
+    flash(tr("Discussion started"));
     return id;
   };
 
@@ -884,7 +885,7 @@ export function useStore(flash) {
     const { [threadId]: _gone, ...rest } = get().discussions;
     await save("discussions", rest);
     sync((id) => remote.write.deleteThread(id, threadId));
-    flash("Discussion deleted");
+    flash(tr("Discussion deleted"));
   };
 
   const editThread = async (threadId, { title, body }) => {
@@ -894,7 +895,7 @@ export function useStore(flash) {
     const cleanBody = cleanText(body, MAX_LINES.body).slice(0, 1000);
     await save("discussions", { ...get().discussions, [threadId]: { ...t, title: title.trim(), body: cleanBody, editedAt: now() } });
     sync((id) => remote.write.editThread(id, threadId, title.trim().slice(0, 100), cleanBody));
-    flash("Discussion updated");
+    flash(tr("Discussion updated"));
   };
   const deleteThreadReply = async (threadId, replyId) => {
     const t = get().discussions[threadId];
@@ -916,9 +917,9 @@ export function useStore(flash) {
   // Reports. 3 reports from different people hide the thing until an admin looks (the database
   // does this online; the phone-only test mode copies it).
   const report = async ({ kind, id, reason, note }) => {
-    if (REMOTE) { sync((me2) => remote.write.report(me2, { kind, id, reason, note })); flash("Thanks. We'll take a look."); return; }
+    if (REMOTE) { sync((me2) => remote.write.report(me2, { kind, id, reason, note })); flash(tr("Thanks. We'll take a look.")); return; }
     const all = (await readShared(KEYS.reports)) || {};
-    if (Object.values(all).some((r) => r.by === me && r.kind === kind && r.targetId === id && r.status === "open")) { flash("You already reported this. Thanks!"); return; }
+    if (Object.values(all).some((r) => r.by === me && r.kind === kind && r.targetId === id && r.status === "open")) { flash(tr("You already reported this. Thanks!")); return; }
     const rid = newId("report");
     const next = { ...all, [rid]: { id: rid, kind, targetId: id, reason, note: (note || "").trim(), by: me, date: now(), status: "open" } };
     try { await window.storage.set(KEYS.reports, JSON.stringify(next), true); } catch { /* ignore */ }
@@ -927,7 +928,7 @@ export function useStore(flash) {
     setData(ref.current);
     const reporters = new Set(open.filter((r) => r.kind === kind && r.targetId === id).map((r) => r.by));
     if (reporters.size >= 3) await setHiddenLocal(kind, id, true);
-    flash("Thanks. We'll take a look.");
+    flash(tr("Thanks. We'll take a look."));
   };
   // Phone-only mode: flag a post / comment / reply / discussion / discussion reply as hidden.
   const setHiddenLocal = async (kind, id, hidden) => {
@@ -999,13 +1000,13 @@ export function useStore(flash) {
       const u = get().users;
       if (u[author]) await save("users", { ...u, [author]: { ...u[author], banned: true } });
     }
-    flash(action === "keep" ? "Kept. Reports closed." : action === "ban" ? `Removed and @${author} banned` : "Removed");
+    flash(action === "keep" ? tr("Kept. Reports closed.") : action === "ban" ? tr("Removed and @{0} banned", author) : tr("Removed"));
   };
   const hidePost = async (postId) => {
     if (prefs.hidden.includes(postId)) return;
     await savePrefs({ ...prefs, hidden: [...prefs.hidden, postId] });
     sync((id) => remote.write.hidePost(id, postId, true));
-    flash("Got it. You'll see fewer posts like this.");
+    flash(tr("Got it. You'll see fewer posts like this."));
   };
   const undoHide = async (postId) => {
     await savePrefs({ ...prefs, hidden: prefs.hidden.filter((x) => x !== postId) });
@@ -1029,7 +1030,7 @@ export function useStore(flash) {
         });
       }
     }
-    flash(blocked ? `Unblocked @${handle}` : `Blocked @${handle}`);
+    flash(blocked ? tr("Unblocked @{0}", handle) : tr("Blocked @{0}", handle));
   };
 
   const markNotificationsRead = async () => {
