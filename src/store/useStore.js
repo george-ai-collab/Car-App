@@ -198,6 +198,7 @@ export function useStore(flash) {
       await window.storage.set(KEYS.me, clean, false);
       const users = get().users;
       const existing = users[clean];
+      if (!existing) await markNewAccount(clean);
       await save("users", {
         ...users,
         [clean]: existing
@@ -221,6 +222,7 @@ export function useStore(flash) {
   const checkHandle = (handle) => remote.handleAvailable(handle);
   const signUp = async (f) => {
     const res = await remote.signUp(f);
+    if (!res.error) await markNewAccount(f.handle);
     if (res.error || res.needsConfirm) return res;
     try { await startSession(res.userId); return {}; } catch { return { error: "Account made, but it couldn't load. Try logging in." }; }
   };
@@ -230,14 +232,26 @@ export function useStore(flash) {
     try { await startSession(res.userId); return {}; } catch { await remote.signOut(); meId.current = null; return { error: "Couldn't load your account. Check your connection and try again." }; }
   };
   const resetPassword = (email) => remote.resetPassword(email);
+  const confirmReset = async (f) => {
+    const res = await remote.confirmReset(f);
+    if (res.error) {
+      if (res.userId) await remote.signOut(); // code worked but the new password didn't: start again
+      return { error: res.error };
+    }
+    try { await startSession(res.userId); return {}; } catch { return { error: "Password changed. Log in with your new password." }; }
+  };
+  // New accounts get a short "make it yours" setup once (remembered on this phone).
+  const setupKey = (h) => `carfooly-setup:${h}`;
+  const markNewAccount = (h) => window.storage.set(setupKey(h), "pending", false).catch(() => {});
 
-  const updateProfile = async ({ name, bio, avatar }) => {
+  const updateProfile = async ({ name, bio, avatar, accountType }, quiet) => {
     const users = get().users;
     const rec = users[me] || { joinedAt: now(), followers: [], following: [] };
-    const next = { ...rec, name: name.trim() || me, bio: (bio || "").trim(), avatar: avatar || null };
+    const type = ["personal", "club", "business"].includes(accountType) ? accountType : rec.accountType || "personal";
+    const next = { ...rec, name: (name ?? rec.name ?? "").trim() || me, bio: (bio ?? rec.bio ?? "").trim(), avatar: avatar === undefined ? rec.avatar || null : avatar || null, accountType: type };
     await save("users", { ...users, [me]: next });
-    sync((id) => remote.write.profile(id, { name: next.name.slice(0, 40), bio: next.bio.slice(0, 150), avatar: next.avatar }));
-    flash("Profile updated");
+    sync((id) => remote.write.profile(id, { name: next.name.slice(0, 40), bio: next.bio.slice(0, 150), avatar: next.avatar, accountType: type }));
+    if (!quiet) flash("Profile updated");
   };
 
   const logout = async () => {
@@ -827,7 +841,7 @@ export function useStore(flash) {
   return {
     me, loading, flash, prefs, remote: REMOTE, ...data,
     actions: {
-      claimUsername, updateProfile, logout, deleteAccount, checkHandle, signUp, signIn, resetPassword,
+      claimUsername, updateProfile, logout, deleteAccount, checkHandle, signUp, signIn, resetPassword, confirmReset,
       addCar, editCar, deleteCar, addMod, toggleFollowCar, spotCar, logSighting,
       createPost, editPost, setArchived, deletePost, toggleLike, addComment, addReply,
       toggleFollow, toggleNewsLike, submitMeet, deleteMeet, toggleGoing,

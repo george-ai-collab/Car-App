@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { User, Car, Archive, LogOut, Trash2, ChevronRight, Info, Pencil, Image as ImageIcon } from "lucide-react";
+import { User, Car, Archive, LogOut, Trash2, ChevronRight, Info, Pencil, Image as ImageIcon, Users } from "lucide-react";
 import { T } from "../theme";
 import { fmtDate } from "../lib/utils";
-import { Avatar, EmptyState, Field, TextInput, TextArea, ConfirmDialog, SectionLabel } from "../components/ui";
+import { Avatar, EmptyState, Field, TextInput, TextArea, ConfirmDialog, SectionLabel, BottomSheet } from "../components/ui";
 import { CameraCapture } from "../components/photo/CameraCapture";
 import { REMOTE } from "../backend/config";
+import { AccountTypePicker, ACCOUNT_TYPES } from "../components/Welcome";
 
 export const APP_VERSION = `0.2${import.meta.env?.VITE_BUILD ? `.${import.meta.env.VITE_BUILD}` : ".0"} beta`;
 
@@ -38,6 +39,7 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour }) 
   const remote = REMOTE;
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [typeOpen, setTypeOpen] = useState(false);
   const user = users[me] || {};
   const carCount = Object.values(cars).filter((c) => c.ownerUsername === me).length;
   const archivedCount = Object.values(posts).filter((p) => p.authorUsername === me && p.archived).length;
@@ -62,6 +64,7 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour }) 
       <Group>
         <Row icon={<User size={16} />} label="Edit profile" sub="Photo, name, bio" onClick={() => go("editProfile")} />
         <Row icon={<Car size={16} />} label="My cars" sub={`${carCount} ${carCount === 1 ? "car" : "cars"} · edit or delete`} onClick={() => go("manageCars")} />
+        <Row icon={<Users size={16} />} label="Account type" sub={ACCOUNT_TYPES.find((t) => t.id === (user.accountType || "personal"))?.title} onClick={() => setTypeOpen(true)} />
         <Row icon={<Archive size={16} />} label="Archived posts" sub={archivedCount ? `${archivedCount} hidden` : "None"} onClick={() => go("archive")} />
       </Group>
 
@@ -84,6 +87,9 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour }) 
         <Info size={12} /> Carfooly {APP_VERSION}{user.joinedAt ? ` · joined ${fmtDate(user.joinedAt)}` : ""}
       </div>
 
+      <BottomSheet open={typeOpen} onClose={() => setTypeOpen(false)} title="Account type" maxHeight="80vh">
+        <AccountTypePicker value={user.accountType || "personal"} onChange={(t) => { actions.updateProfile({ accountType: t }, true); setTypeOpen(false); }} />
+      </BottomSheet>
       <ConfirmDialog open={confirmLogout} onClose={() => setConfirmLogout(false)} title="Log out?" confirmLabel="Log out"
         body={remote ? "Everything stays in your account. Log back in any time." : "Your stuff stays on this phone. Log back in with the same handle to get it back."} onConfirm={actions.logout} />
       <ConfirmDialog open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete your account?" confirmLabel="Delete everything"
@@ -134,7 +140,7 @@ export function EditProfile({ me, users, onSave }) {
 }
 
 // Square-crops the chosen photo to a small circle-ready avatar.
-function AvatarPicker({ onPick }) {
+export function AvatarPicker({ onPick }) {
   const [open, setOpen] = useState(false);
   const crop = (src) => new Promise((resolve) => {
     const img = new Image();

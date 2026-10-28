@@ -33,7 +33,7 @@ async function step(label, page, fn) {
   }
 }
 
-async function signUp(page, name, handle) {
+async function signUp(page, name, handle, welcome) {
   await page.getByTestId("mode-create").click();
   await page.getByPlaceholder("e.g. George Q").fill(name);
   await page.getByPlaceholder("e.g. george_q").fill(handle);
@@ -43,8 +43,18 @@ async function signUp(page, name, handle) {
   await page.getByTestId("submit-create").click();
   await Promise.race([
     page.getByTestId("auth-error").waitFor().then(async () => { throw new Error(await page.getByTestId("auth-error").innerText()); }),
-    page.locator("[data-testid=tour], [data-tab=feed]").first().waitFor(),
+    page.getByTestId("welcome").waitFor(),
   ]);
+  // New-account setup: A fills it in (bio + Club), B skips through.
+  if (welcome) {
+    await page.getByPlaceholder("Your cars, your scene, your plans").fill(welcome.bio);
+    await page.getByTestId("welcome-next").click();
+    await page.getByTestId(`type-${welcome.type}`).click();
+    await page.getByTestId("welcome-next").click();
+  } else {
+    await page.getByTestId("welcome-skip").click(); await page.getByTestId("welcome-skip").click();
+  }
+  await page.getByTestId("welcome-done").click();
   try { await page.getByTestId("tour").waitFor({ timeout: 3000 }); await btn(page, "Skip").click(); } catch { /* no tour */ }
 }
 async function deleteAccount(page) {
@@ -60,7 +70,7 @@ const caption = `Online test ${run}`;
 const A = await phone("A");
 const B = await phone("B");
 
-await step("A: create an account with email + password", A, () => signUp(A, "Test Driver A", a));
+await step("A: create an account with email + password, then the welcome steps", A, () => signUp(A, "Test Driver A", a, { bio: `Bio ${run}`, type: "club" }));
 await step("A: post a photo (uploads to photo storage)", A, async () => {
   await A.locator("[data-tab=add]").click();
   await A.getByTestId("add-post").click();
@@ -94,6 +104,12 @@ await step("B: likes, comments on and follows A", B, async () => {
   await B.getByPlaceholder("Add a comment…").fill("Clean!");
   await btn(B, "Post").last().click();
   await B.waitForTimeout(4000);
+});
+await step("B: sees A's bio and Club label (saved online in the welcome steps)", B, async () => {
+  await B.locator("[data-testid=feed-slide]", { hasText: caption }).getByRole("button", { name: `Open ${a}` }).first().click();
+  await B.getByText(`Bio ${run}`).waitFor();
+  await B.getByTestId("account-label").filter({ hasText: "CLUB" }).waitFor();
+  await B.locator("[data-tab=feed]").click();
 });
 await step("A: after reopening the app, still signed in and gets all 3 notifications", A, async () => {
   await A.reload();

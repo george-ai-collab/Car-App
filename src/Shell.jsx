@@ -19,6 +19,7 @@ import { AddPage } from "./components/AddMenu";
 import { Tour } from "./components/Tour";
 import { SettingsScreen, EditProfile, ManageCars, ArchivedPosts } from "./screens/Settings";
 import { ShareTagSheet } from "./components/ShareTag";
+import { Welcome } from "./components/Welcome";
 import { parseTag } from "./lib/tag";
 import { scanTag } from "./lib/scan";
 
@@ -35,7 +36,25 @@ export function Shell({ store, toast }) {
   useEffect(() => {
     window.storage.get(`carfooly-tour:${me}`, false).then((r) => { if (!r) setTour(true); }).catch(() => {});
   }, [me]);
-  const endTour = () => { setTour(false); window.storage.set(`carfooly-tour:${me}`, "seen", false).catch(() => {}); };
+  // Brand-new account: the short "make it yours" setup comes first (then the intro).
+  const [setup, setSetup] = useState(false);
+  useEffect(() => {
+    if (window.__skipWelcome) return; // tests
+    window.storage.get(`carfooly-setup:${me}`, false).then((r) => { if (r?.value === "pending") setSetup(true); }).catch(() => {});
+  }, [me]);
+  const finishSetup = async (data, addCar) => {
+    await a.updateProfile(data, true);
+    window.storage.set(`carfooly-setup:${me}`, "done", false).catch(() => {});
+    setSetup(false);
+    // "Add my car": open the car form once the intro (if any) is done.
+    if (addCar) { if (tour) addCarAfterTour.current = true; else go("addCar"); }
+  };
+  const addCarAfterTour = useRef(false);
+  const endTour = () => {
+    if (addCarAfterTour.current) { addCarAfterTour.current = false; go("addCar"); }
+    setTour(false);
+    window.storage.set(`carfooly-tour:${me}`, "seen", false).catch(() => {});
+  };
   const pickAdd = (kind) => {
     if (kind === "post") go("compose", { fromAdd: true });
     else if (kind === "spot") go("quickSpot", { fromAdd: true });
@@ -258,10 +277,11 @@ export function Shell({ store, toast }) {
           </div>
         )}
 
-        {tour && <Tour onDone={endTour} />}
+        {setup && <Welcome me={me} user={users[me]} onDone={finishSetup} />}
+        {tour && !setup && <Tour onDone={endTour} />}
         <PermissionNotice />
         <ShareTagSheet open={!!tagFor} onClose={() => setTagFor(null)} {...(tagFor || {})} flash={store.flash} onScan={() => { setTagFor(null); scan(); }} />
-        <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0} />
+        <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0 || setup} />
       </div>
     </SheetContext.Provider>
     </SafetyContext.Provider>
