@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BODY_STACK, T } from "./theme";
 import { useStore } from "./store/useStore";
 import { GlobalStyle, LoadingScreen, UsersContext } from "./components/ui";
@@ -16,6 +16,12 @@ export default function App() {
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
   const store = useStore(flash);
+  // Any part of the app can show a short message: window.dispatchEvent(new CustomEvent("carfooly-flash", { detail: "…" }))
+  useEffect(() => {
+    const on = (e) => flash(e.detail);
+    window.addEventListener("carfooly-flash", on);
+    return () => window.removeEventListener("carfooly-flash", on);
+  }, [flash]);
 
   return (
     <UsersContext.Provider value={store.users}>

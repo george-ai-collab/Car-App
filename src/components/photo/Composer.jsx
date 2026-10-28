@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Camera, Image as ImageIcon, Plus, X, ChevronLeft, Crop, Sparkles, SlidersHorizontal, Type, Square, RotateCw, Trash2, Loader2, MapPin, AtSign, Users, Car, Search } from "lucide-react";
+import { Camera, Film, Image as ImageIcon, Plus, X, ChevronLeft, Crop, Sparkles, SlidersHorizontal, Type, Square, RotateCw, Trash2, Loader2, MapPin, AtSign, Users, Car, Search } from "lucide-react";
 import { T } from "../../theme";
 import { uid } from "../../lib/utils";
 import { readPhoto } from "./CameraCapture";
@@ -8,8 +8,13 @@ import { SHAPES, FILTERS, TEXT_COLORS, blankEdit, shapeRatio, angleOf, coverScal
 import { Avatar, BottomSheet, ChipPicker, Section, TextArea, TextInput } from "../ui";
 import { labelFor, placeArea } from "../LocationPicker";
 import { MAX_LINES } from "../../lib/text";
+import { VideoTrim } from "./VideoTrim";
+import { readVideo, processVideo, MAX_SECONDS, fmtSecs } from "../../lib/video";
+import { REMOTE } from "../../backend/config";
 
 const MAX_PHOTOS = 10;
+const blobToDataUrl = (b) => new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(b); });
+const alertVideo = () => window.dispatchEvent(new CustomEvent("carfooly-flash", { detail: "Couldn't open that video." }));
 
 // Posting, in three steps like the big apps:
 //   1. pick photos (camera or gallery, up to 10)  2. edit them  3. details, then Share.
@@ -18,6 +23,18 @@ export function ComposerFlow({ me, cars, communities, users, initialCommunityId,
   const [edits, setEdits] = useState([]);
   const [shape, setShape] = useState("original");
   const [busy, setBusy] = useState(false);
+  const [video, setVideo] = useState(null); // { url, duration, w, h, start, end, muted }
+  const [preparing, setPreparing] = useState(null); // 0..1 while the video is being prepared
+
+  const addVideo = async (file) => {
+    if (!file) return;
+    try {
+      const v = await readVideo(file);
+      if (!(v.duration > 0.5)) throw new Error("too short");
+      setVideo({ ...v, start: 0, end: Math.min(v.duration, MAX_SECONDS), muted: false });
+      setStep("video");
+    } catch { alertVideo(); }
+  };
 
   const addFiles = async (files) => {
     const list = [...files].slice(0, MAX_PHOTOS - edits.length);
@@ -30,6 +47,21 @@ export function ComposerFlow({ me, cars, communities, users, initialCommunityId,
 
   const share = async (details) => {
     setBusy(true);
+    if (video) {
+      try {
+        setPreparing(0);
+        const out = await processVideo(video.url, video.start, video.end, { muted: video.muted, onProgress: setPreparing });
+        setPreparing(null);
+        // Online: the file is uploaded when the post is saved. Phone-only test mode keeps it as text.
+        const url = REMOTE ? URL.createObjectURL(out.blob) : await blobToDataUrl(out.blob);
+        await onSubmit({ ...details, photos: [{ type: "video", url, poster: out.poster, aspect: out.aspect, duration: out.duration, mime: out.type }] });
+      } catch (e) {
+        setPreparing(null);
+        if (e?.message !== "cancelled") window.dispatchEvent(new CustomEvent("carfooly-flash", { detail: "Couldn't prepare that video. Try a shorter part." }));
+      }
+      setBusy(false);
+      return;
+    }
     const ratio = shapeRatio(shape, edits[0]);
     const photos = [];
     for (const e of edits) photos.push(await bakeEdit(e, ratio));
@@ -39,22 +71,35 @@ export function ComposerFlow({ me, cars, communities, users, initialCommunityId,
 
   return (
     <div data-testid={`compose-${step}`} style={{ paddingBottom: 10 }}>
-      {step === "pick" && <PickStep onFiles={addFiles} onCancel={onCancel} />}
+      {step === "pick" && <PickStep onFiles={addFiles} onVideo={addVideo} onCancel={onCancel} />}
+      {step === "video" && video && (
+        <VideoTrim video={video} setVideo={setVideo} onBack={() => { setVideo(null); setStep("pick"); }} onNext={() => setStep("details")} />
+      )}
+      {preparing !== null && (
+        <div data-testid="video-preparing" style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(6,6,7,0.9)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 30 }}>
+          <Loader2 size={30} color={T.accent} style={{ animation: "spin 1s linear infinite" }} />
+          <div style={{ color: T.text, fontWeight: 800, fontSize: 16 }}>Preparing your video… {Math.round(preparing * 100)}%</div>
+          <div style={{ width: 220, height: 6, borderRadius: 99, background: "rgba(255,255,255,0.12)", overflow: "hidden" }}>
+            <div style={{ width: `${Math.round(preparing * 100)}%`, height: "100%", background: T.accent, transition: "width 0.3s" }} />
+          </div>
+          <div style={{ color: T.textDim, fontSize: 12.5, textAlign: "center" }}>Making it smaller so it uploads fast. This takes about as long as the clip.</div>
+        </div>
+      )}
       {step === "edit" && (
         <EditStep edits={edits} setEdits={setEdits} shape={shape} setShape={setShape} onFiles={addFiles}
           onBack={() => { setEdits([]); setStep("pick"); }} onNext={() => setStep("details")} />
       )}
       {step === "details" && (
         <DetailsStep me={me} cars={cars} communities={communities} users={users} initialCommunityId={initialCommunityId}
-          edits={edits} shape={shape} busy={busy} onBack={() => setStep("edit")} onShare={share} />
+          edits={edits} shape={shape} busy={busy} video={video} onBack={() => setStep(video ? "video" : "edit")} onShare={share} />
       )}
     </div>
   );
 }
 
 // ---------- 1. pick: gallery first (recent photos + albums), camera as the other option ----------
-function PickStep({ onFiles, onCancel }) {
-  const cam = useRef(null), lib = useRef(null);
+function PickStep({ onFiles, onVideo, onCancel }) {
+  const cam = useRef(null), lib = useRef(null), vid = useRef(null);
   const [opening, setOpening] = useState(false);
   const openGallery = async () => {
     if (canPickNatively()) {
@@ -85,6 +130,14 @@ function PickStep({ onFiles, onCancel }) {
         <div style={{ flex: 1 }}>
           <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>Take a photo</div>
           <div style={{ color: T.textDim, fontSize: 12.5 }}>Use the camera instead</div>
+        </div>
+      </button>
+      <input ref={vid} type="file" accept="video/*" style={{ display: "none" }} data-testid="pick-video" onChange={(e) => { onVideo(e.target.files?.[0]); e.target.value = ""; }} />
+      <button data-testid="open-video" onClick={() => vid.current.click()} className="press" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: 16, marginTop: 10, borderRadius: 20, border: `1px solid ${T.lineDark}`, background: T.surface, textAlign: "left" }}>
+        <Film size={22} color={T.text} />
+        <div style={{ flex: 1 }}>
+          <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>Post a video</div>
+          <div style={{ color: T.textDim, fontSize: 12.5 }}>Up to 1 minute · you can trim longer clips</div>
         </div>
       </button>
     </div>
@@ -332,7 +385,7 @@ function TextSheet({ open, onClose, onAdd }) {
 }
 
 // ---------- 3. details ----------
-function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, shape, busy, onBack, onShare }) {
+function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, shape, busy, video, onBack, onShare }) {
   const byName = (a, b) => a.make.localeCompare(b.make);
   const myCars = Object.values(cars).filter((c) => c.ownerUsername === me).sort(byName);
   const spotted = Object.values(cars).filter((c) => c.ownerUsername !== me && c.hasPage !== false && c.spotterUsernames.includes(me)).sort(byName);
@@ -343,7 +396,7 @@ function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, 
   const [caption, setCaption] = useState("");
   const [location, setLocation] = useState(null);
   const [tags, setTags] = useState([]);
-  const canShare = !busy && edits.length > 0;
+  const canShare = !busy && (edits.length > 0 || !!video);
   const ratio = shapeRatio(shape, edits[0]);
 
   const carOptions = [
@@ -362,7 +415,13 @@ function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, 
         })} className="press" style={{ ...nextBtn, opacity: canShare ? 1 : 0.5 }}>{busy ? <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> : "Share"}</button>} />
 
       <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
-        {edits.length > 0 && (
+        {video && (
+          <div style={{ position: "relative", width: 84, flexShrink: 0, aspectRatio: String(Math.max(0.56, Math.min(1.78, video.w / video.h || 1))), borderRadius: 14, overflow: "hidden", background: "#000", alignSelf: "flex-start" }}>
+            <video src={`${video.url}#t=${video.start}`} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <span style={{ position: "absolute", right: 4, bottom: 4, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 10.5, fontWeight: 700, padding: "2px 6px", borderRadius: 999 }}>{fmtSecs(video.end - video.start)}</span>
+          </div>
+        )}
+        {edits.length > 0 && !video && (
           <div style={{ position: "relative", width: 84, flexShrink: 0, aspectRatio: String(ratio), borderRadius: 14, overflow: "hidden", background: `url(${edits[0].src}) center/cover`, filter: cssFilter(edits[0]), alignSelf: "flex-start" }}>
             {edits.length > 1 && <span style={{ position: "absolute", right: 4, top: 4, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 10.5, fontWeight: 700, padding: "2px 6px", borderRadius: 999 }}>{edits.length}</span>}
           </div>

@@ -96,24 +96,32 @@ export async function confirmReset({ email, code, password }) {
 
 // Deletes your photos, then your account (everything you made goes with it).
 export async function deleteAccount(userId) {
-  try {
-    const files = await must(sb().storage.from("photos").list(userId, { limit: 1000 }));
-    if (files?.length) await sb().storage.from("photos").remove(files.map((f) => `${userId}/${f.name}`));
-  } catch { /* photos are cleaned up best-effort */ }
+  for (const bucket of ["photos", "videos"]) {
+    try {
+      const files = await must(sb().storage.from(bucket).list(userId, { limit: 1000 }));
+      if (files?.length) await sb().storage.from(bucket).remove(files.map((f) => `${userId}/${f.name}`));
+    } catch { /* cleaned up best-effort */ }
+  }
   await must(sb().rpc("delete_my_account"));
   await signOut();
 }
 
 // ---------- photos ----------
 // Photos made on the phone are "data:" text. Upload them and keep the web link instead.
+// Videos go to the "videos" storage (blob: links from the video maker).
 export async function uploadIfNeeded(userId, url) {
-  if (!url || typeof url !== "string" || !url.startsWith("data:")) return url || null;
+  if (!url || typeof url !== "string" || !(url.startsWith("data:") || url.startsWith("blob:"))) return url || null;
   const blob = await (await fetch(url)).blob();
-  const type = ["image/jpeg", "image/png", "image/webp"].includes(blob.type) ? blob.type : "image/jpeg";
-  const ext = type.split("/")[1].replace("jpeg", "jpg");
+  const isVideo = blob.type.startsWith("video/");
+  const type = isVideo
+    ? (["video/mp4", "video/webm", "video/quicktime"].includes(blob.type) ? blob.type : "video/mp4")
+    : (["image/jpeg", "image/png", "image/webp"].includes(blob.type) ? blob.type : "image/jpeg");
+  const ext = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" }[type];
+  const bucket = isVideo ? "videos" : "photos";
   const path = `${userId}/${crypto.randomUUID()}.${ext}`;
-  await must(sb().storage.from("photos").upload(path, blob, { contentType: type, upsert: false }));
-  return sb().storage.from("photos").getPublicUrl(path).data.publicUrl;
+  await must(sb().storage.from(bucket).upload(path, blob, { contentType: type, upsert: false }));
+  if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+  return sb().storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 
 // ---------- loading ----------
@@ -210,7 +218,7 @@ export async function load(userId) {
     const photos = Array.isArray(p.photos) ? p.photos : [];
     postsOut[p.id] = {
       id: p.id, carId: p.car_id, carLabel: p.car_label, authorUsername: h(p.author_id),
-      photos, photoUrl: photos[0]?.url || null, photoAspect: photos[0]?.aspect || null,
+      photos, photoUrl: photos[0]?.poster || photos[0]?.url || null, photoAspect: photos[0]?.aspect || null,
       caption: p.caption, date: p.created_at, likes: handles(likesOf[p.id] || [], "user_id"), comments: top,
       communityId: p.community_id, location: p.location || null,
       tags: (p.tags || []).map(h).filter(Boolean), archived: p.archived, ...(p.edited_at ? { editedAt: p.edited_at } : {}), ...(p.hidden ? { hidden: true } : {}),
@@ -346,7 +354,10 @@ export const write = {
   // posts
   createPost: async (me, post, tagIds, carEvents) => {
     const photos = [];
-    for (const p of post.photos) photos.push({ url: await uploadIfNeeded(me, p.url), aspect: p.aspect ?? null });
+    for (const p of post.photos) {
+      if (p.type === "video") photos.push({ type: "video", url: await uploadIfNeeded(me, p.url), poster: await uploadIfNeeded(me, p.poster), aspect: p.aspect ?? null, duration: p.duration ?? null });
+      else photos.push({ url: await uploadIfNeeded(me, p.url), aspect: p.aspect ?? null });
+    }
     await must(sb().from("posts").insert({
       id: post.id, author_id: me, car_id: post.carId, car_label: post.carLabel, community_id: post.communityId,
       photos, caption: post.caption, location: post.location, tags: tagIds,

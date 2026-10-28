@@ -474,7 +474,7 @@ export function useStore(flash) {
       ...get().posts,
       [id]: {
         id, carId: car ? carId : null, carLabel: car ? "" : (carLabel || "").trim().slice(0, 50), authorUsername: me,
-        photos: pics, photoUrl: pics[0]?.url || null, photoAspect: pics[0]?.aspect || null,
+        photos: pics, photoUrl: pics[0]?.poster || pics[0]?.url || null, photoAspect: pics[0]?.aspect || null,
         caption: caption.trim(), date: t, likes: [], comments: [], communityId: communityId || null,
         location: location && location.label ? { label: location.label, city: location.city || "", lat: location.lat ?? null, lng: location.lng ?? null } : null,
         tags: tagged,

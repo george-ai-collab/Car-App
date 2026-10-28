@@ -1,5 +1,47 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Volume2, VolumeX, Play } from "lucide-react";
 import { T } from "../../theme";
+
+// Sound for videos is one setting for the whole app (off until you turn it on, like TikTok/Instagram).
+let soundOn = false;
+const soundListeners = new Set();
+const setSound = (on) => { soundOn = on; soundListeners.forEach((fn) => fn(on)); };
+
+// A video in a post: plays by itself while it's on screen (paused otherwise), loops, tap the
+// speaker for sound.
+export function PostVideo({ item, mode }) {
+  const ref = useRef(null);
+  const [sound, setSoundState] = useState(soundOn);
+  const [paused, setPaused] = useState(false);
+  useEffect(() => { soundListeners.add(setSoundState); return () => soundListeners.delete(setSoundState); }, []);
+  useEffect(() => {
+    const v = ref.current;
+    if (!v || !("IntersectionObserver" in window)) return;
+    const io = new IntersectionObserver(([en]) => {
+      if (en.isIntersecting && en.intersectionRatio > 0.6) v.play().then(() => setPaused(false)).catch(() => setPaused(true));
+      else v.pause();
+    }, { threshold: [0, 0.6, 1] });
+    io.observe(v);
+    return () => io.disconnect();
+  }, []);
+  useEffect(() => { if (ref.current) ref.current.muted = !sound; }, [sound]);
+  return (
+    <>
+      {mode === "feed" && item.poster && <div aria-hidden style={{ position: "absolute", inset: -40, background: `url(${item.poster}) center/cover`, filter: "blur(28px) brightness(0.5)" }} />}
+      <video ref={ref} data-testid="post-video" src={item.url} poster={item.poster || undefined} muted={!sound} loop playsInline preload="metadata"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
+      {paused && (
+        <button aria-label="Play" onClick={() => ref.current?.play().then(() => setPaused(false)).catch(() => {})} style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: 64, height: 64, borderRadius: 999, border: "none", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2 }}>
+          <Play size={28} color="#fff" fill="#fff" />
+        </button>
+      )}
+      <button aria-label={sound ? "Mute" : "Turn sound on"} data-testid="video-sound" onClick={(e) => { e.stopPropagation(); setSound(!sound); }}
+        style={{ position: "absolute", left: 12, top: mode === "feed" ? 76 : 10, zIndex: 3, width: 36, height: 36, borderRadius: 999, border: "none", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {sound ? <Volume2 size={17} color="#fff" /> : <VolumeX size={17} color="#fff" />}
+      </button>
+    </>
+  );
+}
 
 // Swipe sideways through a post's photos, with dots underneath (like Instagram).
 // mode "feed": fills the screen, blurred fill behind each photo. mode "detail": a box in the photo's shape.
@@ -29,8 +71,12 @@ export function PhotoCarousel({ photos, mode = "feed" }) {
       }}>
         {photos.map((p, k) => (
           <div key={k} style={{ position: "relative", flex: "0 0 100%", height: "100%", scrollSnapAlign: "center", overflow: "hidden" }}>
-            {mode === "feed" && <div aria-hidden style={{ position: "absolute", inset: -40, background: `url(${p.url}) center/cover`, filter: "blur(28px) brightness(0.55)" }} />}
-            <img src={p.url} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
+            {p.type === "video" ? <PostVideo item={p} mode={mode} /> : (
+              <>
+                {mode === "feed" && <div aria-hidden style={{ position: "absolute", inset: -40, background: `url(${p.url}) center/cover`, filter: "blur(28px) brightness(0.55)" }} />}
+                <img src={p.url} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
+              </>
+            )}
           </div>
         ))}
       </div>
