@@ -3,6 +3,7 @@ import { uid } from "../lib/utils";
 import { SEED_NEWS } from "../lib/seedNews";
 import { REMOTE, REFRESH_MS } from "../backend/config";
 import { cleanText, MAX_LINES } from "../lib/text";
+import { findBanned, handleProblem, RESPECT_MESSAGE } from "../lib/moderation";
 import * as remote from "../backend/remote";
 
 // All app data lives here. Screens call these actions; actions only change data
@@ -41,7 +42,7 @@ export function useStore(flash) {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({
-    cars: {}, posts: {}, users: {}, news: {}, meets: {}, communities: {}, notifications: {}, sightings: {}, discussions: {},
+    cars: {}, posts: {}, users: {}, news: {}, meets: {}, communities: {}, notifications: {}, sightings: {}, discussions: {}, reports: [],
   });
   // Private to the signed-in person: posts they hid ("not interested") and people they blocked.
   const [prefs, setPrefs] = useState({ hidden: [], blocked: [] });
@@ -139,16 +140,17 @@ export function useStore(flash) {
   useEffect(() => {
     if (REMOTE) return;
     (async () => {
-      const [c, p, u, n, m, co, nf, sg, ds, meRes] = await Promise.all([
+      const [c, p, u, n, m, co, nf, sg, ds, meRes, rp] = await Promise.all([
         readShared(KEYS.cars), readShared(KEYS.posts), readShared(KEYS.users), readShared(KEYS.news),
         readShared(KEYS.meets), readShared(KEYS.communities), readShared(KEYS.notifications), readShared(KEYS.sightings), readShared(KEYS.discussions),
-        window.storage.get(KEYS.me, false).catch(() => null),
+        window.storage.get(KEYS.me, false).catch(() => null), readShared(KEYS.reports),
       ]);
       const seed = {};
       SEED_NEWS.forEach((item) => { seed[item.id] = { ...item, submittedBy: null, likes: [] }; });
       const next = {
         cars: c || {}, posts: p || {}, users: u || {}, news: { ...seed, ...(n || {}) },
         meets: normalizeMeets(m), communities: co || {}, notifications: nf || {}, sightings: sg || {}, discussions: ds || {},
+        reports: Object.values(rp || {}).filter((r) => r.status === "open"),
       };
       ref.current = next;
       setData(next);
@@ -195,6 +197,8 @@ export function useStore(flash) {
   const claimUsername = async (handle, displayName) => {
     const clean = handle.trim().replace(/^@/, "").toLowerCase();
     if (!/^[a-z0-9_.]{2,24}$/.test(clean)) { flash("Handles use 2–24 letters, numbers, _ or ."); return; }
+    const problem = !get().users[clean] && handleProblem(clean);
+    if (problem) { flash(problem === "reserved" ? "That handle is reserved." : "That handle isn't allowed."); return; }
     try {
       await window.storage.set(KEYS.me, clean, false);
       const users = get().users;
@@ -204,7 +208,7 @@ export function useStore(flash) {
         ...users,
         [clean]: existing
           ? { ...existing, name: displayName.trim() || existing.name || clean }
-          : { name: displayName.trim() || clean, joinedAt: now(), followers: [], following: [] },
+          : { name: displayName.trim() || clean, joinedAt: now(), followers: [], following: [], ...((window.__localAdmins || []).includes(clean) ? { isAdmin: true } : {}) },
       });
       setMe(clean);
     } catch { flash("Couldn't save your name. Try again."); }
@@ -213,14 +217,24 @@ export function useStore(flash) {
   // Online accounts: email + password. The handle is reserved by the database.
   const resetToSignedOut = () => {
     meId.current = null;
-    const empty = { cars: {}, posts: {}, users: {}, news: {}, meets: {}, communities: {}, notifications: {}, sightings: {}, discussions: {} };
+    const empty = { cars: {}, posts: {}, users: {}, news: {}, meets: {}, communities: {}, notifications: {}, sightings: {}, discussions: {}, reports: [] };
     ref.current = empty;
     setData(empty);
     setPrefs({ hidden: [], blocked: [] });
     window.storage.delete(CACHE, false).catch(() => {});
     setMe(null);
   };
-  const checkHandle = (handle) => remote.handleAvailable(handle);
+  // 'ok' | 'taken' | 'reserved' | 'not_allowed' | null (offline)
+  const checkHandle = async (handle) => {
+    if (REMOTE) return remote.handleStatus(handle);
+    return handleProblem(handle) || (get().users[handle] ? "taken" : "ok");
+  };
+  // Words we don't allow, and suspended accounts: say so and don't save.
+  const refuse = (...texts) => {
+    if (me && get().users[me]?.banned) { flash("Your account has been suspended, so you can't post right now."); return true; }
+    if (texts.some((t) => findBanned(t))) { flash(RESPECT_MESSAGE); return true; }
+    return false;
+  };
   const signUp = async (f) => {
     const res = await remote.signUp(f);
     if (!res.error) await markNewAccount(f.handle);
@@ -248,6 +262,7 @@ export function useStore(flash) {
   const updateProfile = async ({ name, bio, avatar, accountType }, quiet) => {
     const users = get().users;
     const rec = users[me] || { joinedAt: now(), followers: [], following: [] };
+    if (refuse(name, bio)) return false;
     const type = ["personal", "club", "business"].includes(accountType) ? accountType : rec.accountType || "personal";
     const next = { ...rec, name: (name ?? rec.name ?? "").replace(/\s+/g, " ").trim() || me, bio: cleanText(bio ?? rec.bio ?? "", MAX_LINES.bio), avatar: avatar === undefined ? rec.avatar || null : avatar || null, accountType: type };
     await save("users", { ...users, [me]: next });
@@ -320,6 +335,7 @@ export function useStore(flash) {
 
   // ---------- cars ----------
   const addCar = async (f) => {
+    if (refuse(f.nickname)) return null;
     const id = newId("car");
     const t = now();
     const timeline = [{ id: newId("t"), type: "created", by: me, date: t }];
@@ -354,6 +370,7 @@ export function useStore(flash) {
   };
 
   const editCar = async (carId, f) => {
+    if (typeof f.nickname === "string" && refuse(f.nickname)) return;
     const car = get().cars[carId];
     if (!car || car.ownerUsername !== me) return;
     const fields = ["make", "model", "year", "nickname", "engine", "power", "gearbox", "weight", "wheels", "zeroToSixty", "topSpeed"];
@@ -444,6 +461,7 @@ export function useStore(flash) {
   // A post: up to 10 photos, an optional car tag, location, tagged people and community.
   const createPost = async ({ carId, carLabel, photos = [], photoUrl, photoAspect, caption: rawCaption, communityId, location, tags = [] }) => {
     const caption = cleanText(rawCaption, MAX_LINES.caption);
+    if (refuse(caption, carLabel)) return null;
     const car = carId ? get().cars[carId] : null;
     const pics = photos.length ? photos.slice(0, 10) : photoUrl ? [{ url: photoUrl, aspect: photoAspect || null }] : [];
     if (!pics.length && !caption.trim()) return null;
@@ -480,13 +498,17 @@ export function useStore(flash) {
     return id;
   };
 
-  const editPost = async (postId, rawCaption) => {
+  // Edit a post's caption and (optionally) which of your cars it's tagged with. carId: undefined = keep.
+  const editPost = async (postId, rawCaption, carId) => {
     const caption = cleanText(rawCaption, MAX_LINES.caption);
+    if (refuse(caption)) return false;
     const post = get().posts[postId];
     if (!post || post.authorUsername !== me) return;
-    await save("posts", { ...get().posts, [postId]: { ...post, caption: caption.trim(), editedAt: now() } });
-    sync((id) => remote.write.editPost(id, postId, caption.trim().slice(0, 280)));
-    flash("Caption updated");
+    const nextCar = carId === undefined ? post.carId : (carId && get().cars[carId] ? carId : null);
+    const carLabel = nextCar ? "" : post.carLabel || "";
+    await save("posts", { ...get().posts, [postId]: { ...post, caption, carId: nextCar, carLabel, editedAt: now() } });
+    sync((id) => remote.write.editPost(id, postId, caption.slice(0, 280), nextCar, carLabel));
+    flash("Post updated");
   };
 
   // Archived posts are hidden from everyone but can be brought back from Settings.
@@ -553,6 +575,7 @@ export function useStore(flash) {
   const addComment = async (postId, text) => {
     const post = get().posts[postId];
     if (!post || !text.trim()) return;
+    if (refuse(text)) return false;
     const c = { id: newId("c"), author: me, text: text.trim().slice(0, 220), date: now(), replies: [] };
     await save("posts", { ...get().posts, [postId]: { ...post, comments: [...post.comments, c] } });
     sync((id) => remote.write.comment(id, postId, c));
@@ -562,6 +585,7 @@ export function useStore(flash) {
   const addReply = async (postId, commentId, text) => {
     const post = get().posts[postId];
     if (!post || !text.trim()) return;
+    if (refuse(text)) return false;
     const comment = post.comments.find((c) => c.id === commentId);
     if (!comment) return;
     const reply = { id: newId("r"), author: me, text: text.trim().slice(0, 220), date: now() };
@@ -602,6 +626,7 @@ export function useStore(flash) {
   // A meet: what, when, where (with city/country for Near you), cover photo, sponsors, details.
   const submitMeet = async (f, editingId) => {
     if (!f.title.trim() || !f.location.trim() || !f.when) return null;
+    if (refuse(f.title, f.note, f.location)) return null;
     const fields = {
       title: f.title.trim(), location: f.location.trim(), lat: f.lat ?? null, lng: f.lng ?? null,
       city: (f.city || "").trim(), country: (f.country || "").trim(),
@@ -681,6 +706,7 @@ export function useStore(flash) {
 
   const createCommunity = async ({ name, description }) => {
     if (!name.trim()) return null;
+    if (refuse(name, description)) return null;
     if (nameTaken(name)) { flash("A community with that name already exists"); return null; }
     const id = newId("community");
     const c = { id, name: name.trim().slice(0, 40), description: cleanText(description, MAX_LINES.description).slice(0, 200), kind: "custom", createdBy: me, members: [me], createdAt: now() };
@@ -693,6 +719,7 @@ export function useStore(flash) {
   const editCommunity = async (id, { name, description }) => {
     const c = get().communities[id];
     if (!c || c.createdBy !== me || !name.trim()) return false;
+    if (refuse(name, description)) return false;
     if (nameTaken(name, id)) { flash("A community with that name already exists"); return false; }
     const desc = cleanText(description, MAX_LINES.description).slice(0, 200);
     await save("communities", { ...get().communities, [id]: { ...c, name: name.trim(), description: desc } });
@@ -735,6 +762,7 @@ export function useStore(flash) {
 
   const createThread = async ({ communityId, title, body }) => {
     if (!title.trim() || !get().communities[communityId]) return null;
+    if (refuse(title, body)) return null;
     const id = newId("thread");
     const t = { id, communityId, author: me, title: title.replace(/\s+/g, " ").trim().slice(0, 100), body: cleanText(body, MAX_LINES.body).slice(0, 1000), date: now(), likes: [], replies: [] };
     await save("discussions", { ...get().discussions, [id]: t });
@@ -747,6 +775,7 @@ export function useStore(flash) {
   const replyThread = async (threadId, text) => {
     const t = get().discussions[threadId];
     if (!t || !text.trim()) return;
+    if (refuse(text)) return false;
     const reply = { id: newId("r"), author: me, text: text.trim().slice(0, 500), date: now() };
     await save("discussions", { ...get().discussions, [threadId]: { ...t, replies: [...t.replies, reply] } });
     sync((id) => remote.write.replyThread(id, threadId, reply));
@@ -774,6 +803,7 @@ export function useStore(flash) {
   const editThread = async (threadId, { title, body }) => {
     const t = get().discussions[threadId];
     if (!t || t.author !== me || !title.trim()) return;
+    if (refuse(title, body)) return false;
     const cleanBody = cleanText(body, MAX_LINES.body).slice(0, 1000);
     await save("discussions", { ...get().discussions, [threadId]: { ...t, title: title.trim(), body: cleanBody, editedAt: now() } });
     sync((id) => remote.write.editThread(id, threadId, title.trim().slice(0, 100), cleanBody));
@@ -796,13 +826,93 @@ export function useStore(flash) {
   };
 
   // ---------- safety: report, not interested, block ----------
+  // Reports. 3 reports from different people hide the thing until an admin looks (the database
+  // does this online; the phone-only test mode copies it).
   const report = async ({ kind, id, reason, note }) => {
     if (REMOTE) { sync((me2) => remote.write.report(me2, { kind, id, reason, note })); flash("Thanks. We'll take a look."); return; }
-    const rid = newId("report");
     const all = (await readShared(KEYS.reports)) || {};
+    if (Object.values(all).some((r) => r.by === me && r.kind === kind && r.targetId === id && r.status === "open")) { flash("You already reported this. Thanks!"); return; }
+    const rid = newId("report");
     const next = { ...all, [rid]: { id: rid, kind, targetId: id, reason, note: (note || "").trim(), by: me, date: now(), status: "open" } };
     try { await window.storage.set(KEYS.reports, JSON.stringify(next), true); } catch { /* ignore */ }
+    const open = Object.values(next).filter((r) => r.status === "open");
+    ref.current = { ...ref.current, reports: open };
+    setData(ref.current);
+    const reporters = new Set(open.filter((r) => r.kind === kind && r.targetId === id).map((r) => r.by));
+    if (reporters.size >= 3) await setHiddenLocal(kind, id, true);
     flash("Thanks. We'll take a look.");
+  };
+  // Phone-only mode: flag a post / comment / reply / discussion / discussion reply as hidden.
+  const setHiddenLocal = async (kind, id, hidden) => {
+    const d = get();
+    if (kind === "post" && d.posts[id]) await save("posts", { ...d.posts, [id]: { ...d.posts[id], hidden } });
+    if (kind === "comment" || kind === "reply") {
+      const posts = {};
+      Object.values(d.posts).forEach((p) => {
+        posts[p.id] = { ...p, comments: p.comments.map((c) => ({ ...(c.id === id ? { ...c, hidden } : c), replies: (c.replies || []).map((r) => (r.id === id ? { ...r, hidden } : r)) })) };
+      });
+      await save("posts", posts);
+    }
+    if (kind === "thread" && d.discussions[id]) await save("discussions", { ...d.discussions, [id]: { ...d.discussions[id], hidden } });
+    if (kind === "threadReply") {
+      const discussions = {};
+      Object.values(d.discussions).forEach((t) => { discussions[t.id] = { ...t, replies: t.replies.map((r) => (r.id === id ? { ...r, hidden } : r)) }; });
+      await save("discussions", discussions);
+    }
+  };
+  // Who wrote the reported thing (for "Ban").
+  const authorOf = (kind, id) => {
+    const d = get();
+    if (kind === "user") return id;
+    if (kind === "post") return d.posts[id]?.authorUsername;
+    if (kind === "comment" || kind === "reply") {
+      for (const p of Object.values(d.posts)) for (const c of p.comments) {
+        if (c.id === id) return c.author;
+        const r = (c.replies || []).find((x) => x.id === id);
+        if (r) return r.author;
+      }
+    }
+    if (kind === "thread") return d.discussions[id]?.author;
+    if (kind === "threadReply") { for (const t of Object.values(d.discussions)) { const r = t.replies.find((x) => x.id === id); if (r) return r.author; } }
+    if (kind === "meet") return d.meets[id]?.submittedBy;
+    if (kind === "community") return d.communities[id]?.createdBy;
+    if (kind === "car") return d.cars[id]?.ownerUsername;
+    return null;
+  };
+  // Admins: decide on everything reported about one thing. action: "remove" | "keep" | "ban".
+  const adminResolve = async (kind, id, action) => {
+    if (!get().users[me]?.isAdmin) return;
+    const author = authorOf(kind, id);
+    ref.current = { ...ref.current, reports: ref.current.reports.filter((r) => !(r.kind === kind && r.targetId === id)) };
+    setData(ref.current);
+    if (REMOTE) { sync((uid2) => remote.write.adminResolve(uid2, kind, id, action)); }
+    else {
+      const all = (await readShared(KEYS.reports)) || {};
+      const status = action === "keep" ? "dismissed" : action === "ban" ? "banned" : "removed";
+      Object.values(all).forEach((r) => { if (r.kind === kind && r.targetId === id && r.status === "open") all[r.id] = { ...r, status }; });
+      try { await window.storage.set(KEYS.reports, JSON.stringify(all), true); } catch { /* ignore */ }
+    }
+    const d = get();
+    if (action === "keep") { if (!REMOTE) await setHiddenLocal(kind, id, false); }
+    else if (kind !== "user") {
+      // remove it from this phone's copy straight away
+      if (kind === "post") { const { [id]: _x, ...posts } = d.posts; await save("posts", posts); }
+      if (kind === "comment" || kind === "reply") {
+        const posts = {};
+        Object.values(d.posts).forEach((p) => { posts[p.id] = { ...p, comments: p.comments.filter((c) => c.id !== id).map((c) => ({ ...c, replies: (c.replies || []).filter((r) => r.id !== id) })) }; });
+        await save("posts", posts);
+      }
+      if (kind === "thread") { const { [id]: _x, ...rest } = d.discussions; await save("discussions", rest); }
+      if (kind === "threadReply") { const disc = {}; Object.values(d.discussions).forEach((t) => { disc[t.id] = { ...t, replies: t.replies.filter((r) => r.id !== id) }; }); await save("discussions", disc); }
+      if (kind === "meet") { const { [id]: _x, ...rest } = d.meets; await save("meets", rest); }
+      if (kind === "community") { const { [id]: _x, ...rest } = d.communities; await save("communities", rest); }
+      if (kind === "car") { const { [id]: _x, ...rest } = d.cars; await save("cars", rest); }
+    }
+    if ((action === "ban" || (action === "remove" && kind === "user")) && author && author !== me) {
+      const u = get().users;
+      if (u[author]) await save("users", { ...u, [author]: { ...u[author], banned: true } });
+    }
+    flash(action === "keep" ? "Kept. Reports closed." : action === "ban" ? `Removed and @${author} banned` : "Removed");
   };
   const hidePost = async (postId) => {
     if (prefs.hidden.includes(postId)) return;
@@ -843,8 +953,20 @@ export function useStore(flash) {
     sync((id) => remote.write.readNotifications(id));
   };
 
+  const isAdmin = !!(me && data.users[me]?.isAdmin);
+  const shown = (x, author) => !x.hidden || isAdmin || author === me;
+  const visiblePosts = {};
+  Object.values(data.posts).forEach((p) => {
+    if (!shown(p, p.authorUsername)) return;
+    visiblePosts[p.id] = { ...p, comments: p.comments.filter((c) => shown(c, c.author)).map((c) => ({ ...c, replies: (c.replies || []).filter((r) => shown(r, r.author)) })) };
+  });
+  const visibleDiscussions = {};
+  Object.values(data.discussions).forEach((t) => {
+    if (!shown(t, t.author)) return;
+    visibleDiscussions[t.id] = { ...t, replies: t.replies.filter((r) => shown(r, r.author)) };
+  });
   return {
-    me, loading, flash, prefs, remote: REMOTE, ...data,
+    me, loading, flash, prefs, remote: REMOTE, isAdmin, ...data, posts: visiblePosts, discussions: visibleDiscussions,
     actions: {
       claimUsername, updateProfile, logout, deleteAccount, checkHandle, signUp, signIn, resetPassword, confirmReset,
       addCar, editCar, deleteCar, addMod, toggleFollowCar, spotCar, logSighting,
@@ -854,7 +976,7 @@ export function useStore(flash) {
       toggleCommentLike,
       createThread, replyThread, toggleThreadLike, deleteThread, editThread, deleteThreadReply, deleteComment,
       setMeetRole, setMeetCaps, editCommunity, deleteCommunity,
-      report, hidePost, undoHide, toggleBlock,
+      report, hidePost, undoHide, toggleBlock, adminResolve,
     },
   };
 }

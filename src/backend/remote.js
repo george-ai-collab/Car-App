@@ -25,10 +25,11 @@ export async function currentUserId() {
   return data?.session?.user?.id || null;
 }
 
-export async function handleAvailable(handle) {
-  const { data, error } = await sb().rpc("handle_available", { p_handle: handle });
-  if (error) return null; // unknown (offline): don't block, the database still checks
-  return !!data;
+// 'ok' | 'taken' | 'reserved' | 'not_allowed' | 'invalid', or null when offline (the database still checks).
+export async function handleStatus(handle) {
+  const { data, error } = await sb().rpc("handle_status", { p_handle: handle });
+  if (error) return null;
+  return data;
 }
 
 const authMessage = (error) => {
@@ -132,9 +133,9 @@ export async function load(userId) {
   const [
     profiles, follows, cars, carMods, carEvents, carFollows, carSpots, sightings,
     communities, members, threads, threadReplies, threadLikes,
-    posts, postLikes, comments, commentLikes, meets, attendees, newsLikes, notifications, blocks, hidden,
+    posts, postLikes, comments, commentLikes, meets, attendees, newsLikes, notifications, blocks, hidden, reports,
   ] = await Promise.all([
-    t("profiles", "id,handle,name,bio,avatar_url,account_type,created_at"),
+    t("profiles", "id,handle,name,bio,avatar_url,account_type,is_admin,banned,created_at"),
     t("follows", "follower_id,followee_id"),
     t("cars"), t("car_mods"), t("car_events"),
     t("car_follows", "car_id,user_id"), t("car_spots", "car_id,user_id"),
@@ -148,6 +149,7 @@ export async function load(userId) {
     t("notifications", "*", (q) => q.eq("recipient_id", userId).order("created_at", { ascending: false }).limit(200)),
     t("blocks", "blocked_id", (q) => q.eq("blocker_id", userId)),
     t("hidden_posts", "post_id", (q) => q.eq("user_id", userId)),
+    t("reports", "*", (q) => q.eq("status", "open").order("created_at", { ascending: false }).limit(300)), // admins only (others get none)
   ]);
 
   const H = {}; // user id -> handle
@@ -161,7 +163,7 @@ export async function load(userId) {
   const users = {};
   profiles.forEach((p) => {
     users[p.handle] = {
-      id: p.id, name: p.name || p.handle, bio: p.bio || "", avatar: p.avatar_url || null, accountType: p.account_type || "personal", joinedAt: p.created_at,
+      id: p.id, name: p.name || p.handle, bio: p.bio || "", avatar: p.avatar_url || null, accountType: p.account_type || "personal", isAdmin: !!p.is_admin, banned: !!p.banned, joinedAt: p.created_at,
       followers: handles(followersOf[p.id] || [], "follower_id"),
       following: handles(followingOf[p.id] || [], "followee_id"),
     };
@@ -198,7 +200,7 @@ export async function load(userId) {
   const postsOut = {};
   posts.forEach((p) => {
     const all = (commentsOf[p.id] || []).map((c) => ({
-      id: c.id, parent: c.parent_id, author: h(c.author_id), text: c.text, date: c.created_at, likes: handles(cLikesOf[c.id] || [], "user_id"),
+      id: c.id, parent: c.parent_id, author: h(c.author_id), text: c.text, date: c.created_at, likes: handles(cLikesOf[c.id] || [], "user_id"), ...(c.hidden ? { hidden: true } : {}),
     })).sort(byDate);
     const top = all.filter((c) => !c.parent).map(({ parent, ...c }) => ({
       ...c, replies: all.filter((r) => r.parent === c.id).map(({ parent: _p, ...r }) => r),
@@ -209,7 +211,7 @@ export async function load(userId) {
       photos, photoUrl: photos[0]?.url || null, photoAspect: photos[0]?.aspect || null,
       caption: p.caption, date: p.created_at, likes: handles(likesOf[p.id] || [], "user_id"), comments: top,
       communityId: p.community_id, location: p.location || null,
-      tags: (p.tags || []).map(h).filter(Boolean), archived: p.archived, ...(p.edited_at ? { editedAt: p.edited_at } : {}),
+      tags: (p.tags || []).map(h).filter(Boolean), archived: p.archived, ...(p.edited_at ? { editedAt: p.edited_at } : {}), ...(p.hidden ? { hidden: true } : {}),
     };
   });
 
@@ -229,8 +231,8 @@ export async function load(userId) {
     discussions[t2.id] = {
       id: t2.id, communityId: t2.community_id, author: h(t2.author_id), title: t2.title, body: t2.body, date: t2.created_at,
       likes: handles(tLikesOf[t2.id] || [], "user_id"),
-      replies: (repliesOf[t2.id] || []).map((r) => ({ id: r.id, author: h(r.author_id), text: r.text, date: r.created_at })).sort(byDate),
-      ...(t2.edited_at ? { editedAt: t2.edited_at } : {}),
+      replies: (repliesOf[t2.id] || []).map((r) => ({ id: r.id, author: h(r.author_id), text: r.text, date: r.created_at, ...(r.hidden ? { hidden: true } : {}) })).sort(byDate),
+      ...(t2.edited_at ? { editedAt: t2.edited_at } : {}), ...(t2.hidden ? { hidden: true } : {}),
     };
   });
 
@@ -274,6 +276,7 @@ export async function load(userId) {
     data: {
       cars: carsOut, posts: postsOut, users, news, meets: meetsOut, communities: communitiesOut,
       notifications: me ? { [me]: notifs } : {}, sightings: sightingsOut, discussions,
+      reports: reports.map((r) => ({ id: r.id, kind: r.kind, targetId: r.target_id, reason: r.reason, note: r.note, by: h(r.reporter_id), date: r.created_at, status: r.status })),
     },
     prefs: { hidden: hidden.map((x) => x.post_id), blocked: blocks.map((b) => h(b.blocked_id)).filter(Boolean) },
   };
@@ -342,7 +345,7 @@ export const write = {
       await write.carEvent(me, carId, event).catch(() => {}); // a car without a public page can't take others' events
     }
   },
-  editPost: (me, postId, caption) => must(sb().from("posts").update({ caption, edited_at: new Date().toISOString() }).eq("id", postId)),
+  editPost: (me, postId, caption, carId, carLabel) => must(sb().from("posts").update({ caption, car_id: carId ?? null, car_label: carLabel || "", edited_at: new Date().toISOString() }).eq("id", postId)),
   archivePost: (me, postId, archived) => must(sb().from("posts").update({ archived }).eq("id", postId)),
   deletePost: (me, postId) => must(sb().from("posts").delete().eq("id", postId)),
   likePost: (me, postId, on) => on
@@ -365,6 +368,7 @@ export const write = {
     ? insertOnce("hidden_posts", { user_id: me, post_id: postId })
     : must(sb().from("hidden_posts").delete().eq("user_id", me).eq("post_id", postId)),
   report: (me, r) => must(sb().from("reports").insert({ reporter_id: me, kind: r.kind, target_id: String(r.id), reason: (r.reason || "").slice(0, 80), note: (r.note || "").slice(0, 300) })),
+  adminResolve: (me, kind, targetId, action) => must(sb().rpc("admin_resolve", { p_kind: kind, p_target: String(targetId), p_action: action })),
   readNotifications: (me) => must(sb().from("notifications").update({ read: true }).eq("recipient_id", me).eq("read", false)),
 
   // news
@@ -416,7 +420,10 @@ export function writeMessage(error) {
   const m = (error?.message || "").toLowerCase();
   if (m === "full" || m.includes(" full")) return "That list is full";
   if (m.includes("communities_name_unique") || (error?.code === "23505" && m.includes("communit"))) return "A community with that name already exists";
+  if (m.includes("not allowed words")) return "That includes words we don't allow on Carfooly. Please keep it respectful.";
+  if (m === "banned" || m.includes("banned")) return "Your account has been suspended, so you can't post right now.";
   if (m.includes("blocked")) return "You can't do that with this person";
+  if (m.includes("reports_once") || (error?.code === "23505" && m.includes("report"))) return "You already reported this. Thanks!";
   if (m.includes("fetch") || m.includes("network") || m.includes("failed to")) return "No connection. That change wasn't saved.";
   return "Couldn't save that. Try again.";
 }

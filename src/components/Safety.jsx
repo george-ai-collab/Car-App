@@ -7,7 +7,8 @@ import { PERMISSION_HELP } from "../lib/permissions";
 
 export const REPORT_REASONS = [
   "Spam or scam",
-  "Harassment or hate",
+  "Racism or hate speech",
+  "Offensive language or bullying",
   "Dangerous driving or street racing",
   "Nudity or violence",
   "Shows someone's private info (plate, address)",

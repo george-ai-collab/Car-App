@@ -3,6 +3,13 @@ import { Car, AtSign, User, ChevronRight, Check, Mail, Lock, Eye, EyeOff, KeyRou
 import { T } from "../theme";
 import { Avatar } from "../components/ui";
 import { useKeyboardOffset } from "../lib/keyboard";
+import { findBanned, handleProblem } from "../lib/moderation";
+
+const HANDLE_MSG = {
+  taken: "Taken. Try another.",
+  reserved: "That handle is reserved. Try another.",
+  not_allowed: "That handle isn't allowed. Try another.",
+};
 
 // Sign up / log in. Same look as the rest of the app: dark, red accent, glass card.
 // Online: email + password accounts. (Test builds without a backend keep accounts on the phone.)
@@ -18,7 +25,8 @@ function LocalOnboarding({ onSubmit, users }) {
   const [busy, setBusy] = useState(false);
   const clean = handle.trim().toLowerCase();
   const valid = /^[a-z0-9_.]{2,24}$/.test(clean);
-  const taken = mode === "create" && valid && !!users[clean];
+  const problem = mode === "create" && valid ? (users[clean] ? "taken" : handleProblem(clean)) : null;
+  const taken = !!problem;
   const canCreate = valid && !taken && displayName.trim();
 
   const go = async (h, name) => { setBusy(true); await onSubmit(h, name); setBusy(false); };
@@ -49,7 +57,7 @@ function LocalOnboarding({ onSubmit, users }) {
             <>
               <Input icon={<User size={16} />} value={displayName} onChange={setDisplayName} placeholder="e.g. George Q" label="Your name" maxLength={40} />
               <Input icon={<AtSign size={16} />} value={handle} onChange={(v) => setHandle(v.toLowerCase().replace(/[^a-z0-9_.]/g, ""))} placeholder="e.g. george_q" label="Handle" maxLength={24}
-                status={!clean ? null : taken ? { bad: true, text: "Taken. Try another, or log in." } : !valid ? { bad: true, text: "2–24 characters" } : { bad: false, text: "Available" }} />
+                status={!clean ? null : taken ? { bad: true, text: problem === "taken" ? "Taken. Try another, or log in." : HANDLE_MSG[problem] } : !valid ? { bad: true, text: "2–24 characters" } : { bad: false, text: "Available" }} />
               <div style={{ fontSize: 11.5, color: T.textDim, margin: "-4px 2px 16px" }}>Lowercase letters, numbers, _ and . only. Handles can't be changed later.</div>
               <button disabled={!canCreate || busy} onClick={() => go(clean, displayName)} className="press" style={primary(canCreate)}>
                 {busy ? "Setting up…" : "Enter Carfooly"} <ChevronRight size={17} />
@@ -129,7 +137,7 @@ function OnlineOnboarding({ actions }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
-  const [free, setFree] = useState({}); // handle -> true/false/null (unknown)
+  const [free, setFree] = useState({}); // handle -> "ok" | "taken" | "reserved" | "not_allowed" | null (unknown)
 
   const clean = handle.trim().toLowerCase();
   const valid = /^[a-z0-9_.]{2,24}$/.test(clean);
@@ -140,14 +148,16 @@ function OnlineOnboarding({ actions }) {
   useEffect(() => {
     if (mode !== "create" || !valid || clean in free) return;
     const t = setTimeout(async () => {
-      const ok = await actions.checkHandle(clean);
-      setFree((f) => ({ ...f, [clean]: ok }));
+      const st = await actions.checkHandle(clean);
+      setFree((f) => ({ ...f, [clean]: st }));
     }, 350);
     return () => clearTimeout(t);
   }, [clean, valid, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const taken = valid && free[clean] === false;
-  const canCreate = valid && !taken && displayName.trim() && emailOk && passOk;
+  const st = valid ? (handleProblem(clean) || free[clean]) : null; // instant local check, then the database
+  const taken = valid && !!st && st !== "ok";
+  const nameBad = !!findBanned(displayName);
+  const canCreate = valid && !taken && displayName.trim() && !nameBad && emailOk && passOk;
   const loginId = email.trim().replace(/^@/, "");
   const canLogin = (emailOk || /^[a-zA-Z0-9_.]{2,24}$/.test(loginId)) && password.length > 0;
   const switchMode = (m) => { setMode(m); setError(null); setInfo(null); };
@@ -163,7 +173,7 @@ function OnlineOnboarding({ actions }) {
   };
   const create = () => run(async () => {
     const res = await actions.signUp({ email, password, handle: clean, name: displayName });
-    if (res?.error && res.error.includes("handle")) setFree((f) => ({ ...f, [clean]: false }));
+    if (res?.error && res.error.includes("handle")) setFree((f) => ({ ...f, [clean]: "taken" }));
     return res;
   });
   const login = () => run(() => actions.signIn({ email, password }));
@@ -181,7 +191,7 @@ function OnlineOnboarding({ actions }) {
   const setNewPassword = () => run(() => actions.confirmReset({ email, code, password }));
 
   const handleStatus = !clean ? null : !valid ? { bad: true, text: "2–24 characters" }
-    : taken ? { bad: true, text: "Taken. Try another." } : free[clean] ? { bad: false, text: "Available" } : null;
+    : taken ? { bad: true, text: HANDLE_MSG[st] || "Taken. Try another." } : st === "ok" ? { bad: false, text: "Available" } : null;
   const passField = (
     <Input icon={<Lock size={16} />} value={password} onChange={setPassword} placeholder={mode === "login" ? "Your password" : "At least 8 characters"} label={mode === "reset" ? "New password" : "Password"} maxLength={72}
       type={show ? "text" : "password"} testid="password"
@@ -202,7 +212,8 @@ function OnlineOnboarding({ actions }) {
 
       {mode === "create" ? (
         <>
-          <Input icon={<User size={16} />} value={displayName} onChange={setDisplayName} placeholder="e.g. George Q" label="Your name" maxLength={40} />
+          <Input icon={<User size={16} />} value={displayName} onChange={setDisplayName} placeholder="e.g. George Q" label="Your name" maxLength={40}
+            status={nameBad ? { bad: true, text: "Please pick a respectful name" } : null} />
           <Input icon={<AtSign size={16} />} value={handle} onChange={(v) => setHandle(v.toLowerCase().replace(/[^a-z0-9_.]/g, ""))} placeholder="e.g. george_q" label="Handle" maxLength={24} status={handleStatus} />
           <div style={{ fontSize: 11.5, color: T.textDim, margin: "-4px 2px 14px" }}>Lowercase letters, numbers, _ and . only. Handles can't be changed later.</div>
           <Input icon={<Mail size={16} />} value={email} onChange={setEmail} placeholder="you@example.com" label="Email" maxLength={120} type="email" testid="email"

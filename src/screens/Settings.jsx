@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User, Car, Archive, LogOut, Trash2, ChevronRight, Info, Pencil, Image as ImageIcon, Users } from "lucide-react";
+import { User, Car, Archive, LogOut, Trash2, ChevronRight, Info, Pencil, Image as ImageIcon, Users, ShieldCheck } from "lucide-react";
 import { T } from "../theme";
 import { fmtDate } from "../lib/utils";
 import { Avatar, EmptyState, Field, TextInput, TextArea, ConfirmDialog, SectionLabel, BottomSheet, isDriver } from "../components/ui";
@@ -35,7 +35,7 @@ function Group({ children }) {
   );
 }
 
-export function SettingsScreen({ me, users, cars, posts, go, actions, onTour }) {
+export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, isAdmin, openReports = 0 }) {
   const remote = REMOTE;
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -67,6 +67,15 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour }) 
         <Row icon={<Users size={16} />} label={`Account type: ${{ personal: "Driver", club: "Club", business: "Business" }[user.accountType || "personal"]}`} sub="Set when the account was made" disabled right={null} />
         <Row icon={<Archive size={16} />} label="Archived posts" sub={archivedCount ? `${archivedCount} hidden` : "None"} onClick={() => go("archive")} />
       </Group>
+
+      {isAdmin && (
+        <>
+          <SectionLabel>Admin</SectionLabel>
+          <Group>
+            <Row icon={<ShieldCheck size={16} />} label="Review reports" sub={openReports ? `${openReports} open` : "Nothing to review"} onClick={() => go("reports")} />
+          </Group>
+        </>
+      )}
 
       <SectionLabel>Sign-in</SectionLabel>
       <Group>

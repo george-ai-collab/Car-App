@@ -23,6 +23,7 @@ import { Welcome } from "./components/Welcome";
 import { parseTag } from "./lib/tag";
 import { scanTag } from "./lib/scan";
 import { LinkNotice } from "./components/RichText";
+import { AdminReports } from "./screens/Admin";
 
 const ADD_VIEWS = ["addChoice", "compose", "quickSpot", "addCar", "addMeet"];
 
@@ -44,7 +45,7 @@ export function Shell({ store, toast }) {
     }).catch(() => {});
   }, [me]);
   const finishSetup = async (data, addCar) => {
-    await a.updateProfile(data, true);
+    if ((await a.updateProfile(data, true)) === false) return; // e.g. a word we don't allow: stay on the setup
     window.storage.set(`carfooly-setup:${me}`, "done", false).catch(() => {});
     setSetup(false);
     setTour(true);
@@ -137,6 +138,10 @@ export function Shell({ store, toast }) {
       page = <Feed me={me} cars={cars} posts={posts} users={users} tab={p.feedTab || "foryou"} setTab={(t) => patch({ feedTab: t })}
         openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
         openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
+      break;
+    case "reports":
+      page = store.isAdmin && <AdminReports me={me} reports={store.reports} data={{ posts, users, discussions, meets, communities, cars }}
+        onResolve={a.adminResolve} openProfile={openProfile} />;
       break;
     case "userPosts":
       page = <Feed me={me} cars={cars} posts={posts} users={users} onlyUser={p.username} startId={p.id}
@@ -242,10 +247,10 @@ export function Shell({ store, toast }) {
       break;
     }
     case "settings":
-      page = <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={go} actions={a} onTour={() => setTour(true)} />;
+      page = <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={go} actions={a} onTour={() => setTour(true)} isAdmin={store.isAdmin} openReports={store.reports.length} />;
       break;
     case "editProfile":
-      page = <EditProfile me={me} users={users} onSave={async (data) => { await a.updateProfile(data); back(); }} />;
+      page = <EditProfile me={me} users={users} onSave={async (data) => { if ((await a.updateProfile(data)) !== false) back(); }} />;
       break;
     case "manageCars":
       page = <ManageCars me={me} cars={cars} posts={posts} onOpen={openCar} onEdit={(id) => go("editCar", { id })} onDelete={a.deleteCar} />;
@@ -267,7 +272,7 @@ export function Shell({ store, toast }) {
   }
 
   return (
-    <SafetyContext.Provider value={{ me, prefs: store.prefs, actions: a, flash: store.flash, openTag: setTagFor, scanTag: scan, openProfile }}>
+    <SafetyContext.Provider value={{ me, prefs: store.prefs, actions: a, flash: store.flash, openTag: setTagFor, scanTag: scan, openProfile, cars }}>
     <SheetContext.Provider value={sheetDelta}>
       <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", position: "relative", paddingBottom: 96 + kb, overflowX: "clip" }}>
         {/* No on-screen back arrow: the phone's back gesture/button goes back (see main.jsx). */}

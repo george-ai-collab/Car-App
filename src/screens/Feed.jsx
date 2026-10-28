@@ -120,7 +120,7 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
                   <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                     <span style={{ color: T.text, fontWeight: 700, fontSize: 13.5 }}>{commentsPost.authorUsername}</span>
                     <AccountLabel username={commentsPost.authorUsername} />
-                    <span style={{ color: T.textDim, fontSize: 12 }}>· {timeAgo(commentsPost.date)}</span>
+                    <span style={{ color: T.textDim, fontSize: 12 }}>· {timeAgo(commentsPost.date)}{commentsPost.editedAt ? " · edited" : ""}</span>
                   </div>
                   <RichText text={commentsPost.caption} maxLines={MAX_LINES.caption} style={{ color: T.text, fontSize: 14, lineHeight: 1.45 }} />
                 </div>
@@ -149,7 +149,7 @@ export function FeedCommentInput({ postId, addComment }) {
         <TextInput value={text} onChange={setText} placeholder="Add a comment…" maxLength={220} />
       </div>
       <button disabled={!text.trim()} className="press"
-        onClick={() => { addComment(postId, text); setText(""); }}
+        onClick={async () => { const t = text; setText(""); const r = await addComment(postId, t); if (r === false) setText(t); }}
         style={{ padding: "0 16px", borderRadius: 16, border: "none", background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim, fontWeight: 600 }}>
         Post
       </button>
@@ -212,6 +212,8 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
             {post.authorUsername}
           </button>
           <AccountLabel username={post.authorUsername} onDark />
+          {post.hidden && <span data-testid="hidden-mark" style={{ color: "#fff", fontSize: 10.5, fontWeight: 700, background: "rgba(230,56,70,0.85)", borderRadius: 5, padding: "2px 6px" }}>HIDDEN · REPORTED</span>}
+          {post.editedAt && <span data-testid="edited" style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>edited</span>}
         </div>
         {(post.location || (post.tags || []).length > 0) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: 600, marginBottom: 8, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>

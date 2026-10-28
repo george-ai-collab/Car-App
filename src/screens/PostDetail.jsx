@@ -68,7 +68,7 @@ export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, ad
           {(post.tags || []).length > 0 && <span>with {post.tags.map((h, k) => <button key={h} onClick={() => openProfile(h)} style={{ background: "none", border: "none", padding: 0, color: T.text, fontWeight: 700, fontSize: 12.5 }}>@{h}{k < post.tags.length - 1 ? ", " : ""}</button>)}</span>}
         </div>
       )}
-      <div style={{ fontSize: 11.5, color: T.textDim, marginBottom: 12 }}>{timeAgo(post.date)}{post.editedAt ? " · Edited" : ""}</div>
+      <div style={{ fontSize: 11.5, color: T.textDim, marginBottom: 12 }}>{timeAgo(post.date)}{post.editedAt && <span data-testid="edited" style={{ color: T.textDim, opacity: 0.75 }}> · edited</span>}</div>
 
       <div style={{ display: "flex", gap: 16, paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${T.lineDark}` }}>
         <button onClick={doLike} style={{ background: "none", border: "none", display: "flex", alignItems: "center", gap: 5, padding: 0 }}>
@@ -89,7 +89,7 @@ export function PostDetail({ post, car, me, openCar, openProfile, toggleLike, ad
         </div>
         <button
           disabled={!text.trim()}
-          onClick={() => { addComment(post.id, text); setText(""); }}
+          onClick={async () => { const t = text; setText(""); const r = await addComment(post.id, t); if (r === false) setText(t); }}
           style={{ padding: "0 16px", borderRadius: 16, border: "none", background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim, fontWeight: 600 }}
         >
           Post
@@ -140,15 +140,18 @@ export function CommentRow({ comment, postId, addReply }) {
 
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ display: "flex", gap: 9 }}>
-        <Avatar username={comment.author} size={26} />
-        <div style={{ flex: 1 }} data-testid="comment-body" {...dbl}>
-          <div style={{ fontSize: 13, color: T.text }}>
-            <span style={{ fontWeight: 600 }}>{comment.author}</span> <RichText text={comment.text} maxLines={4} style={{ display: "inline" }} />
-          </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <button aria-label={`Open ${comment.author}`} onClick={() => safety?.openProfile?.(comment.author)} style={{ background: "none", border: "none", padding: 0, alignSelf: "flex-start" }}>
+          <Avatar username={comment.author} size={34} />
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }} data-testid="comment-body" {...dbl}>
+          <button data-testid="comment-author" onClick={() => safety?.openProfile?.(comment.author)} style={{ background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", fontSize: 13, fontWeight: 700, color: T.textDim, marginBottom: 2 }}>
+            {comment.author}<AccountLabel username={comment.author} />
+          </button>
+          <RichText text={comment.text} maxLines={4} style={{ fontSize: 14.5, lineHeight: 1.4, color: T.text }} />
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 3 }}>
-            <span style={{ fontSize: 10.5, color: T.textDim }}>{timeAgo(comment.date)}</span>
-            <button onClick={() => setReplying((r) => !r)} className="press" style={{ background: "none", border: "none", padding: 0, fontSize: 11, color: T.textDim, fontWeight: 600 }}>
+            <span style={{ fontSize: 11.5, color: T.textDim }}>{timeAgo(comment.date)}</span>
+            <button onClick={() => setReplying((r) => !r)} className="press" style={{ background: "none", border: "none", padding: 0, fontSize: 12, color: T.textDim, fontWeight: 600 }}>
               Reply
             </button>
             <CommentAction author={comment.author} kind="comment" id={comment.id} onDelete={() => safety.actions.deleteComment(postId, comment.id)} />
@@ -158,12 +161,12 @@ export function CommentRow({ comment, postId, addReply }) {
       </div>
 
       {replying && (
-        <div className="fade-in" style={{ display: "flex", gap: 8, marginTop: 8, marginLeft: 35 }}>
+        <div className="fade-in" style={{ display: "flex", gap: 8, marginTop: 8, marginLeft: 44 }}>
           <div style={{ flex: 1 }}>
             <TextInput value={text} onChange={setText} placeholder={`Reply to ${comment.author}…`} maxLength={220} />
           </div>
           <button disabled={!text.trim()} className="press"
-            onClick={() => { addReply(postId, comment.id, text); setText(""); setReplying(false); setShowReplies(true); }}
+            onClick={async () => { const t = text; setText(""); const r = await addReply(postId, comment.id, t); if (r === false) { setText(t); return; } setReplying(false); setShowReplies(true); }}
             style={{ padding: "0 14px", borderRadius: 16, border: "none", background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim, fontWeight: 600, fontSize: 12.5 }}>
             Send
           </button>
@@ -171,7 +174,7 @@ export function CommentRow({ comment, postId, addReply }) {
       )}
 
       {replies.length > 0 && (
-        <div style={{ marginLeft: 35, marginTop: 8 }}>
+        <div style={{ marginLeft: 44, marginTop: 8 }}>
           <button onClick={() => setShowReplies((s) => !s)} className="press" style={{ background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", gap: 5, color: T.accent2, fontSize: 11.5, fontWeight: 600 }}>
             <div style={{ width: 20, height: 1, background: T.lineDark }} />
             {showReplies ? "Hide" : "View"} {replies.length} {replies.length === 1 ? "reply" : "replies"}
@@ -179,12 +182,15 @@ export function CommentRow({ comment, postId, addReply }) {
           {showReplies && (
             <div className="fade-in" style={{ marginTop: 10 }}>
               {replies.map((r) => (
-                <div key={r.id} style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                  <Avatar username={r.author} size={21} />
-                  <div style={{ flex: 1 }} onDoubleClick={() => { if (!(r.likes || []).includes(me)) likeIt(r.id); }}>
-                    <div style={{ fontSize: 12.5, color: T.text }}>
-                      <span style={{ fontWeight: 600 }}>{r.author}</span> <RichText text={r.text} maxLines={4} style={{ display: "inline" }} />
-                    </div>
+                <div key={r.id} style={{ display: "flex", gap: 9, marginBottom: 12 }}>
+                  <button aria-label={`Open ${r.author}`} onClick={() => safety?.openProfile?.(r.author)} style={{ background: "none", border: "none", padding: 0, alignSelf: "flex-start" }}>
+                    <Avatar username={r.author} size={28} />
+                  </button>
+                  <div style={{ flex: 1, minWidth: 0 }} onDoubleClick={() => { if (!(r.likes || []).includes(me)) likeIt(r.id); }}>
+                    <button onClick={() => safety?.openProfile?.(r.author)} style={{ background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", fontSize: 12.5, fontWeight: 700, color: T.textDim, marginBottom: 2 }}>
+                      {r.author}<AccountLabel username={r.author} />
+                    </button>
+                    <RichText text={r.text} maxLines={4} style={{ fontSize: 14, lineHeight: 1.4, color: T.text }} />
                     <div style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 10, color: T.textDim, marginTop: 2 }}>
                       {timeAgo(r.date)}
                       <CommentAction author={r.author} kind="reply" id={r.id} onDelete={() => safety.actions.deleteComment(postId, comment.id, r.id)} />

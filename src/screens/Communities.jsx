@@ -321,7 +321,7 @@ export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, o
       ))}
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         <div style={{ flex: 1 }}><TextInput value={text} onChange={setText} placeholder="Add to the discussion…" maxLength={500} /></div>
-        <button disabled={!text.trim()} onClick={() => { onReply(thread.id, text); setText(""); }} className="press"
+        <button disabled={!text.trim()} onClick={async () => { const t = text; setText(""); const r = await onReply(thread.id, t); if (r === false) setText(t); }} className="press"
           style={{ padding: "0 16px", borderRadius: 16, border: "none", background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim, fontWeight: 600 }}>
           Reply
         </button>
