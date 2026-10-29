@@ -62,7 +62,7 @@ export function groupMeets(meets, { me, users = {}, now = new Date() } = {}) {
     else if (day(start) < weekEnd) buckets.week.push(item);
     else buckets.later.push(item);
   });
-  const feat = (m) => (m.featured && m.plan === "pro" ? 1 : 0);
+  const feat = (m) => (m.featured ? 1 : 0); // "Featured" is given by admins
   const order = (a, b) => feat(b) - feat(a) || b._score - a._score || (a._start || 0) - (b._start || 0);
   Object.keys(buckets).forEach((k) => buckets[k].sort(k === "recent" ? (a, b) => b._end - a._end : order));
   return [
@@ -70,24 +70,7 @@ export function groupMeets(meets, { me, users = {}, now = new Date() } = {}) {
   ].map(([id, label]) => ({ id, label, meets: buckets[id] })).filter((g) => g.meets.length);
 }
 
-// ---------- plans (no payments yet: organizers pick one while we test) ----------
-export const PLANS = {
-  free: { maxPeople: 50, coOrganizers: 1, announcements: 1 },
-  pro: { maxPeople: null, coOrganizers: null, announcements: null },
-};
-export const PLAN_FEATURES = [
-  // [feature, free, pro]
-  [tr("Meet page, map, cover photo"), "✓", "✓"],
-  [tr("Driving / Attending RSVPs"), tr("Up to 50 people"), tr("Unlimited")],
-  ["Co-organizers", "1", tr("Unlimited")],
-  [tr("Cars at the meet + spotting"), "✓", "✓"],
-  [tr("Check-in by scanning tags"), "✓", tr("✓ with live counts")],
-  [tr("Announcements to everyone going"), "1", tr("Unlimited")],
-  [tr("Sponsors"), "—", "✓"],
-  [tr("Approve drivers"), "—", "✓"],
-  [tr("Repeats every week"), "—", "✓"],
-  [tr("Featured in Local (labelled)"), "—", "✓"],
-  [tr("Stats: views, RSVPs, check-ins"), "—", "✓"],
-  [tr("Export the attendee list"), "—", "✓"],
-];
-export const isPro = (meet) => meet?.plan === "pro";
+// ---------- plans ----------
+// During beta every meet gets all the Pro tools for free (no Free plan, no payments).
+// When paid plans come, early organizers should keep Pro for a while.
+export const isPro = () => true;

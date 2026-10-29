@@ -4,7 +4,6 @@ import { SEED_NEWS } from "../lib/seedNews";
 import { REMOTE, REFRESH_MS } from "../backend/config";
 import { cleanText, MAX_LINES } from "../lib/text";
 import { findBanned, handleProblem, RESPECT_MESSAGE } from "../lib/moderation";
-import { PLANS } from "../lib/meets";
 import * as remote from "../backend/remote";
 import { tr } from "../lib/i18n";
 
@@ -636,18 +635,14 @@ export function useStore(flash) {
       sponsors: (f.sponsors || []).map((x) => x.trim()).filter(Boolean).slice(0, 8),
       caps: { driver: capNum(f.caps?.driver), attendee: capNum(f.caps?.attendee) },
       endWhen: f.endWhen && f.endWhen > f.when ? f.endWhen : null,
-      plan: f.plan === "pro" ? "pro" : "free",
+      // Every meet gets the Pro tools during beta (no Free plan for now). "Featured" is given by admins only.
+      plan: "pro",
       driverNote: cleanText(f.driverNote, 6).slice(0, 300),
+      rules: cleanText(f.rules, 10).slice(0, 500),
+      recurring: f.recurring === "weekly" ? "weekly" : "none",
+      approveDrivers: !!f.approveDrivers,
     };
-    // Pro-only extras (the database enforces this too). No payments yet: organizers pick a plan while we test.
-    const pro = fields.plan === "pro";
-    fields.sponsors = pro ? fields.sponsors : [];
-    fields.recurring = pro && f.recurring === "weekly" ? "weekly" : "none";
-    fields.approveDrivers = pro && !!f.approveDrivers;
-    fields.featured = pro && !!f.featured;
-    if (!pro && (fields.caps.driver || 0) + (fields.caps.attendee || 0) > PLANS.free.maxPeople) {
-      flash(tr("Free meets have up to {0} people. Lower the limits or pick Pro.", PLANS.free.maxPeople)); return null;
-    }
+    if (refuse(fields.rules, fields.driverNote)) return null;
     const meets = get().meets;
     if (editingId) {
       const existing = meets[editingId];
@@ -658,7 +653,7 @@ export function useStore(flash) {
       return editingId;
     }
     const id = newId("meet");
-    await save("meets", { ...meets, [id]: { id, ...fields, submittedBy: me, createdAt: now(), attendees: [{ username: me, role: "organizer", approved: true }], announcements: [], spots: [], views: 0 } });
+    await save("meets", { ...meets, [id]: { id, ...fields, featured: false, submittedBy: me, createdAt: now(), attendees: [{ username: me, role: "organizer", approved: true, joinedAt: now() }], announcements: [], spots: [], views: 0, viewLog: [] } });
     sync((uid2) => remote.write.saveMeet(uid2, id, fields, true));
     flash(tr("Meet posted"));
     return id;
@@ -688,13 +683,11 @@ export function useStore(flash) {
     }
     const cap = item.caps?.[role];
     if (cap && item.attendees.filter((a) => a.role === role).length >= cap) { flash(tr("{0} is full", role === "driver" ? tr("Driving") : tr("Attending"))); return; }
-    const free = item.plan !== "pro";
-    if (free && role !== "organizer" && !existing && item.attendees.filter((a) => a.role !== "organizer").length >= PLANS.free.maxPeople) { flash(tr("This meet is full")); return; }
     // Pro meets can ask drivers to wait for the organizer's OK.
     const approved = !(role === "driver" && item.approveDrivers && !isOrganizer(item, me));
     const attendees = existing
       ? item.attendees.map((a) => (a.username === me ? { ...a, role, approved: role === "driver" ? approved : true } : a))
-      : [...item.attendees, { username: me, role, approved }];
+      : [...item.attendees, { username: me, role, approved, joinedAt: now() }];
     if (!approved) flash(tr("Asked to drive. The organizer will confirm."));
     await save("meets", { ...get().meets, [id]: { ...item, attendees } });
     sync((uid2) => remote.write.setAttendance(uid2, id, uid2, role, !!existing));
@@ -749,24 +742,24 @@ export function useStore(flash) {
     const a = m.attendees.find((x) => x.username === username);
     if (!a) return "not_listed";
     if (on && a.checkedIn) return "already";
-    await patchMeet(meetId, (x) => ({ ...x, attendees: x.attendees.map((y) => (y.username === username ? { ...y, checkedIn: on } : y)) }));
+    await patchMeet(meetId, (x) => ({ ...x, attendees: x.attendees.map((y) => (y.username === username ? { ...y, checkedIn: on, checkedInAt: on ? now() : null } : y)) }));
     const themId = idOf(username);
     if (themId) sync((id) => remote.write.checkIn(id, meetId, themId, on));
     return "ok";
   };
-  const announce = async (meetId, text) => {
+  // audience: "all" (everyone going) or "drivers" (drivers and organizers)
+  const announce = async (meetId, text, audience = "all") => {
     const m = get().meets[meetId];
     const clean = cleanText(text, 6).slice(0, 300);
     if (!m || !isOrganizer(m, me) || !clean) return false;
     if (refuse(clean)) return false;
     const list = m.announcements || [];
-    if (m.plan !== "pro" && list.length >= PLANS.free.announcements) { flash(tr("Free meets get 1 announcement. Pro has unlimited.")); return false; }
     if (list[0] && Date.now() - new Date(list[0].date).getTime() < 10 * 60e3) { flash(tr("One announcement every 10 minutes, please.")); return false; }
-    const a = { id: newId("ann"), author: me, text: clean, date: now() };
+    const a = { id: newId("ann"), author: me, text: clean, date: now(), audience: audience === "drivers" ? "drivers" : "all" };
     await patchMeet(meetId, (x) => ({ ...x, announcements: [a, ...(x.announcements || [])] }));
     sync((id) => remote.write.announce(id, meetId, a));
-    if (!REMOTE) for (const p of m.attendees) if (p.username !== me) await pushNotif(p.username, { type: "meetUpdate", meetId, text: clean.slice(0, 60) });
-    flash(tr("Sent to everyone going"));
+    if (!REMOTE) for (const p of m.attendees) if (p.username !== me && (a.audience === "all" || p.role !== "attendee")) await pushNotif(p.username, { type: "meetUpdate", meetId, text: clean.slice(0, 60) });
+    flash(a.audience === "drivers" ? tr("Sent to drivers") : tr("Sent to everyone going"));
     return true;
   };
   // Spot a car at a meet: tapping = a spot; scanning its tag = a verified spot. Also counts as a normal spot.
@@ -778,16 +771,18 @@ export function useStore(flash) {
     if (!isDriverAcct()) { flash(tr("Spotting is for driver accounts.")); return; }
     const had = (m.spots || []).find((x) => x.carId === carId && x.user === me);
     if (had && (had.verified || !verified)) { flash(tr("Already spotted")); return; }
-    await patchMeet(meetId, (x) => ({ ...x, spots: [...(x.spots || []).filter((y) => !(y.carId === carId && y.user === me)), { carId, user: me, verified: !!verified }] }));
+    await patchMeet(meetId, (x) => ({ ...x, spots: [...(x.spots || []).filter((y) => !(y.carId === carId && y.user === me)), { carId, user: me, verified: !!verified, date: now() }] }));
     sync((id) => remote.write.meetSpot(id, meetId, carId, !!verified));
     if (!car.spotterUsernames.includes(me) && car.hasPage !== false) await spotCar(carId, `at ${m.title}`);
     else flash(verified ? tr("Scanned. Verified spot!") : tr("Spotted"));
   };
   const isDriverAcct = () => { const t = get().users[me]?.accountType; return !t || t === "personal"; };
-  const viewMeet = (meetId) => {
+  // One view per person, with where they came from (for organizer insights).
+  const viewMeet = async (meetId, source = "other") => {
     const m = get().meets[meetId];
-    if (!m || !REMOTE) return;
-    sync((id) => remote.write.meetView(id, meetId));
+    if (!m || (m.viewLog || []).some((v) => v.user === me)) return;
+    if (REMOTE) { sync((id) => remote.write.meetView(id, meetId, source)); return; }
+    await patchMeet(meetId, (x) => ({ ...x, views: (x.views || 0) + 1, viewLog: [...(x.viewLog || []), { user: me, source, date: now() }] }));
   };
 
   const nameTaken = (name, exceptId) => Object.values(get().communities).some((c) => c.id !== exceptId && c.name.trim().toLowerCase() === name.trim().toLowerCase());

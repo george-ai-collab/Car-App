@@ -13,6 +13,7 @@ import { CommunityPage, CreateCommunityForm, ThreadPage, NewThreadForm } from ".
 import { AddCarForm, CarPage } from "./screens/Cars";
 import { Profile } from "./screens/Profile";
 import { AddMeetForm, MeetsScreen, MeetDetail } from "./screens/Meets";
+import { MeetInsights } from "./screens/MeetInsights";
 import { SpotForm } from "./screens/Add";
 import { ComposerFlow } from "./components/photo/Composer";
 import { AddPage } from "./components/AddMenu";
@@ -99,15 +100,19 @@ export function Shell({ store, toast }) {
   };
   const openPost = (id) => go("postDetail", { id });
   const openCommunity = (id) => go("communityPage", { id });
-  const openMeet = (id) => go("meet", { id });
+  // source: where the meet was opened from (organizers see this in Insights)
+  const openMeet = (id, source = "other") => go("meet", { id, source });
   const openThread = (id) => go("thread", { id });
 
   // ---------- share tags (QR) ----------
   const [tagFor, setTagFor] = useState(null); // { kind, id, title, subtitle }
-  const openFromTag = (text) => {
+  const openFromTag = (text, source = "tag") => {
     const t = parseTag(text);
     if (!t) { store.flash(tr("That's not a Carfooly tag")); return; }
-    if (t.kind === "user") {
+    if (t.kind === "meet") {
+      if (!meets[t.id]) { store.flash(tr("That meet isn't on Carfooly anymore")); return; }
+      setTagFor(null); go("meet", { id: t.id, source });
+    } else if (t.kind === "user") {
       if (!users[t.id]) { store.flash(tr("No one on Carfooly has that tag")); return; }
       setTagFor(null); openProfile(t.id);
     } else {
@@ -125,9 +130,9 @@ export function Shell({ store, toast }) {
   const fromTagRef = useRef(openFromTag);
   fromTagRef.current = openFromTag;
   useEffect(() => {
-    const on = (e) => fromTagRef.current(e.detail);
+    const on = (e) => fromTagRef.current(e.detail, "link"); // opened from outside the app
     window.addEventListener("carfooly-open-tag", on);
-    if (window.__pendingTag) { const t = window.__pendingTag; window.__pendingTag = null; setTimeout(() => fromTagRef.current(t), 0); }
+    if (window.__pendingTag) { const t = window.__pendingTag; window.__pendingTag = null; setTimeout(() => fromTagRef.current(t, "link"), 0); }
     return () => window.removeEventListener("carfooly-open-tag", on);
   }, []);
 
@@ -151,7 +156,7 @@ export function Shell({ store, toast }) {
       break;
     case "inbox":
       page = <InboxView me={me} notifications={notifications[me] || []} posts={posts} cars={cars} discussions={discussions}
-        onMount={a.markNotificationsRead} openPost={openPost} openCar={openCar} openProfile={openProfile} openThread={openThread} meets={meets} openMeet={openMeet} />;
+        onMount={a.markNotificationsRead} openPost={openPost} openCar={openCar} openProfile={openProfile} openThread={openThread} meets={meets} openMeet={(id) => openMeet(id, "notification")} />;
       break;
     case "discover":
       page = <DiscoverView onScan={scan} me={me} cars={cars} users={users} news={news} meets={meets} communities={communities}
@@ -186,19 +191,23 @@ export function Shell({ store, toast }) {
         onSubmit={async (data) => { const id = await a.createThread({ communityId: p.communityId, ...data }); if (id) replace("thread", { id }); }} />;
       break;
     case "meetList":
-      page = <MeetsScreen meets={meets} onOpen={openMeet} onPost={() => go("addMeet")}
+      page = <MeetsScreen meets={meets} onOpen={(id) => openMeet(id, "meets")} onPost={() => go("addMeet")}
         scope={p.scope || "local"} setScope={(sc) => patch({ scope: sc })} />;
       break;
     case "meet":
       page = meets[p.id] && <MeetDetail meet={meets[p.id]} me={me} users={users} onToggleGoing={a.toggleGoing}
         onEdit={(id) => go("addMeet", { id })} onDelete={async (id) => { await a.deleteMeet(id); back(); }} openProfile={openProfile}
-        onSetRole={a.setMeetRole} onSetCaps={a.setMeetCaps} />;
+        onSetRole={a.setMeetRole} onSetCaps={a.setMeetCaps} source={p.source}
+        onInsights={(id) => go("meetInsights", { id })} onRepeat={(id) => go("addMeet", { copyFrom: id })} />;
+      break;
+    case "meetInsights":
+      page = meets[p.id] && <MeetInsights meet={meets[p.id]} meets={meets} cars={cars} openProfile={openProfile} />;
       break;
     case "newsList":
       page = <NewsScreen me={me} news={news} onLike={a.toggleNewsLike} />;
       break;
     case "addMeet":
-      page = <AddMeetForm key={p.id || "new"} editing={p.id ? meets[p.id] : null}
+      page = <AddMeetForm key={p.id || p.copyFrom || "new"} editing={p.id ? meets[p.id] : null} copyFrom={p.copyFrom ? meets[p.copyFrom] : null}
         onSubmit={async (data) => { const id = await a.submitMeet(data, p.id); if (!id) return; if (p.id) back(); else if (p.fromAdd) { reset(); go("meet", { id }); } else replace("meet", { id }); }} />;
       break;
     case "createCommunity":
@@ -224,7 +233,7 @@ export function Shell({ store, toast }) {
         onSubmit={async (data) => { const id = await a.createPost(data); if (!id) return; if (p.communityId) back(); else reset(); }} />;
       break;
     case "quickSpot":
-      page = <SpotForm onSubmit={async (data) => { await a.logSighting(data); reset(); }} />;
+      page = <SpotForm flash={store.flash} onSubmit={async (data) => { await a.logSighting(data); reset(); }} />;
       break;
     case "car":
       page = cars[p.id] && <CarPage car={cars[p.id]} me={me} users={users} posts={posts} sightings={sightings}

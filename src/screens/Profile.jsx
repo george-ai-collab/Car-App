@@ -87,9 +87,9 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
       {/* Clubs and businesses just have posts: no garage, spots or badges. */}
       {driver && <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "center", gap: 10 }}>
-          <IconTab active={tab === "posts"} onClick={() => { setTab("posts"); setShowBadges(false); }} icon={<ImageIcon size={17} />} />
-          <IconTab active={tab === "cars"} onClick={() => { setTab("cars"); setShowBadges(false); }} icon={<Car size={17} />} />
-          <IconTab active={tab === "spotted"} onClick={() => setTab("spotted")} icon={<MapPin size={17} />} />
+          <IconTab label={tr("Posts")} active={tab === "posts"} onClick={() => { setTab("posts"); setShowBadges(false); }} icon={<ImageIcon size={17} />} />
+          <IconTab label={tr("Garage")} active={tab === "cars"} onClick={() => { setTab("cars"); setShowBadges(false); }} icon={<Car size={17} />} />
+          <IconTab label={tr("Spotted")} active={tab === "spotted"} onClick={() => setTab("spotted")} icon={<MapPin size={17} />} />
         </div>
       </div>}
       {view === "spotted" && (

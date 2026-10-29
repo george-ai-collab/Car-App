@@ -7,11 +7,15 @@ import { tr } from "../../lib/i18n";
 
 // Big "add a photo" area with two choices: take one now, or pick from the gallery.
 // aspect = width ÷ height of the empty area. children = extra art inside (e.g. viewfinder corners).
-export function PhotoPicker({ onPick, aspect = 4 / 5, title = tr("Add a photo"), hint, maxDim = 1440, quality = 0.8, children, testid = "photo-picker" }) {
+// cameraOnly: no gallery button, and the photo must have been taken in the last few minutes (spots).
+const FRESH_MS = 5 * 60e3;
+export function PhotoPicker({ onPick, aspect = 4 / 5, title = tr("Add a photo"), hint, maxDim = 1440, quality = 0.8, children, testid = "photo-picker", cameraOnly = false, onRefuse }) {
   const cam = useRef(null), lib = useRef(null);
   const [busy, setBusy] = useState(false);
   const handle = async (file) => {
     if (!file) return;
+    // Some phones let you pick an old photo from the camera screen: spots must be taken just now.
+    if (cameraOnly && file.lastModified && Date.now() - file.lastModified > FRESH_MS) { onRefuse?.(tr("Spots need a photo taken just now. Use the camera.")); return; }
     setBusy(true);
     try { const p = await readPhoto(file, maxDim, quality); onPick(p.src, { w: p.w, h: p.h }); }
     finally { setBusy(false); }
@@ -29,15 +33,15 @@ export function PhotoPicker({ onPick, aspect = 4 / 5, title = tr("Add a photo"),
     }}>
       {children}
       <input ref={cam} type="file" accept="image/*" capture="environment" style={{ display: "none" }} onChange={(e) => { handle(e.target.files[0]); e.target.value = ""; }} />
-      <input ref={lib} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { handle(e.target.files[0]); e.target.value = ""; }} />
+      {!cameraOnly && <input ref={lib} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => { handle(e.target.files[0]); e.target.value = ""; }} />}
       <div style={{ position: "absolute", top: "38%", left: 0, right: 0, transform: "translateY(-50%)", textAlign: "center", padding: "0 20px", pointerEvents: "none" }}>
         {busy ? <Loader2 size={28} color={T.accent} style={{ animation: "spin 1s linear infinite" }} /> : <Camera size={30} color="rgba(255,255,255,0.75)" />}
         <div style={{ color: T.text, fontSize: 16, fontWeight: 700, marginTop: 10 }}>{busy ? tr("Processing…") : title}</div>
         {hint && <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 4, lineHeight: 1.4 }}>{hint}</div>}
       </div>
       <div style={{ display: "flex", gap: 8, width: "100%", position: "relative" }}>
-        <button onClick={async () => { if (canPickNatively()) { const b = await takePhoto(); if (b) handle(b); } else cam.current.click(); }} disabled={busy} className="press" style={btn(true)}><Camera size={15} /> {tr("Camera")}</button>
-        <button onClick={async () => { if (canPickNatively()) { const [b] = await pickFromGallery(1); if (b) handle(b); } else lib.current.click(); }} disabled={busy} className="press" style={btn(false)}><ImageIcon size={15} /> {tr("Gallery")}</button>
+        <button onClick={async () => { if (canPickNatively()) { const b = await takePhoto(); if (b) handle(b); } else cam.current.click(); }} disabled={busy} className="press" style={btn(true)}><Camera size={15} /> {cameraOnly ? tr("Take the photo") : tr("Camera")}</button>
+        {!cameraOnly && <button onClick={async () => { if (canPickNatively()) { const [b] = await pickFromGallery(1); if (b) handle(b); } else lib.current.click(); }} disabled={busy} className="press" style={btn(false)}><ImageIcon size={15} /> {tr("Gallery")}</button>}
       </div>
     </div>
   );

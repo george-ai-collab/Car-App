@@ -1,21 +1,22 @@
 import qrcode from "qrcode-generator";
 
-// Share tags: a QR code for every profile and every car page.
+// Share tags: a QR code for every profile, car page and meet.
 // A tag only holds a permanent id (the handle, which can never change, or the car's id),
 // so the same profile or car always gets the exact same QR code. It never rolls over.
 export const TAG_SCHEME = "carfooly";
 
-export const tagLink = (kind, id) => `${TAG_SCHEME}://${kind === "car" ? "car" : "u"}/${encodeURIComponent(id)}`;
+export const tagLink = (kind, id) => `${TAG_SCHEME}://${kind === "car" ? "car" : kind === "meet" ? "m" : "u"}/${encodeURIComponent(id)}`;
 
 // Reads a scanned code. Accepts our app links now, and web links (…/c/<id>, …/u/<handle>)
 // for when the app has its own website.
 export function parseTag(text) {
   if (!text || typeof text !== "string") return null;
   const t = text.trim();
-  let m = t.match(/^carfooly:\/\/(car|u)\/([^/?#\s]+)/i);
-  if (!m) m = t.match(/^https?:\/\/[^/]+\/(c|car|u)\/([^/?#\s]+)/i);
+  let m = t.match(/^carfooly:\/\/(car|u|m)\/([^/?#\s]+)/i);
+  if (!m) m = t.match(/^https?:\/\/[^/]+\/(c|car|u|m)\/([^/?#\s]+)/i);
   if (!m) return null;
-  const kind = m[1].toLowerCase().startsWith("c") ? "car" : "user";
+  const k = m[1].toLowerCase();
+  const kind = k.startsWith("c") ? "car" : k === "m" ? "meet" : "user";
   let id;
   try { id = decodeURIComponent(m[2]); } catch { return null; }
   return { kind, id: kind === "user" ? id.toLowerCase() : id };
