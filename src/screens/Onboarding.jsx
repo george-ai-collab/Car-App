@@ -3,6 +3,14 @@ import { Car, AtSign, User, ChevronRight, Check, Mail, Lock, Eye, EyeOff, KeyRou
 import { T } from "../theme";
 import { Avatar } from "../components/ui";
 import { useKeyboardOffset } from "../lib/keyboard";
+import { findBanned, handleProblem } from "../lib/moderation";
+import { tr , AT } from "../lib/i18n";
+
+const HANDLE_MSG = {
+  taken: tr("Taken. Try another."),
+  reserved: tr("That handle is reserved. Try another."),
+  not_allowed: tr("That handle isn't allowed. Try another."),
+};
 
 // Sign up / log in. Same look as the rest of the app: dark, red accent, glass card.
 // Online: email + password accounts. (Test builds without a backend keep accounts on the phone.)
@@ -18,7 +26,8 @@ function LocalOnboarding({ onSubmit, users }) {
   const [busy, setBusy] = useState(false);
   const clean = handle.trim().toLowerCase();
   const valid = /^[a-z0-9_.]{2,24}$/.test(clean);
-  const taken = mode === "create" && valid && !!users[clean];
+  const problem = mode === "create" && valid ? (users[clean] ? "taken" : handleProblem(clean)) : null;
+  const taken = !!problem;
   const canCreate = valid && !taken && displayName.trim();
 
   const go = async (h, name) => { setBusy(true); await onSubmit(h, name); setBusy(false); };
@@ -31,13 +40,13 @@ function LocalOnboarding({ onSubmit, users }) {
           <div style={{ width: 72, height: 72, borderRadius: 24, background: `linear-gradient(150deg, ${T.accent}, ${T.accentDeep})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 40px rgba(230,56,70,0.45)" }}>
             <Car size={36} color="#fff" />
           </div>
-          <div className="display" style={{ fontSize: 34, color: T.text, marginTop: 16, letterSpacing: "0.04em" }}>CARFOOLY</div>
-          <div style={{ color: T.textDim, fontSize: 14.5, marginTop: 6 }}>Every car has a story. This is where it lives.</div>
+          <div className="display" style={{ fontSize: 34, color: T.text, marginTop: 16, letterSpacing: "0.04em" }}>{tr("CARFOOLY")}</div>
+          <div style={{ color: T.textDim, fontSize: 14.5, marginTop: 6 }}>{tr("Every car has a story. This is where it lives.")}</div>
         </div>
 
         <div className="glass" style={{ borderRadius: 26, padding: 18 }}>
           <div style={{ display: "flex", background: "rgba(255,255,255,0.06)", borderRadius: 999, padding: 4, marginBottom: 18 }}>
-            {[["create", "Create account"], ["login", "Log in"]].map(([id, label]) => (
+            {[["create", tr("Create account")], ["login", tr("Log in")]].map(([id, label]) => (
               <button key={id} data-testid={`mode-${id}`} onClick={() => setMode(id)} className="press" style={{
                 flex: 1, padding: "9px 0", borderRadius: 999, border: "none", fontSize: 13.5, fontWeight: 700,
                 background: mode === id ? "rgba(255,255,255,0.92)" : "transparent", color: mode === id ? T.ink : T.textDim,
@@ -47,28 +56,28 @@ function LocalOnboarding({ onSubmit, users }) {
 
           {mode === "create" ? (
             <>
-              <Input icon={<User size={16} />} value={displayName} onChange={setDisplayName} placeholder="e.g. George Q" label="Your name" maxLength={40} />
-              <Input icon={<AtSign size={16} />} value={handle} onChange={(v) => setHandle(v.toLowerCase().replace(/[^a-z0-9_.]/g, ""))} placeholder="e.g. george_q" label="Handle" maxLength={24}
-                status={!clean ? null : taken ? { bad: true, text: "Taken. Try another, or log in." } : !valid ? { bad: true, text: "2–24 characters" } : { bad: false, text: "Available" }} />
-              <div style={{ fontSize: 11.5, color: T.textDim, margin: "-4px 2px 16px" }}>Lowercase letters, numbers, _ and . only. Handles can't be changed later.</div>
+              <Input icon={<User size={16} />} value={displayName} onChange={setDisplayName} placeholder={tr("e.g. George Q")} label={tr("Your name")} maxLength={40} />
+              <Input icon={<AtSign size={16} />} value={handle} onChange={(v) => setHandle(v.toLowerCase().replace(/[^a-z0-9_.]/g, ""))} placeholder={tr("e.g. george_q")} label={tr("Handle")} maxLength={24}
+                status={!clean ? null : taken ? { bad: true, text: problem === "taken" ? tr("Taken. Try another, or log in.") : HANDLE_MSG[problem] } : !valid ? { bad: true, text: tr("2–24 characters") } : { bad: false, text: tr("Available") }} />
+              <div style={{ fontSize: 11.5, color: T.textDim, margin: "-4px 2px 16px" }}>{tr("Lowercase letters, numbers, _ and . only. Handles can't be changed later.")}</div>
               <button disabled={!canCreate || busy} onClick={() => go(clean, displayName)} className="press" style={primary(canCreate)}>
-                {busy ? "Setting up…" : "Enter Carfooly"} <ChevronRight size={17} />
+                {busy ? tr("Setting up…") : tr("Enter Carfooly")} <ChevronRight size={17} />
               </button>
             </>
           ) : (
             <>
               {known.length > 0 && (
                 <>
-                  <div className="plate" style={{ fontSize: 10.5, color: T.textDim, marginBottom: 10 }}>Accounts on this phone</div>
+                  <div className="plate" style={{ fontSize: 10.5, color: T.textDim, marginBottom: 10 }}>{tr("Accounts on this phone")}</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
                     {known.map(([h, u]) => (
                       <button key={h} data-testid="known-account" disabled={busy} onClick={() => go(h, u.name || "")} className="press" style={{
-                        display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 18, background: "rgba(255,255,255,0.05)", border: `1px solid ${T.lineDark}`, textAlign: "left",
+                        display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", borderRadius: 18, background: "rgba(255,255,255,0.05)", border: `1px solid ${T.lineDark}`, textAlign: "start",
                       }}>
                         <Avatar username={h} size={36} />
                         <div style={{ flex: 1 }}>
                           <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>{u.name}</div>
-                          <div className="plate" style={{ color: T.textDim, fontSize: 10.5 }}>@{h}</div>
+                          <div className="plate handle" style={{ color: T.textDim, fontSize: 10.5 }}>{AT}{h}</div>
                         </div>
                         <ChevronRight size={16} color={T.textDim} />
                       </button>
@@ -76,17 +85,17 @@ function LocalOnboarding({ onSubmit, users }) {
                   </div>
                 </>
               )}
-              <Input icon={<AtSign size={16} />} value={handle} onChange={(v) => setHandle(v.toLowerCase().replace(/[^a-z0-9_.]/g, ""))} placeholder="your handle" label="Handle" maxLength={24}
-                status={clean && valid && !users[clean] ? { bad: true, text: "No account with that handle on this phone" } : null} />
+              <Input icon={<AtSign size={16} />} value={handle} onChange={(v) => setHandle(v.toLowerCase().replace(/[^a-z0-9_.]/g, ""))} placeholder={tr("your handle")} label={tr("Handle")} maxLength={24}
+                status={clean && valid && !users[clean] ? { bad: true, text: tr("No account with that handle on this phone") } : null} />
               <button disabled={!users[clean] || busy} onClick={() => go(clean, users[clean]?.name || "")} className="press" style={primary(!!users[clean])}>
-                Log in <ChevronRight size={17} />
+                {tr("Log in")} <ChevronRight size={17} />
               </button>
             </>
           )}
         </div>
 
         <div style={{ color: T.textDim, fontSize: 11.5, textAlign: "center", lineHeight: 1.5, marginTop: 16, padding: "0 10px" }}>
-          Beta: your account and posts are saved on this phone for now. Online accounts with email and Google sign-in are coming next.
+          {tr("Beta: your account and posts are saved on this phone for now. Online accounts with email and Google sign-in are coming next.")}
         </div>
       </div>
     </div>
@@ -106,8 +115,8 @@ function Frame({ children, note }) {
             <div style={{ width: 72, height: 72, borderRadius: 24, background: `linear-gradient(150deg, ${T.accent}, ${T.accentDeep})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 40px rgba(230,56,70,0.45)" }}>
               <Car size={36} color="#fff" />
             </div>
-            <div className="display" style={{ fontSize: 34, color: T.text, marginTop: 16, letterSpacing: "0.04em" }}>CARFOOLY</div>
-            <div style={{ color: T.textDim, fontSize: 14.5, marginTop: 6 }}>Every car has a story. This is where it lives.</div>
+            <div className="display" style={{ fontSize: 34, color: T.text, marginTop: 16, letterSpacing: "0.04em" }}>{tr("CARFOOLY")}</div>
+            <div style={{ color: T.textDim, fontSize: 14.5, marginTop: 6 }}>{tr("Every car has a story. This is where it lives.")}</div>
           </div>
         )}
         <div className="glass" style={{ borderRadius: 26, padding: 18 }}>{children}</div>
@@ -129,7 +138,7 @@ function OnlineOnboarding({ actions }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [info, setInfo] = useState(null);
-  const [free, setFree] = useState({}); // handle -> true/false/null (unknown)
+  const [free, setFree] = useState({}); // handle -> "ok" | "taken" | "reserved" | "not_allowed" | null (unknown)
 
   const clean = handle.trim().toLowerCase();
   const valid = /^[a-z0-9_.]{2,24}$/.test(clean);
@@ -140,14 +149,16 @@ function OnlineOnboarding({ actions }) {
   useEffect(() => {
     if (mode !== "create" || !valid || clean in free) return;
     const t = setTimeout(async () => {
-      const ok = await actions.checkHandle(clean);
-      setFree((f) => ({ ...f, [clean]: ok }));
+      const st = await actions.checkHandle(clean);
+      setFree((f) => ({ ...f, [clean]: st }));
     }, 350);
     return () => clearTimeout(t);
   }, [clean, valid, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const taken = valid && free[clean] === false;
-  const canCreate = valid && !taken && displayName.trim() && emailOk && passOk;
+  const st = valid ? (handleProblem(clean) || free[clean]) : null; // instant local check, then the database
+  const taken = valid && !!st && st !== "ok";
+  const nameBad = !!findBanned(displayName);
+  const canCreate = valid && !taken && displayName.trim() && !nameBad && emailOk && passOk;
   const loginId = email.trim().replace(/^@/, "");
   const canLogin = (emailOk || /^[a-zA-Z0-9_.]{2,24}$/.test(loginId)) && password.length > 0;
   const switchMode = (m) => { setMode(m); setError(null); setInfo(null); };
@@ -157,42 +168,42 @@ function OnlineOnboarding({ actions }) {
     try {
       const res = await fn();
       if (res?.error) setError(res.error);
-      else if (res?.needsConfirm) { setInfo("Almost there: we sent you an email. Tap the link in it, then log in here."); setMode("login"); }
-    } catch { setError("No connection. Check your internet and try again."); }
+      else if (res?.needsConfirm) { setInfo(tr("Almost there: we sent you an email. Tap the link in it, then log in here.")); setMode("login"); }
+    } catch { setError(tr("No connection. Check your internet and try again.")); }
     setBusy(false);
   };
   const create = () => run(async () => {
     const res = await actions.signUp({ email, password, handle: clean, name: displayName });
-    if (res?.error && res.error.includes("handle")) setFree((f) => ({ ...f, [clean]: false }));
+    if (res?.error && res.error.includes("handle")) setFree((f) => ({ ...f, [clean]: "taken" }));
     return res;
   });
   const login = () => run(() => actions.signIn({ email, password }));
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const sendCode = () => {
-    if (!emailOk) { setError("Type your email first."); return; }
+    if (!emailOk) { setError(tr("Type your email first.")); return; }
     run(async () => {
       const res = await actions.resetPassword(email);
-      if (!res?.error) { setCodeSent(true); setInfo("If that email has an account, a code is on its way. It can take a minute; check spam too."); }
+      if (!res?.error) { setCodeSent(true); setInfo(tr("If that email has an account, a code is on its way. It can take a minute; check spam too.")); }
       return res;
     });
   };
   const codeOk = /^\d{6,10}$/.test(code.trim());
   const setNewPassword = () => run(() => actions.confirmReset({ email, code, password }));
 
-  const handleStatus = !clean ? null : !valid ? { bad: true, text: "2–24 characters" }
-    : taken ? { bad: true, text: "Taken. Try another." } : free[clean] ? { bad: false, text: "Available" } : null;
+  const handleStatus = !clean ? null : !valid ? { bad: true, text: tr("2–24 characters") }
+    : taken ? { bad: true, text: HANDLE_MSG[st] || tr("Taken. Try another.") } : st === "ok" ? { bad: false, text: tr("Available") } : null;
   const passField = (
-    <Input icon={<Lock size={16} />} value={password} onChange={setPassword} placeholder={mode === "login" ? "Your password" : "At least 8 characters"} label={mode === "reset" ? "New password" : "Password"} maxLength={72}
+    <Input icon={<Lock size={16} />} value={password} onChange={setPassword} placeholder={mode === "login" ? tr("Your password") : tr("At least 8 characters")} label={mode === "reset" ? tr("New password") : tr("Password")} maxLength={72}
       type={show ? "text" : "password"} testid="password"
-      trailing={<button type="button" aria-label={show ? "Hide password" : "Show password"} onClick={() => setShow((x) => !x)} style={{ background: "none", border: "none", color: T.textDim, display: "flex", padding: 4 }}>{show ? <EyeOff size={16} /> : <Eye size={16} />}</button>}
-      status={mode !== "login" && password && !passOk ? { bad: true, text: "At least 8 characters" } : null} />
+      trailing={<button type="button" aria-label={show ? tr("Hide password") : tr("Show password")} onClick={() => setShow((x) => !x)} style={{ background: "none", border: "none", color: T.textDim, display: "flex", padding: 4 }}>{show ? <EyeOff size={16} /> : <Eye size={16} />}</button>}
+      status={mode !== "login" && password && !passOk ? { bad: true, text: tr("At least 8 characters") } : null} />
   );
 
   return (
-    <Frame note="Beta: you're one of the first drivers here. Your account works on any phone you sign in on.">
+    <Frame note={tr("Beta: you're one of the first drivers here. Your account works on any phone you sign in on.")}>
       {mode !== "reset" && <div style={{ display: "flex", background: "rgba(255,255,255,0.06)", borderRadius: 999, padding: 4, marginBottom: 18 }}>
-        {[["create", "Create account"], ["login", "Log in"]].map(([id, label]) => (
+        {[["create", tr("Create account")], ["login", tr("Log in")]].map(([id, label]) => (
           <button key={id} data-testid={`mode-${id}`} onClick={() => switchMode(id)} className="press" style={{
             flex: 1, padding: "9px 0", borderRadius: 999, border: "none", fontSize: 13.5, fontWeight: 700,
             background: mode === id ? "rgba(255,255,255,0.92)" : "transparent", color: mode === id ? T.ink : T.textDim,
@@ -202,30 +213,31 @@ function OnlineOnboarding({ actions }) {
 
       {mode === "create" ? (
         <>
-          <Input icon={<User size={16} />} value={displayName} onChange={setDisplayName} placeholder="e.g. George Q" label="Your name" maxLength={40} />
-          <Input icon={<AtSign size={16} />} value={handle} onChange={(v) => setHandle(v.toLowerCase().replace(/[^a-z0-9_.]/g, ""))} placeholder="e.g. george_q" label="Handle" maxLength={24} status={handleStatus} />
-          <div style={{ fontSize: 11.5, color: T.textDim, margin: "-4px 2px 14px" }}>Lowercase letters, numbers, _ and . only. Handles can't be changed later.</div>
-          <Input icon={<Mail size={16} />} value={email} onChange={setEmail} placeholder="you@example.com" label="Email" maxLength={120} type="email" testid="email"
-            status={email && !emailOk ? { bad: true, text: "That email doesn't look right" } : null} />
+          <Input icon={<User size={16} />} value={displayName} onChange={setDisplayName} placeholder={tr("e.g. George Q")} label={tr("Your name")} maxLength={40}
+            status={nameBad ? { bad: true, text: tr("Please pick a respectful name") } : null} />
+          <Input icon={<AtSign size={16} />} value={handle} onChange={(v) => setHandle(v.toLowerCase().replace(/[^a-z0-9_.]/g, ""))} placeholder={tr("e.g. george_q")} label={tr("Handle")} maxLength={24} status={handleStatus} />
+          <div style={{ fontSize: 11.5, color: T.textDim, margin: "-4px 2px 14px" }}>{tr("Lowercase letters, numbers, _ and . only. Handles can't be changed later.")}</div>
+          <Input icon={<Mail size={16} />} value={email} onChange={setEmail} placeholder={tr("you@example.com")} label={tr("Email")} maxLength={120} type="email" testid="email"
+            status={email && !emailOk ? { bad: true, text: tr("That email doesn't look right") } : null} />
           {passField}
         </>
       ) : mode === "login" && (
         <>
-          <Input icon={<AtSign size={16} />} value={email} onChange={setEmail} placeholder="Email or handle" label="Email or handle" maxLength={120} type="email" testid="email" />
+          <Input icon={<AtSign size={16} />} value={email} onChange={setEmail} placeholder={tr("Email or handle")} label={tr("Email or handle")} maxLength={120} type="email" testid="email" />
           {passField}
-          <button type="button" data-testid="forgot" onClick={() => switchMode("reset")} disabled={busy} style={{ background: "none", border: "none", color: T.textDim, fontSize: 12.5, padding: "0 2px", margin: "-6px 0 14px", textDecoration: "underline" }}>Forgot password?</button>
+          <button type="button" data-testid="forgot" onClick={() => switchMode("reset")} disabled={busy} style={{ background: "none", border: "none", color: T.textDim, fontSize: 12.5, padding: "0 2px", margin: "-6px 0 14px", textDecoration: "underline" }}>{tr("Forgot password?")}</button>
         </>
       )}
       {mode === "reset" && (
         <>
-          <div style={{ color: T.text, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>Reset your password</div>
+          <div style={{ color: T.text, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{tr("Reset your password")}</div>
           <div style={{ color: T.textDim, fontSize: 12.5, lineHeight: 1.45, marginBottom: 14 }}>
-            {codeSent ? "Type the code from the email and pick a new password." : "We'll email you a code to set a new password."}
+            {codeSent ? tr("Type the code from the email and pick a new password.") : tr("We'll email you a code to set a new password.")}
           </div>
-          <Input icon={<Mail size={16} />} value={email} onChange={setEmail} placeholder="you@example.com" label="Email" maxLength={120} type="email" testid="email" />
+          <Input icon={<Mail size={16} />} value={email} onChange={setEmail} placeholder={tr("you@example.com")} label={tr("Email")} maxLength={120} type="email" testid="email" />
           {codeSent && (
             <>
-              <Input icon={<KeyRound size={16} />} value={code} onChange={(v) => setCode(v.replace(/\D/g, ""))} placeholder="6-digit code" label="Code from the email" maxLength={10} type="text" testid="reset-code" inputMode="numeric" />
+              <Input icon={<KeyRound size={16} />} value={code} onChange={(v) => setCode(v.replace(/\D/g, ""))} placeholder={tr("6-digit code")} label={tr("Code from the email")} maxLength={10} type="text" testid="reset-code" inputMode="numeric" />
               {passField}
             </>
           )}
@@ -239,23 +251,23 @@ function OnlineOnboarding({ actions }) {
         <>
           {!codeSent ? (
             <button data-testid="send-code" disabled={!emailOk || busy} onClick={sendCode} className="press" style={primary(emailOk && !busy)}>
-              {busy ? "Sending…" : "Email me a code"} <ChevronRight size={17} />
+              {busy ? tr("Sending…") : tr("Email me a code")} <ChevronRight size={17} />
             </button>
           ) : (
             <button data-testid="set-password" disabled={!codeOk || !passOk || busy} onClick={setNewPassword} className="press" style={primary(codeOk && passOk && !busy)}>
-              {busy ? "Saving…" : "Set new password"} <ChevronRight size={17} />
+              {busy ? tr("Saving…") : tr("Set new password")} <ChevronRight size={17} />
             </button>
           )}
-          {codeSent && <button type="button" onClick={sendCode} disabled={busy} style={{ background: "none", border: "none", color: T.textDim, fontSize: 12.5, marginTop: 12, width: "100%", textDecoration: "underline" }}>Send a new code</button>}
-          <button type="button" data-testid="back-to-login" onClick={() => { setCodeSent(false); setCode(""); switchMode("login"); }} style={{ background: "none", border: "none", color: T.textDim, fontSize: 12.5, marginTop: 8, width: "100%" }}>Back to log in</button>
+          {codeSent && <button type="button" onClick={sendCode} disabled={busy} style={{ background: "none", border: "none", color: T.textDim, fontSize: 12.5, marginTop: 12, width: "100%", textDecoration: "underline" }}>{tr("Send a new code")}</button>}
+          <button type="button" data-testid="back-to-login" onClick={() => { setCodeSent(false); setCode(""); switchMode("login"); }} style={{ background: "none", border: "none", color: T.textDim, fontSize: 12.5, marginTop: 8, width: "100%" }}>{tr("Back to log in")}</button>
         </>
       ) : mode === "create" ? (
         <button data-testid="submit-create" disabled={!canCreate || busy} onClick={create} className="press" style={primary(canCreate && !busy)}>
-          {busy ? "Setting up…" : "Enter Carfooly"} <ChevronRight size={17} />
+          {busy ? tr("Setting up…") : tr("Enter Carfooly")} <ChevronRight size={17} />
         </button>
       ) : (
         <button data-testid="submit-login" disabled={!canLogin || busy} onClick={login} className="press" style={primary(canLogin && !busy)}>
-          {busy ? "Logging in…" : "Log in"} <ChevronRight size={17} />
+          {busy ? tr("Logging in…") : tr("Log in")} <ChevronRight size={17} />
         </button>
       )}
     </Frame>

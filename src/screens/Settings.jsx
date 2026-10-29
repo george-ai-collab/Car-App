@@ -1,11 +1,14 @@
 import { useState } from "react";
-import { User, Car, Archive, LogOut, Trash2, ChevronRight, Info, Pencil, Image as ImageIcon, Users } from "lucide-react";
+import { User, Car, Archive, LogOut, Trash2, ChevronRight, Info, Pencil, Image as ImageIcon, Users, ShieldCheck, Globe, Type } from "lucide-react";
 import { T } from "../theme";
 import { fmtDate } from "../lib/utils";
 import { Avatar, EmptyState, Field, TextInput, TextArea, ConfirmDialog, SectionLabel, BottomSheet, isDriver } from "../components/ui";
 import { CameraCapture } from "../components/photo/CameraCapture";
 import { REMOTE } from "../backend/config";
-import { AccountTypePicker, ACCOUNT_TYPES } from "../components/Welcome";
+import { MAX_LINES } from "../lib/text";
+import { tr, LANGS, lang , AT } from "../lib/i18n";
+import { LanguageSettings } from "../components/LanguagePicker";
+import { FontSettings } from "../components/FontPicker";
 
 export const APP_VERSION = `0.2${import.meta.env?.VITE_BUILD ? `.${import.meta.env.VITE_BUILD}` : ".0"} beta`;
 
@@ -13,7 +16,7 @@ function Row({ icon, label, sub, onClick, danger, disabled, right }) {
   return (
     <button onClick={onClick} disabled={disabled} className="press" style={{
       width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", border: "none",
-      background: "transparent", color: danger ? T.accent : T.text, textAlign: "left", opacity: disabled ? 0.45 : 1,
+      background: "transparent", color: danger ? T.accent : T.text, textAlign: "start", opacity: disabled ? 0.45 : 1,
     }}>
       <div style={{ width: 32, height: 32, borderRadius: 11, background: danger ? "rgba(230,56,70,0.14)" : "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         {icon}
@@ -35,65 +38,85 @@ function Group({ children }) {
   );
 }
 
-export function SettingsScreen({ me, users, cars, posts, go, actions, onTour }) {
+export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, isAdmin, openReports = 0 }) {
   const remote = REMOTE;
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [typeOpen, setTypeOpen] = useState(false);
+  const [sheet, setSheet] = useState(null); // "language" | "fonts"
   const user = users[me] || {};
   const carCount = Object.values(cars).filter((c) => c.ownerUsername === me).length;
   const archivedCount = Object.values(posts).filter((p) => p.authorUsername === me && p.archived).length;
 
   return (
     <div style={{ paddingTop: 18, paddingBottom: 10 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 16 }}>Settings</div>
+      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 16 }}>{tr("Settings")}</div>
 
       <button onClick={() => go("editProfile")} className="press" style={{
         width: "100%", display: "flex", alignItems: "center", gap: 14, padding: 14, borderRadius: 20, marginBottom: 18,
-        background: T.surface, border: `1px solid ${T.lineDark}`, textAlign: "left",
+        background: T.surface, border: `1px solid ${T.lineDark}`, textAlign: "start",
       }}>
         <Avatar username={me} size={52} />
         <div style={{ flex: 1 }}>
           <div style={{ color: T.text, fontSize: 16, fontWeight: 700 }}>{user.name || me}</div>
-          <div className="plate" style={{ color: T.textDim, fontSize: 11, marginTop: 2 }}>@{me}</div>
+          <div className="plate handle" style={{ color: T.textDim, fontSize: 11, marginTop: 2 }}>{AT}{me}</div>
         </div>
         <Pencil size={15} color={T.textDim} />
       </button>
 
-      <SectionLabel>Account</SectionLabel>
+      <SectionLabel>{tr("Account")}</SectionLabel>
       <Group>
-        <Row icon={<User size={16} />} label="Edit profile" sub="Photo, name, bio" onClick={() => go("editProfile")} />
-        {(isDriver(user) || carCount > 0) && <Row icon={<Car size={16} />} label="My cars" sub={`${carCount} ${carCount === 1 ? "car" : "cars"} · edit or delete`} onClick={() => go("manageCars")} />}
-        <Row icon={<Users size={16} />} label="Account type" sub={ACCOUNT_TYPES.find((t) => t.id === (user.accountType || "personal"))?.title} onClick={() => setTypeOpen(true)} />
-        <Row icon={<Archive size={16} />} label="Archived posts" sub={archivedCount ? `${archivedCount} hidden` : "None"} onClick={() => go("archive")} />
+        <Row icon={<User size={16} />} label={tr("Edit profile")} sub={tr("Photo, name, bio")} onClick={() => go("editProfile")} />
+        {(isDriver(user) || carCount > 0) && <Row icon={<Car size={16} />} label={tr("My cars")} sub={tr("{0} {1} · edit or delete", carCount, carCount === 1 ? tr("car") : tr("cars"))} onClick={() => go("manageCars")} />}
+        {/* Chosen once when the account is made; it can't be changed (make a new account instead). */}
+        <Row icon={<Users size={16} />} label={tr("Account type: {0}", tr({ personal: "Driver", club: "Club", business: "Business" }[user.accountType || "personal"]))} sub={tr("Set when the account was made")} disabled right={null} />
+        <Row icon={<Archive size={16} />} label={tr("Archived posts")} sub={archivedCount ? tr("{0} hidden", archivedCount) : tr("None")} onClick={() => go("archive")} />
       </Group>
 
-      <SectionLabel>Sign-in</SectionLabel>
+      {isAdmin && (
+        <>
+          <SectionLabel>{tr("Admin")}</SectionLabel>
+          <Group>
+            <Row icon={<ShieldCheck size={16} />} label={tr("Review reports")} sub={openReports ? tr("{0} open", openReports) : tr("Nothing to review")} onClick={() => go("reports")} />
+          </Group>
+        </>
+      )}
+
+      <SectionLabel>{tr("Sign-in")}</SectionLabel>
       <Group>
-        <Row icon={<span style={{ fontWeight: 800, fontSize: 15 }}>G</span>} label="Connect Google" sub="Coming soon" disabled right={null} />
-        <Row icon={<LogOut size={16} />} label={remote ? "Log out" : "Switch account / Log out"} sub={remote ? "Log in again with your email and password" : "Pick a different handle on this phone"} onClick={() => setConfirmLogout(true)} />
+        <Row icon={<span style={{ fontWeight: 800, fontSize: 15 }}>G</span>} label={tr("Connect Google")} sub={tr("Coming soon")} disabled right={null} />
+        <Row icon={<LogOut size={16} />} label={remote ? tr("Log out") : tr("Switch account / Log out")} sub={remote ? tr("Log in again with your email and password") : tr("Pick a different handle on this phone")} onClick={() => setConfirmLogout(true)} />
       </Group>
 
-      <SectionLabel>Help</SectionLabel>
+      <SectionLabel>{tr("App")}</SectionLabel>
       <Group>
-        <Row icon={<Info size={16} />} label="How Carfooly works" sub="See the intro again" onClick={onTour} />
+        <Row icon={<Globe size={16} />} label={tr("Language")} sub={LANGS.find((l) => l.code === lang)?.native} onClick={() => setSheet("language")} />
+        <Row icon={<Type size={16} />} label={tr("Fonts (testing)")} sub={tr("Try different fonts while we choose")} onClick={() => setSheet("fonts")} />
+      </Group>
+
+      <SectionLabel>{tr("Help")}</SectionLabel>
+      <Group>
+        <Row icon={<Info size={16} />} label={tr("How Carfooly works")} sub={tr("See the intro again")} onClick={onTour} />
       </Group>
 
       <Group>
-        <Row icon={<Trash2 size={16} />} label="Delete account" sub="Removes your profile, cars, posts and comments" danger onClick={() => setConfirmDelete(true)} />
+        <Row icon={<Trash2 size={16} />} label={tr("Delete account")} sub={tr("Removes your profile, cars, posts and comments")} danger onClick={() => setConfirmDelete(true)} />
       </Group>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: T.textDim, fontSize: 12, marginTop: 4 }}>
-        <Info size={12} /> Carfooly {APP_VERSION}{user.joinedAt ? ` · joined ${fmtDate(user.joinedAt)}` : ""}
+        <Info size={12} /> {tr("Carfooly")} {APP_VERSION}{user.joinedAt ? tr(" · joined {0}", fmtDate(user.joinedAt)) : ""}
       </div>
 
-      <BottomSheet open={typeOpen} onClose={() => setTypeOpen(false)} title="Account type" maxHeight="80vh">
-        <AccountTypePicker value={user.accountType || "personal"} onChange={(t) => { actions.updateProfile({ accountType: t }, true); setTypeOpen(false); }} />
+      <BottomSheet open={sheet === "language"} onClose={() => setSheet(null)} title={tr("Language")}>
+        <LanguageSettings />
       </BottomSheet>
-      <ConfirmDialog open={confirmLogout} onClose={() => setConfirmLogout(false)} title="Log out?" confirmLabel="Log out"
-        body={remote ? "Everything stays in your account. Log back in any time." : "Your stuff stays on this phone. Log back in with the same handle to get it back."} onConfirm={actions.logout} />
-      <ConfirmDialog open={confirmDelete} onClose={() => setConfirmDelete(false)} title="Delete your account?" confirmLabel="Delete everything"
-        body="This removes your profile, cars, posts, comments, likes and spots. It can't be undone." onConfirm={actions.deleteAccount} />
+      <BottomSheet open={sheet === "fonts"} onClose={() => setSheet(null)} title={tr("Fonts (testing)")} maxHeight="88vh">
+        <FontSettings />
+      </BottomSheet>
+
+      <ConfirmDialog open={confirmLogout} onClose={() => setConfirmLogout(false)} title={tr("Log out?")} confirmLabel={tr("Log out")}
+        body={remote ? tr("Everything stays in your account. Log back in any time.") : tr("Your stuff stays on this phone. Log back in with the same handle to get it back.")} onConfirm={actions.logout} />
+      <ConfirmDialog open={confirmDelete} onClose={() => setConfirmDelete(false)} title={tr("Delete your account?")} confirmLabel={tr("Delete everything")}
+        body={tr("This removes your profile, cars, posts, comments, likes and spots. It can't be undone.")} onConfirm={actions.deleteAccount} />
     </div>
   );
 }
@@ -107,7 +130,7 @@ export function EditProfile({ me, users, onSave }) {
 
   return (
     <div style={{ paddingTop: 18, paddingBottom: 10 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 18 }}>Edit profile</div>
+      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 18 }}>{tr("Edit profile")}</div>
 
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 20 }}>
         {avatar
@@ -117,23 +140,23 @@ export function EditProfile({ me, users, onSave }) {
           <AvatarPicker onPick={setAvatar} />
           {avatar && (
             <button onClick={() => setAvatar(null)} className="press" style={{ padding: "8px 14px", borderRadius: 999, border: `1px solid ${T.lineDark}`, background: "transparent", color: T.textDim, fontSize: 12.5, fontWeight: 600 }}>
-              Remove
+              {tr("Remove")}
             </button>
           )}
         </div>
       </div>
 
-      <Field label="Name"><TextInput value={name} onChange={setName} placeholder="Your name" maxLength={40} /></Field>
-      <Field label="Handle">
-        <div style={{ padding: "11px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, color: T.textDim, fontSize: 14.5 }}>@{me}</div>
-        <div style={{ fontSize: 11.5, color: T.textDim, marginTop: 6 }}>Handles can't be changed yet.</div>
+      <Field label={tr("Name")}><TextInput value={name} onChange={setName} placeholder={tr("Your name")} maxLength={40} /></Field>
+      <Field label={tr("Handle")}>
+        <div style={{ padding: "11px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, color: T.textDim, fontSize: 14.5 }}>{AT}{me}</div>
+        <div style={{ fontSize: 11.5, color: T.textDim, marginTop: 6 }}>{tr("Handles can't be changed yet.")}</div>
       </Field>
-      <Field label="Bio"><TextArea value={bio} onChange={setBio} placeholder="Your cars, your scene, your plans" maxLength={150} rows={3} /></Field>
+      <Field label={tr("Bio")}><TextArea value={bio} onChange={setBio} placeholder={tr("Your cars, your scene, your plans")} maxLength={150} maxLines={MAX_LINES.bio} rows={3} /></Field>
 
       <button disabled={busy} className="press" onClick={async () => { setBusy(true); await onSave({ name, bio, avatar }); setBusy(false); }} style={{
         width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", marginTop: 6, background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15, opacity: busy ? 0.7 : 1,
       }}>
-        {busy ? "Saving…" : "Save"}
+        {busy ? tr("Saving…") : tr("Save")}
       </button>
     </div>
   );
@@ -157,13 +180,13 @@ export function AvatarPicker({ onPick }) {
   if (open) {
     return (
       <div style={{ width: 220 }}>
-        <CameraCapture value={null} allowLibrary label="Choose a profile photo" onChange={async (src) => { onPick(await crop(src)); setOpen(false); }} />
+        <CameraCapture value={null} allowLibrary label={tr("Choose a profile photo")} onChange={async (src) => { onPick(await crop(src)); setOpen(false); }} />
       </div>
     );
   }
   return (
     <button onClick={() => setOpen(true)} className="press" style={{ padding: "8px 14px", borderRadius: 999, border: "none", background: "rgba(230,56,70,0.14)", color: T.accent, fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-      <ImageIcon size={13} /> Change photo
+      <ImageIcon size={13} /> {tr("Change photo")}
     </button>
   );
 }
@@ -176,26 +199,26 @@ export function ManageCars({ me, cars, posts, onEdit, onDelete, onOpen }) {
 
   return (
     <div style={{ paddingTop: 18, paddingBottom: 10 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 16 }}>My cars</div>
+      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 16 }}>{tr("My cars")}</div>
       {mine.length === 0 ? (
-        <EmptyState icon={<Car size={20} color={T.textDim} />} title="No cars yet" body="Cars you add show up here." />
+        <EmptyState icon={<Car size={20} color={T.textDim} />} title={tr("No cars yet")} body={tr("Cars you add show up here.")} />
       ) : (
         <Group>
           {mine.map((c, i) => (
             <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderTop: i ? `1px solid ${T.lineDark}` : "none" }}>
-              <button onClick={() => onOpen(c.id)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 12, background: "none", border: "none", padding: 0, textAlign: "left" }}>
+              <button onClick={() => onOpen(c.id)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 12, background: "none", border: "none", padding: 0, textAlign: "start" }}>
                 <div style={{ width: 46, height: 46, borderRadius: 14, background: c.photoUrl ? `url(${c.photoUrl}) center/cover` : T.surface2, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   {!c.photoUrl && <Car size={18} color={T.textDim} />}
                 </div>
                 <div>
                   <div style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{c.nickname || `${c.make} ${c.model}`}</div>
-                  <div className="plate" style={{ color: T.textDim, fontSize: 10.5, marginTop: 2 }}>{c.year} · {c.make} {c.model}{c.hasPage === false ? " · no page" : ""}</div>
+                  <div className="plate" style={{ color: T.textDim, fontSize: 10.5, marginTop: 2 }}>{c.year} · {c.make} {c.model}{c.hasPage === false ? tr(" · no page") : ""}</div>
                 </div>
               </button>
-              <button aria-label="Edit car" onClick={() => onEdit(c.id)} className="press" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface2, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button aria-label={tr("Edit car")} onClick={() => onEdit(c.id)} className="press" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface2, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Pencil size={14} color={T.text} />
               </button>
-              <button aria-label="Delete car" onClick={() => setDeleting(c.id)} className="press" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface2, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <button aria-label={tr("Delete car")} onClick={() => setDeleting(c.id)} className="press" style={{ width: 34, height: 34, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface2, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Trash2 size={14} color={T.accent} />
               </button>
             </div>
@@ -203,8 +226,8 @@ export function ManageCars({ me, cars, posts, onEdit, onDelete, onOpen }) {
         </Group>
       )}
       <ConfirmDialog open={!!target} onClose={() => setDeleting(null)}
-        title={target ? `Delete ${target.nickname || `${target.make} ${target.model}`}?` : ""}
-        body={target ? `Its page and build log will be gone.${postCount(target.id) ? ` Your ${postCount(target.id)} post${postCount(target.id) === 1 ? "" : "s"} about it stay, without the car tag.` : ""} This can't be undone.` : ""}
+        title={target ? tr("Delete {0}?", target.nickname || `${target.make} ${target.model}`) : ""}
+        body={target ? tr("Its page and build log will be gone.{0} This can't be undone.", postCount(target.id) ? tr(" Your {0} post{1} about it stay, without the car tag.", postCount(target.id), postCount(target.id) === 1 ? "" : "s") : "") : ""}
         onConfirm={() => onDelete(deleting)} />
     </div>
   );
@@ -214,19 +237,19 @@ export function ArchivedPosts({ me, posts, openPost, onRestore }) {
   const list = Object.values(posts).filter((p) => p.authorUsername === me && p.archived).sort((a, b) => new Date(b.date) - new Date(a.date));
   return (
     <div style={{ paddingTop: 18, paddingBottom: 10 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>Archived posts</div>
-      <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 16 }}>Only you can see these. Restore one to put it back on your profile and the feed.</div>
+      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>{tr("Archived posts")}</div>
+      <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 16 }}>{tr("Only you can see these. Restore one to put it back on your profile and the feed.")}</div>
       {list.length === 0 ? (
-        <EmptyState icon={<Archive size={20} color={T.textDim} />} title="Nothing archived" body="Use the ··· menu on a post to archive it." />
+        <EmptyState icon={<Archive size={20} color={T.textDim} />} title={tr("Nothing archived")} body={tr("Use the ··· menu on a post to archive it.")} />
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           {list.map((p) => (
             <div key={p.id} style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 16, overflow: "hidden" }}>
               <button onClick={() => openPost(p.id)} style={{ width: "100%", aspectRatio: "1", border: "none", padding: 0, background: p.photoUrl ? `url(${p.photoUrl}) center/cover` : T.surface2, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {!p.photoUrl && <span style={{ color: T.textDim, fontSize: 12, padding: 10 }}>{p.caption || "Post"}</span>}
+                {!p.photoUrl && <span style={{ color: T.textDim, fontSize: 12, padding: 10 }}>{p.caption || tr("Post")}</span>}
               </button>
               <button onClick={() => onRestore(p.id)} className="press" style={{ width: "100%", padding: "9px", border: "none", background: "transparent", color: T.accent, fontSize: 12.5, fontWeight: 600 }}>
-                Restore
+                {tr("Restore")}
               </button>
             </div>
           ))}

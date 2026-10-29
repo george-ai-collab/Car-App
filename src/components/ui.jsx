@@ -3,6 +3,8 @@ import { Loader2, ArrowLeft } from "lucide-react";
 import { T, FONT_STACK, MONO_STACK } from "../theme";
 import { hueForId } from "../lib/utils";
 import { useKeyboardOffset } from "../lib/keyboard";
+import { limitTyping } from "../lib/text";
+import { tr } from "../lib/i18n";
 
 export function GlobalStyle() {
   return (
@@ -15,6 +17,7 @@ export function GlobalStyle() {
       input, textarea { font-family: inherit; }
       ::placeholder { color: ${T.textDim}; }
       .plate { font-family: ${MONO_STACK}; letter-spacing: 0.06em; text-transform: uppercase; }
+      .plate.handle { text-transform: none; } /* handles are always lowercase */
       .display { font-family: ${FONT_STACK}; font-weight: 600; letter-spacing: 0.01em; }
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -37,6 +40,11 @@ export function GlobalStyle() {
         border: 1px solid ${T.glassBorder};
         box-shadow: ${T.glassHighlight}, ${T.shadowRaised};
       }
+      /* Right-to-left languages: no letter spacing (it breaks joined Arabic letters); typed text follows its own direction */
+      [dir=rtl] .plate { letter-spacing: 0; }
+      [dir=rtl] input, [dir=rtl] textarea { unicode-bidi: plaintext; }
+      /* Right-to-left languages: arrows point the other way */
+      [dir=rtl] .lucide-chevron-left, [dir=rtl] .lucide-chevron-right, [dir=rtl] .lucide-arrow-left, [dir=rtl] .lucide-arrow-right, [dir=rtl] .flip-rtl { transform: scaleX(-1); }
       .glass-light {
         background: rgba(255,255,255,0.10);
         backdrop-filter: blur(16px) saturate(160%);
@@ -51,7 +59,7 @@ export function LoadingScreen() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: T.text }}>
       <Loader2 size={28} color={T.accent} style={{ animation: "spin 1s linear infinite" }} />
-      <div style={{ fontFamily: MONO_STACK, fontSize: 12, color: T.textDim, letterSpacing: "0.08em" }}>LOADING CARFOOLY</div>
+      <div style={{ fontFamily: MONO_STACK, fontSize: 12, color: T.textDim, letterSpacing: "0.08em" }}>{tr("LOADING CARFOOLY")}</div>
     </div>
   );
 }
@@ -146,11 +154,12 @@ export function TextInput({ value, onChange, placeholder, icon, autoFocus, maxLe
   );
 }
 
-export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh" }) {
+export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh", fixedHeight, footer }) {
   const sheets = useContext(SheetContext);
   const kb = useKeyboardOffset();
   const wasTyping = useRef(false);
   const sheetRef = useRef(null);
+  const scrollRef = useRef(null); // the part that scrolls (the footer, if any, stays put below it)
   const backRef = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -165,7 +174,8 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
   // it springs back.
   useEffect(() => {
     const el = sheetRef.current;
-    if (!open || !el) return;
+    const sc = scrollRef.current;
+    if (!open || !el || !sc) return;
     let startY = 0, startT = 0, dy = 0, tracking = false, dragging = false, fromHandle = false;
     const skip = (t) => t.closest?.("input, textarea, select, [contenteditable], [data-noswipe], input[type=range]");
     const set = (y, animate) => {
@@ -179,7 +189,7 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
     const begin = (y, target) => {
       if (skip(target)) return;
       fromHandle = !!target.closest?.("[data-sheet-handle]");
-      if (!fromHandle && el.scrollTop > 0) return;
+      if (!fromHandle && sc.scrollTop > 0) return;
       tracking = true; dragging = false; startY = y; startT = Date.now(); dy = 0;
     };
     const move = (y, e) => {
@@ -187,7 +197,7 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
       dy = y - startY;
       if (!dragging) {
         if (dy < -4 && !fromHandle) { tracking = false; return; } // scrolling the content up
-        if (dy > 6 && (fromHandle || el.scrollTop <= 0)) dragging = true;
+        if (dy > 6 && (fromHandle || sc.scrollTop <= 0)) dragging = true;
       }
       if (dragging) {
         if (e.cancelable) e.preventDefault();
@@ -247,24 +257,40 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
         position: "fixed", inset: 0, zIndex: 40, background: "rgba(6,6,7,0.78)",
         backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
       }} />
-      <div ref={sheetRef} data-sheet className="glass sheet-in" style={{
+      {/* Solid background: a see-through panel picked up the colours of the photo behind it. */}
+      <div ref={sheetRef} data-sheet className="sheet-in" style={{
         position: "fixed", left: "50%", bottom: kb, transform: "translateX(-50%)",
         width: "100%", maxWidth: 480, zIndex: 41,
         maxHeight: kb ? `min(${maxHeight}, ${Math.max(200, window.innerHeight - kb - 40)}px)` : maxHeight,
+        // Fixed-height panels (comments) leave room above them while typing, so a tap there closes the keyboard.
+        ...(fixedHeight ? { height: kb ? `min(${maxHeight}, ${Math.max(200, window.innerHeight - kb - 110)}px)` : maxHeight, ...(kb ? { maxHeight: `${Math.max(200, window.innerHeight - kb - 110)}px` } : {}) } : {}),
         borderRadius: kb ? 26 : "26px 26px 0 0",
-        padding: kb ? "10px 20px 12px" : "10px 20px calc(24px + env(safe-area-inset-bottom))",
-        overflowY: "auto", overscrollBehavior: "contain", transition: "bottom 0.18s ease",
+        background: SHEET_BG, border: `1px solid ${T.glassBorder}`, borderBottom: "none", boxShadow: T.shadowRaised,
+        display: "flex", flexDirection: "column", overflow: "hidden", transition: "bottom 0.18s ease",
       }}>
-        {/* The handle: a bigger invisible grab area around the little bar. */}
-        <div data-sheet-handle style={{ margin: "-10px -20px 0", padding: "14px 0 16px", touchAction: "none", cursor: "grab" }}>
-          <div style={{ width: 36, height: 4, borderRadius: 99, background: "rgba(255,255,255,0.25)", margin: "0 auto" }} />
+       <div ref={scrollRef} style={{
+        flex: "1 1 auto", minHeight: 0, overflowY: "auto", overscrollBehavior: "contain",
+        padding: footer ? "10px 20px 12px" : kb ? "10px 20px 12px" : "10px 20px calc(24px + env(safe-area-inset-bottom))",
+       }}>
+        {/* Handle + title stay pinned at the top while the content scrolls (and the handle can
+            always be dragged to close). A bigger invisible grab area surrounds the little bar. */}
+        <div data-sheet-handle style={{ position: "sticky", top: -10, zIndex: 2, margin: "-10px -20px 0", padding: "14px 20px 0", background: SHEET_BG, touchAction: "none", cursor: "grab" }}>
+          <div style={{ width: 36, height: 4, borderRadius: 99, background: "rgba(255,255,255,0.25)", margin: "0 auto 16px" }} />
+          {title && <div className="display" style={{ fontSize: 18, color: T.text, paddingBottom: 14 }}>{title}</div>}
         </div>
-        {title && <div className="display" style={{ fontSize: 18, color: T.text, marginBottom: 16 }}>{title}</div>}
         {children}
+       </div>
+       {/* Pinned under the scrolling part, down to the bottom edge (e.g. the comment box). */}
+       {footer && (
+         <div data-sheet-footer style={{ flexShrink: 0, background: SHEET_BG, borderTop: `1px solid ${T.lineDark}`, padding: kb ? "10px 20px 12px" : "10px 20px calc(14px + env(safe-area-inset-bottom))" }}>
+           {footer}
+         </div>
+       )}
       </div>
     </>
   );
 }
+const SHEET_BG = "#141417";
 
 export function Stat({ label, value, small, dark }) {
   return (
@@ -297,7 +323,7 @@ export function TopBar({ onBack, title, right }) {
   return (
     <div className="glass" style={{ position: "sticky", top: 0, zIndex: 10, padding: "12px 16px", borderRadius: 0, borderLeft: "none", borderRight: "none", borderTop: "none", display: "flex", alignItems: "center", gap: 12, minHeight: 58 }}>
       {onBack && (
-        <button data-nav-back onClick={onBack} aria-label="Back" className="press" style={{ background: "rgba(255,255,255,0.08)", border: "none", padding: 8, borderRadius: 999, display: "flex" }}>
+        <button data-nav-back onClick={onBack} aria-label={tr("Back")} className="press" style={{ background: "rgba(255,255,255,0.08)", border: "none", padding: 8, borderRadius: 999, display: "flex" }}>
           <ArrowLeft size={18} color={T.text} />
         </button>
       )}
@@ -307,12 +333,13 @@ export function TopBar({ onBack, title, right }) {
   );
 }
 
-export function TextArea({ value, onChange, placeholder, maxLength, rows = 4, autoFocus }) {
+export function TextArea({ value, onChange, placeholder, maxLength, rows = 4, autoFocus, maxLines }) {
+  const lines = (value || "").split("\n").length;
   return (
     <div>
-      <textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} rows={rows} maxLength={maxLength} autoFocus={autoFocus}
+      <textarea value={value} onChange={(e) => onChange(limitTyping(e.target.value, value, maxLines))} placeholder={placeholder} rows={rows} maxLength={maxLength} autoFocus={autoFocus}
         style={{ width: "100%", padding: "11px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 14.5, outline: "none", resize: "none", lineHeight: 1.45 }} />
-      {maxLength && <div style={{ textAlign: "right", fontSize: 11, color: T.textDim, marginTop: 4 }}>{value.length}/{maxLength}</div>}
+      {maxLength && <div style={{ textAlign: "right", fontSize: 11, color: T.textDim, marginTop: 4 }}>{maxLines && lines > 1 ? tr("{0}/{1} lines · ", lines, maxLines) : ""}{value.length}/{maxLength}</div>}
     </div>
   );
 }
@@ -325,7 +352,7 @@ export function ActionMenu({ open, onClose, items }) {
         {items.filter(Boolean).map((it) => (
           <button key={it.label} onClick={() => { onClose(); it.onClick(); }} className="press" style={{
             display: "flex", alignItems: "center", gap: 12, padding: "14px 14px", borderRadius: 16, border: "none",
-            background: "rgba(255,255,255,0.06)", color: it.danger ? T.accent : T.text, fontSize: 15, fontWeight: 600, textAlign: "left",
+            background: "rgba(255,255,255,0.06)", color: it.danger ? T.accent : T.text, fontSize: 15, fontWeight: 600, textAlign: "start",
           }}>
             {it.icon}{it.label}
           </button>
@@ -341,7 +368,7 @@ export function ConfirmDialog({ open, title, body, confirmLabel = "Delete", onCo
     <BottomSheet open={open} onClose={onClose} title={title}>
       {body && <div style={{ color: T.textDim, fontSize: 14, lineHeight: 1.5, marginBottom: 18 }}>{body}</div>}
       <div style={{ display: "flex", gap: 10 }}>
-        <button onClick={onClose} className="press" style={{ flex: 1, padding: "13px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: "transparent", color: T.text, fontWeight: 600, fontSize: 15 }}>Cancel</button>
+        <button onClick={onClose} className="press" style={{ flex: 1, padding: "13px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: "transparent", color: T.text, fontWeight: 600, fontSize: 15 }}>{tr("Cancel")}</button>
         <button onClick={() => { onClose(); onConfirm(); }} className="press" style={{ flex: 1, padding: "13px", borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>{confirmLabel}</button>
       </div>
     </BottomSheet>
@@ -353,11 +380,11 @@ export function FollowAvatar({ username, size, showFollow, following, onFollow, 
   const b = Math.max(18, Math.round(size * 0.32));
   return (
     <div style={{ position: "relative", flexShrink: 0, width: size, height: size + (showFollow ? b / 2 : 0) }}>
-      <button onClick={onOpen} aria-label={`Open ${username}`} style={{ background: "none", border: "none", padding: 0, display: "flex" }} disabled={!onOpen}>
+      <button onClick={onOpen} aria-label={tr("Open {0}", username)} style={{ background: "none", border: "none", padding: 0, display: "flex" }} disabled={!onOpen}>
         <Avatar username={username} size={size} />
       </button>
       {showFollow && (
-        <button data-testid="follow-badge" aria-label={following ? "Unfollow" : "Follow"} onClick={onFollow} className="press" style={{
+        <button data-testid="follow-badge" aria-label={following ? tr("Unfollow") : tr("Follow")} onClick={onFollow} className="press" style={{
           position: "absolute", left: "50%", top: size - b / 2, transform: "translateX(-50%)",
           width: b, height: b, borderRadius: 999, padding: 0, border: `2px solid ${T.bg}`,
           background: following ? "#fff" : T.accent, color: following ? T.accent : "#fff",
@@ -416,7 +443,7 @@ export function ChipPicker({ value, onChange, options, testid }) {
         const on = value === o.id;
         return (
           <button key={o.id} type="button" onClick={() => onChange(o.id)} className="press" style={{
-            flexShrink: 0, padding: o.sub ? "8px 14px" : "9px 14px", borderRadius: 16, textAlign: "left",
+            flexShrink: 0, padding: o.sub ? "8px 14px" : "9px 14px", borderRadius: 16, textAlign: "start",
             border: `1px solid ${on ? T.accent : T.lineDark}`, background: on ? "rgba(230,56,70,0.14)" : T.surface2, color: on ? T.text : T.textDim,
           }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: on ? T.text : T.text, whiteSpace: "nowrap" }}>{o.label}</div>
@@ -436,8 +463,8 @@ export function AccountLabel({ username, onDark }) {
   if (t !== "club" && t !== "business") return null;
   return (
     <span data-testid="account-label" className="plate" style={{
-      fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", borderRadius: 5, padding: "2px 6px", marginLeft: 6, verticalAlign: "middle",
+      fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", borderRadius: 5, padding: "2px 6px", marginInlineStart: 6, verticalAlign: "middle",
       color: T.ink, background: T.paper, boxShadow: onDark ? "0 1px 3px rgba(0,0,0,0.4)" : "none",
-    }}>{t === "club" ? "CLUB" : "BUSINESS"}</span>
+    }}>{t === "club" ? tr("CLUB") : tr("BUSINESS")}</span>
   );
 }

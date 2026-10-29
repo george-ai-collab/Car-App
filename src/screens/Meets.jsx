@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MapPin, Clock, Pencil, Trash2, Navigation, Plus, Calendar, LocateFixed, Search, Loader2, X, Award, SlidersHorizontal, FileText, Users } from "lucide-react";
+import { MapPin, Clock, Pencil, Trash2, Navigation, Plus, Calendar, LocateFixed, Search, Loader2, X, Award, SlidersHorizontal, FileText, Users, BadgeCheck, Crown, Repeat, Info } from "lucide-react";
 import { T } from "../theme";
 import { fmtWhen, isPast } from "../lib/utils";
 import { useSwipe } from "../lib/useSwipe";
@@ -10,22 +10,29 @@ import { PhotoPicker } from "../components/photo/PhotoPicker";
 import { MoreMenu, useSafety } from "../components/Safety";
 import { DateTimePicker } from "../components/DateTimePicker";
 import { LocationPicker, LeafletMap, directionsUrl, labelFor, placeArea } from "../components/LocationPicker";
+import { MAX_LINES } from "../lib/text";
+import { RichText } from "../components/RichText";
+import { meetStatus, occurrence, groupMeets, toLocal, isPro, hoursBetween } from "../lib/meets";
+import { OrganizerTools, DriverCard, Announcements, CarsAtMeet, PlanPicker, PlanBadge } from "./MeetDay";
+import { tr, locale } from "../lib/i18n";
 
 export const MEET_ROLES = [
-  { id: "organizer", label: "Organizing" },
-  { id: "driver", label: "Driving" },
-  { id: "attendee", label: "Attending" },
+  { id: "organizer", label: tr("Organizing") },
+  { id: "driver", label: tr("Driving") },
+  { id: "attendee", label: tr("Attending") },
 ];
 
-const byWhen = (a, b) => (a.when || "").localeCompare(b.when || "");
+const fmtTime = (d) => d.toLocaleTimeString(locale(), { hour: "numeric", minute: "2-digit" });
 
 // ---------- list card ----------
 export function MeetCard({ meet, onOpen }) {
-  const past = isPast(meet.when);
+  const status = meetStatus(meet);
+  const past = status === "ended";
+  const { start, end } = occurrence(meet);
   const going = (meet.attendees || []).length;
   return (
     <button data-testid="meet-card" onClick={() => onOpen(meet.id)} className="press" style={{
-      width: "100%", display: "flex", gap: 12, alignItems: "center", marginBottom: 10, padding: 10, borderRadius: 20, textAlign: "left",
+      width: "100%", display: "flex", gap: 12, alignItems: "center", marginBottom: 10, padding: 10, borderRadius: 20, textAlign: "start",
       background: T.surface, border: `1px solid ${T.lineDark}`, boxShadow: T.shadowCard, opacity: past ? 0.6 : 1,
     }}>
       <div style={{
@@ -36,17 +43,22 @@ export function MeetCard({ meet, onOpen }) {
         {!meet.cover && <Calendar size={22} color="#BFE0EC" />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ color: T.text, fontSize: 15, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meet.title}</div>
-        <div style={{ fontSize: 12, color: past ? T.textDim : T.accent2, display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
-          <Clock size={11} /> {fmtWhen(meet.when)}{past ? " · Ended" : ""}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: T.text, fontSize: 15, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meet.title}</span>
+          <PlanBadge meet={meet} />
         </div>
+        <div style={{ fontSize: 12, color: status === "live" ? "#7BD389" : past ? T.textDim : T.accent2, display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
+          {status === "live" ? <><span data-testid="live-dot" style={{ width: 7, height: 7, borderRadius: 99, background: "#7BD389" }} /> {tr("Happening now · until")} {end ? fmtTime(end) : ""}</>
+            : <><Clock size={11} /> {start ? fmtWhen(toLocal(start)) : fmtWhen(meet.when)}{meet.recurring === "weekly" ? tr(" · weekly") : ""}{past ? tr(" · Ended") : ""}</>}
+        </div>
+        {meet.featured && isPro(meet) && !past && <div style={{ fontSize: 10.5, color: "#F2C76A", fontWeight: 700, marginTop: 2 }}>{tr("FEATURED")}</div>}
         <div style={{ fontSize: 12, color: T.textDim, display: "flex", alignItems: "center", gap: 5, marginTop: 2, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
           <MapPin size={11} style={{ flexShrink: 0 }} /> {meet.city ? `${meet.city}${meet.country ? `, ${meet.country}` : ""}` : meet.location}
         </div>
       </div>
-      <div style={{ textAlign: "center", flexShrink: 0, paddingRight: 4 }}>
+      <div style={{ textAlign: "center", flexShrink: 0, paddingInlineEnd: 4 }}>
         <div style={{ color: T.text, fontSize: 15, fontWeight: 700 }}>{going}</div>
-        <div style={{ color: T.textDim, fontSize: 10 }}>going</div>
+        <div style={{ color: T.textDim, fontSize: 10 }}>{tr("going")}</div>
       </div>
     </button>
   );
@@ -58,9 +70,8 @@ export function MeetsScreen({ meets, onOpen, onPost, scope = "local", setScope }
   useEffect(() => { loadArea().then(setArea); }, []);
   const sw = useSwipe({ onLeft: () => setScope("global"), onRight: () => setScope("local") });
 
-  const all = Object.values(meets);
-  const upcoming = all.filter((m) => !isPast(m.when)).sort(byWhen);
-  const past = all.filter((m) => isPast(m.when)).sort(byWhen).reverse();
+  const safety = useSafety();
+  const opts = { me: safety?.me, users: safety?.users || {} };
   const pick = async (a) => { await saveArea(a); setArea(a); };
 
   let body;
@@ -68,57 +79,58 @@ export function MeetsScreen({ meets, onOpen, onPost, scope = "local", setScope }
     if (area === undefined) body = null;
     else if (!area) body = <AreaPicker onPick={pick} />;
     else {
-      const near = upcoming.filter((m) => isNear(m, area));
+      const near = {};
+      Object.values(meets).filter((m) => isNear(m, area)).forEach((m) => { near[m.id] = m; });
+      const groups = groupMeets(near, opts);
       body = (
         <>
           <AreaBar area={area} onChange={() => setArea(null)} />
-          {near.length === 0
-            ? <EmptyState icon={<Calendar size={20} color={T.textDim} />} title={`No meets near ${area.city || "you"} yet`} body="Post one, or check Global to see what's on elsewhere." />
-            : near.map((m) => <MeetCard key={m.id} meet={m} onOpen={onOpen} />)}
+          {groups.filter((g) => g.id !== "recent").length === 0 && <EmptyState icon={<Calendar size={20} color={T.textDim} />} title={tr("No meets near {0} yet", area.city || tr("you"))} body={tr("Post one, or check Global to see what's on elsewhere.")} />}
+          <MeetGroups groups={groups} onOpen={onOpen} />
         </>
       );
     }
   } else {
-    // Global: grouped by country, soonest first.
-    const groups = {};
-    upcoming.forEach((m) => { const k = m.country || "Other places"; (groups[k] = groups[k] || []).push(m); });
-    const keys = Object.keys(groups).sort((a, b) => (a === "Other places") - (b === "Other places") || a.localeCompare(b));
-    body = keys.length === 0
-      ? <EmptyState icon={<Calendar size={20} color={T.textDim} />} title="No upcoming meets" body="Be the first to post one." />
-      : keys.map((k) => (
-        <div key={k} style={{ marginBottom: 8 }}>
-          <SectionLabel>{k}</SectionLabel>
-          {groups[k].map((m) => <MeetCard key={m.id} meet={m} onOpen={onOpen} />)}
-        </div>
-      ));
+    // Global: everywhere, grouped by when (the card shows the city and country).
+    const groups = groupMeets(meets, opts);
+    body = (
+      <>
+        {groups.filter((g) => g.id !== "recent").length === 0 && <EmptyState icon={<Calendar size={20} color={T.textDim} />} title={tr("No upcoming meets")} body={tr("Be the first to post one.")} />}
+        <MeetGroups groups={groups} onOpen={onOpen} />
+      </>
+    );
   }
 
   return (
     <div {...sw.bind} style={{ ...sw.bind.style, minHeight: "70vh" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        <div className="display" style={{ fontSize: 24, color: T.text }}>Meets</div>
-        <button onClick={onPost} aria-label="Post a meet" className="press" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 999, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 700, boxShadow: T.shadowAccent }}>
-          <Plus size={15} /> Post a meet
+        <div className="display" style={{ fontSize: 24, color: T.text }}>{tr("Meets")}</div>
+        <button onClick={onPost} aria-label={tr("Post a meet")} className="press" style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 999, border: "none", background: T.accent, color: "#fff", fontSize: 13, fontWeight: 700, boxShadow: T.shadowAccent }}>
+          <Plus size={15} /> {tr("Post a meet")}
         </button>
       </div>
-      <Segmented testid="meet-scope" value={scope} onChange={setScope} options={[["local", "Local"], ["global", "Global"]]} />
+      <Segmented testid="meet-scope" value={scope} onChange={setScope} options={[["local", tr("Local")], ["global", tr("Global")]]} />
       {body}
-      {past.length > 0 && scope === "global" && (
-        <div style={{ marginTop: 18 }}>
-          <SectionLabel>Past meets</SectionLabel>
-          {past.slice(0, 10).map((m) => <MeetCard key={m.id} meet={m} onOpen={onOpen} />)}
-        </div>
-      )}
     </div>
   );
+}
+
+// Happening now / Today / This weekend / This week / Later / Recently ended (7 days).
+function MeetGroups({ groups, onOpen }) {
+  return groups.map((g) => (
+    <div key={g.id} data-testid={`meet-group-${g.id}`} style={{ marginBottom: 8 }}>
+      <SectionLabel>{g.label}</SectionLabel>
+      {g.meets.map((m) => <MeetCard key={m.id} meet={m} onOpen={onOpen} />)}
+    </div>
+  ));
 }
 
 function AreaBar({ area, onChange }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, color: T.textDim, fontSize: 12.5 }}>
       <MapPin size={13} color={T.accent} />
-      <span style={{ flex: 1 }}>Within {NEAR_KM} km of <span style={{ color: T.text, fontWeight: 600 }}>{area.label}</span></span>
-      <button onClick={onChange} className="press" style={{ background: "none", border: "none", color: T.accent, fontSize: 12.5, fontWeight: 700, padding: 0 }}>Change</button>
+      <span style={{ flex: 1 }}>{tr("Within")} {NEAR_KM} {tr("km of")} <span style={{ color: T.text, fontWeight: 600 }}>{area.label}</span></span>
+      <button onClick={onChange} className="press" style={{ background: "none", border: "none", color: T.accent, fontSize: 12.5, fontWeight: 700, padding: 0 }}>{tr("Change")}</button>
     </div>
   );
 }
@@ -138,37 +150,37 @@ function AreaPicker({ onPick }) {
         const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q.trim())}&limit=5&layer=city&layer=state`);
         const j = await r.json();
         if (!off) setResults((j.features || []).map((f) => ({ label: labelFor(f.properties || {}), ...placeArea(f.properties || {}), lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] })));
-      } catch { if (!off) setError("City search isn't reachable right now."); }
+      } catch { if (!off) setError(tr("City search isn't reachable right now.")); }
     }, 400);
     return () => { off = true; clearTimeout(t); };
   }, [q]);
 
   const mine = () => {
-    if (!navigator.geolocation) { setError("Location isn't available on this device."); return; }
+    if (!navigator.geolocation) { setError(tr("Location isn't available on this device.")); return; }
     setBusy(true);
     navigator.geolocation.getCurrentPosition(async (pos) => {
       const lat = pos.coords.latitude, lng = pos.coords.longitude;
-      let area = { label: "your location", city: "", country: "", lat, lng };
+      let area = { label: tr("your location"), city: "", country: "", lat, lng };
       try {
         const r = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`);
         const p = (await r.json()).features?.[0]?.properties;
-        if (p) { const a = placeArea(p); area = { ...area, ...a, label: a.city || "your location" }; }
+        if (p) { const a = placeArea(p); area = { ...area, ...a, label: a.city || tr("your location") }; }
       } catch { /* keep "your location" */ }
       setBusy(false);
       onPick(area);
-    }, (err) => { setBusy(false); handleLocationError(err); setError("Couldn't get your location. You can search for your city instead."); }, { timeout: 12000 });
+    }, (err) => { setBusy(false); handleLocationError(err); setError(tr("Couldn't get your location. You can search for your city instead.")); }, { timeout: 12000 });
   };
 
   return (
     <div className="glass" style={{ borderRadius: 22, padding: 16 }}>
-      <div style={{ color: T.text, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>See meets near you</div>
-      <div style={{ color: T.textDim, fontSize: 12.5, marginBottom: 14, lineHeight: 1.45 }}>Pick your area once. It stays on your phone and isn't shown to anyone.</div>
+      <div style={{ color: T.text, fontSize: 15, fontWeight: 700, marginBottom: 4 }}>{tr("See meets near you")}</div>
+      <div style={{ color: T.textDim, fontSize: 12.5, marginBottom: 14, lineHeight: 1.45 }}>{tr("Pick your area once. It stays on your phone and isn't shown to anyone.")}</div>
       <button onClick={mine} disabled={busy} className="press" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
-        {busy ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <LocateFixed size={15} />} Use my location
+        {busy ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <LocateFixed size={15} />} {tr("Use my location")}
       </button>
-      <TextInput value={q} onChange={setQ} placeholder="Or search your city" icon={<Search size={14} />} />
+      <TextInput value={q} onChange={setQ} placeholder={tr("Or search your city")} icon={<Search size={14} />} />
       {results.map((r, i) => (
-        <button key={i} data-testid="city-result" onClick={() => onPick({ ...r, label: r.city || r.label })} style={{ width: "100%", display: "flex", gap: 8, alignItems: "center", padding: "10px 4px", background: "none", border: "none", borderBottom: `1px solid ${T.lineDark}`, color: T.text, fontSize: 13.5, textAlign: "left" }}>
+        <button key={i} data-testid="city-result" onClick={() => onPick({ ...r, label: r.city || r.label })} style={{ width: "100%", display: "flex", gap: 8, alignItems: "center", padding: "10px 4px", background: "none", border: "none", borderBottom: `1px solid ${T.lineDark}`, color: T.text, fontSize: 13.5, textAlign: "start" }}>
           <MapPin size={13} color={T.accent} /> {r.label}
         </button>
       ))}
@@ -187,7 +199,10 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
   const myRole = attendees.find((a) => a.username === me)?.role;
   const isCreator = meet.submittedBy === me;
   const canManage = isCreator || myRole === "organizer";
-  const past = isPast(meet.when);
+  const status = meetStatus(meet);
+  const past = status === "ended";
+  const { start, end } = occurrence(meet);
+  useEffect(() => { safety?.actions.viewMeet?.(meet.id); }, [meet.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const hasPin = meet.lat != null && meet.lng != null;
   const organizers = attendees.filter((a) => a.role === "organizer");
   const caps = meet.caps || {};
@@ -202,29 +217,37 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
     <div style={{ paddingBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
         {safety && (
-          <MoreMenu label="Meet options" testid="meet-menu" flash={safety.flash}
-            share={{ title: meet.title, text: `${meet.title} · ${fmtWhen(meet.when)} · ${meet.location} (on Carfooly)` }}
+          <MoreMenu label={tr("Meet options")} testid="meet-menu" flash={safety.flash}
+            share={{ title: meet.title, text: tr("{0} · {1} · {2} (on Carfooly)", meet.title, fmtWhen(meet.when), meet.location) }}
             items={isCreator ? [
-              { label: "Edit meet", icon: <Pencil size={17} />, onClick: () => onEdit(meet.id) },
-              { label: "Delete meet", icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },
+              { label: tr("Edit meet"), icon: <Pencil size={17} />, onClick: () => onEdit(meet.id) },
+              { label: tr("Delete meet"), icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },
             ] : []}
             report={isCreator ? null : { what: "meet", onSend: (reason, note) => safety.actions.report({ kind: "meet", id: meet.id, reason, note }) }} />
         )}
       </div>
 
       {meet.cover && (
-        <button onClick={() => setViewPhoto(true)} aria-label="View photo" style={{ display: "block", width: "100%", padding: 0, border: "none", borderRadius: 20, overflow: "hidden", background: T.surface, marginBottom: 18 }}>
+        <button onClick={() => setViewPhoto(true)} aria-label={tr("View photo")} style={{ display: "block", width: "100%", padding: 0, border: "none", borderRadius: 20, overflow: "hidden", background: T.surface, marginBottom: 18 }}>
           <img src={meet.cover} alt="" style={{ width: "100%", display: "block", maxHeight: "60vh", objectFit: "cover" }} />
         </button>
       )}
 
-      <div className="plate" style={{ color: past ? T.textDim : T.accent2, fontSize: 11, marginBottom: 6 }}>{past ? "Ended · " : ""}{meet.city || "Meet"}{meet.country ? ` · ${meet.country}` : ""}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span className="plate" data-testid="meet-status" style={{ color: status === "live" ? "#7BD389" : past ? T.textDim : T.accent2, fontSize: 11 }}>
+          {status === "live" ? tr("Happening now · ") : past ? tr("Ended · ") : ""}{meet.city || tr("Meet")}{meet.country ? ` · ${meet.country}` : ""}
+        </span>
+        <PlanBadge meet={meet} />
+        {users[meet.submittedBy]?.verified && <span style={{ color: "#8EC3D6", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 3 }}><BadgeCheck size={12} /> {tr("Verified club")}</span>}
+      </div>
       <div className="display" data-testid="meet-title" style={{ fontSize: 30, color: T.text, lineHeight: 1.1 }}>{meet.title}</div>
-      <div style={{ color: T.text, fontSize: 14.5, marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}><Clock size={15} color={T.accent2} /> {fmtWhen(meet.when)}</div>
+      <div data-testid="meet-when" style={{ color: T.text, fontSize: 14.5, marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
+        <Clock size={15} color={T.accent2} /> {start ? fmtWhen(toLocal(start)) : fmtWhen(meet.when)}{end ? ` – ${fmtTime(end)}` : ""}{meet.recurring === "weekly" ? tr(" · every week") : ""}
+      </div>
       <div style={{ color: T.text, fontSize: 14.5, marginTop: 8, display: "flex", alignItems: "flex-start", gap: 8, lineHeight: 1.4 }}><MapPin size={15} color={T.accent2} style={{ flexShrink: 0, marginTop: 2 }} /> {meet.location}</div>
       <button onClick={() => openProfile(meet.submittedBy)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, marginTop: 14 }}>
         <Avatar username={meet.submittedBy} size={26} />
-        <span style={{ color: T.textDim, fontSize: 13 }}>Posted by <span style={{ color: T.text, fontWeight: 700 }}>{users[meet.submittedBy]?.name || meet.submittedBy}</span></span>
+        <span style={{ color: T.textDim, fontSize: 13 }}>{tr("Posted by")} <span style={{ color: T.text, fontWeight: 700 }}>{users[meet.submittedBy]?.name || meet.submittedBy}</span></span>
       </button>
 
       {/* RSVP */}
@@ -243,34 +266,41 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
             }}>
               <span>{r.label}</span>
               <span style={{ fontSize: 15, fontWeight: 700, color: T.text }}>{count}{cap ? `/${cap}` : ""}</span>
-              {full && <span style={{ fontSize: 10, color: T.accent }}>Full</span>}
+              {full && <span style={{ fontSize: 10, color: T.accent }}>{tr("Full")}</span>}
             </button>
           );
         })}
       </div>
 
+      {canManage && <OrganizerTools meet={meet} users={users} onManage={() => setManaging(true)} />}
+      <DriverCard meet={meet} me={me} users={users} />
+      {canManage && meet.driverNote && !attendees.some((x) => x.username === me && x.role === "driver") && (
+        <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 10 }}>{tr("For drivers (only drivers and organizers see this):")} {meet.driverNote}</div>
+      )}
+      <Announcements meet={meet} />
+
       {meet.note && (
-        <div style={section}>
-          <div style={{ color: T.text, fontSize: 15, lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{meet.note}</div>
+        <div style={{ ...section, marginTop: 14 }}>
+          <RichText text={meet.note} maxLines={MAX_LINES.note} style={{ color: T.text, fontSize: 15, lineHeight: 1.65 }} />
         </div>
       )}
 
       {hasPin && (
         <div style={section}>
-          <SectionLabel>Where</SectionLabel>
+          <SectionLabel>{tr("Where")}</SectionLabel>
           <div data-noswipe><LeafletMap pin={{ lat: meet.lat, lng: meet.lng }} height={180} interactive={false} /></div>
           <a href={directionsUrl(meet.lat, meet.lng)} target="_blank" rel="noopener noreferrer" className="press" style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginTop: 10, padding: "11px", borderRadius: 14,
             background: "rgba(69,123,144,0.2)", color: "#8EC3D6", fontSize: 13.5, fontWeight: 700, textDecoration: "none",
           }}>
-            <Navigation size={14} /> Directions
+            <Navigation size={14} /> {tr("Directions")}
           </a>
         </div>
       )}
 
       {(meet.sponsors || []).length > 0 && (
         <div style={section}>
-          <SectionLabel>Sponsors</SectionLabel>
+          <SectionLabel>{tr("Sponsors")}</SectionLabel>
           <div data-testid="sponsors" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {meet.sponsors.map((sp) => (
               <span key={sp} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, background: "rgba(242,184,75,0.14)", color: "#F2C76A", fontSize: 12.5, fontWeight: 600 }}>
@@ -281,10 +311,12 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
         </div>
       )}
 
+      <CarsAtMeet meet={meet} me={me} openCar={(id) => safety?.openCar?.(id)} />
+
       <div style={section}>
-        <SectionLabel>Organizing</SectionLabel>
+        <SectionLabel>{tr("Organizing")}</SectionLabel>
         {organizers.map((a) => (
-          <button key={a.username} onClick={() => openProfile(a.username)} style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: "6px 0", textAlign: "left" }}>
+          <button key={a.username} onClick={() => openProfile(a.username)} style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: "6px 0", textAlign: "start" }}>
             <Avatar username={a.username} size={32} />
             <span style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{users[a.username]?.name || a.username}</span>
           </button>
@@ -293,18 +325,17 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
 
       <div style={section} data-testid="whos-going">
         <div style={{ display: "flex", alignItems: "center" }}>
-          <div style={{ flex: 1 }}><SectionLabel>Who's going</SectionLabel></div>
-          {canManage && <button onClick={() => setManaging(true)} className="press" style={{ background: "none", border: "none", color: T.accent, fontWeight: 700, fontSize: 12.5, padding: 0, marginBottom: 10, display: "flex", alignItems: "center", gap: 5 }}><SlidersHorizontal size={13} /> Manage</button>}
+          <div style={{ flex: 1 }}><SectionLabel>{tr("Who's going")}</SectionLabel></div>
         </div>
         {goingKnown.map((a) => (
-          <button key={a.username} data-testid="going-known" onClick={() => openProfile(a.username)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: "6px 0", textAlign: "left" }}>
+          <button key={a.username} data-testid="going-known" onClick={() => openProfile(a.username)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: "6px 0", textAlign: "start" }}>
             <Avatar username={a.username} size={30} />
-            <span style={{ color: T.text, fontSize: 13.5, fontWeight: 600, flex: 1 }}>{a.username === me ? "You" : users[a.username]?.name || a.username}</span>
+            <span style={{ color: T.text, fontSize: 13.5, fontWeight: 600, flex: 1 }}>{a.username === me ? tr("You") : users[a.username]?.name || a.username}</span>
             <span style={{ color: T.textDim, fontSize: 12 }}>{MEET_ROLES.find((r) => r.id === a.role)?.label}</span>
           </button>
         ))}
         <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 6 }}>
-          {goingOthers > 0 ? `+ ${goingOthers} ${goingOthers === 1 ? "other" : "others"} you don't follow mutually` : goingKnown.length === 0 ? "No one you know yet." : ""}
+          {goingOthers > 0 ? tr("+ {0} {1} you don't follow mutually", goingOthers, goingOthers === 1 ? tr("other") : tr("others")) : goingKnown.length === 0 ? tr("No one you know yet.") : ""}
         </div>
       </div>
 
@@ -314,8 +345,8 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
         </div>
       )}
       <ManagePeople open={managing} onClose={() => setManaging(false)} meet={meet} users={users} me={me} onSetRole={onSetRole} onSetCaps={onSetCaps} />
-      <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title="Delete this meet?"
-        body="It will be removed for everyone. This can't be undone." onConfirm={() => onDelete(meet.id)} />
+      <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title={tr("Delete this meet?")}
+        body={tr("It will be removed for everyone. This can't be undone.")} onConfirm={() => onDelete(meet.id)} />
     </div>
   );
 }
@@ -326,31 +357,31 @@ function ManagePeople({ open, onClose, meet, users, onSetRole, onSetCaps }) {
   const [attendee, setAttendee] = useState(String(meet.caps?.attendee || ""));
   const people = meet.attendees || [];
   return (
-    <BottomSheet open={open} onClose={onClose} title="Manage people" maxHeight="85vh">
-      <SectionLabel>Limits (empty = no limit)</SectionLabel>
+    <BottomSheet open={open} onClose={onClose} title={tr("Manage people")} maxHeight="85vh">
+      <SectionLabel>{tr("Limits (empty = no limit)")}</SectionLabel>
       <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-        <label style={{ flex: 1, color: T.textDim, fontSize: 12 }}>Driving
-          <input data-testid="cap-driver" inputMode="numeric" value={driver} onChange={(e) => setDriver(e.target.value.replace(/[^0-9]/g, ""))} placeholder="No limit"
+        <label style={{ flex: 1, color: T.textDim, fontSize: 12 }}>{tr("Driving")}
+          <input data-testid="cap-driver" inputMode="numeric" value={driver} onChange={(e) => setDriver(e.target.value.replace(/[^0-9]/g, ""))} placeholder={tr("No limit")}
             style={{ width: "100%", marginTop: 6, padding: "10px 12px", borderRadius: 14, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 14 }} />
         </label>
-        <label style={{ flex: 1, color: T.textDim, fontSize: 12 }}>Attending
-          <input data-testid="cap-attendee" inputMode="numeric" value={attendee} onChange={(e) => setAttendee(e.target.value.replace(/[^0-9]/g, ""))} placeholder="No limit"
+        <label style={{ flex: 1, color: T.textDim, fontSize: 12 }}>{tr("Attending")}
+          <input data-testid="cap-attendee" inputMode="numeric" value={attendee} onChange={(e) => setAttendee(e.target.value.replace(/[^0-9]/g, ""))} placeholder={tr("No limit")}
             style={{ width: "100%", marginTop: 6, padding: "10px 12px", borderRadius: 14, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 14 }} />
         </label>
       </div>
-      <button onClick={() => onSetCaps(meet.id, { driver, attendee })} className="press" style={{ width: "100%", padding: 11, borderRadius: 14, border: "none", background: T.accent, color: "#fff", fontWeight: 600, marginBottom: 18 }}>Save limits</button>
+      <button onClick={() => onSetCaps(meet.id, { driver, attendee })} className="press" style={{ width: "100%", padding: 11, borderRadius: 14, border: "none", background: T.accent, color: "#fff", fontWeight: 600, marginBottom: 18 }}>{tr("Save limits")}</button>
 
-      <SectionLabel>People · {people.length}</SectionLabel>
+      <SectionLabel>{tr("People ·")} {people.length}</SectionLabel>
       {people.map((a) => (
         <div key={a.username} data-testid="manage-row" style={{ padding: "10px 0", borderBottom: `1px solid ${T.lineDark}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
             <Avatar username={a.username} size={28} />
             <span style={{ color: T.text, fontSize: 13.5, fontWeight: 600, flex: 1 }}>{users[a.username]?.name || a.username}</span>
             {a.username !== meet.submittedBy && (
-              <button aria-label={`Remove ${a.username}`} onClick={() => onSetRole(meet.id, a.username, null)} style={{ background: "none", border: "none", color: T.accent, fontSize: 12, fontWeight: 700 }}>Remove</button>
+              <button aria-label={tr("Remove {0}", a.username)} onClick={() => onSetRole(meet.id, a.username, null)} style={{ background: "none", border: "none", color: T.accent, fontSize: 12, fontWeight: 700 }}>{tr("Remove")}</button>
             )}
           </div>
-          {a.username === meet.submittedBy ? <div style={{ color: T.textDim, fontSize: 11.5 }}>Created the meet · always organizing</div> : (
+          {a.username === meet.submittedBy ? <div style={{ color: T.textDim, fontSize: 11.5 }}>{tr("Created the meet · always organizing")}</div> : (
             <div style={{ display: "flex", gap: 6 }}>
               {MEET_ROLES.map((r) => (
                 <button key={r.id} data-testid={`set-${r.id}-${a.username}`} onClick={() => onSetRole(meet.id, a.username, r.id)} className="press" style={{
@@ -377,7 +408,26 @@ export function AddMeetForm({ onSubmit, editing }) {
   const [sponsor, setSponsor] = useState("");
   const [capDriver, setCapDriver] = useState(String(editing?.caps?.driver || ""));
   const [capAttendee, setCapAttendee] = useState(String(editing?.caps?.attendee || ""));
+  const [plan, setPlan] = useState(editing?.plan || "free");
+  const [hours, setHours] = useState(editing?.endWhen && editing?.when ? Math.max(1, hoursBetween(editing.when, editing.endWhen)) : 4);
+  const [recurring, setRecurring] = useState(editing?.recurring === "weekly");
+  const [approveDrivers, setApproveDrivers] = useState(!!editing?.approveDrivers);
+  const [featured, setFeatured] = useState(!!editing?.featured);
+  const [driverNote, setDriverNote] = useState(editing?.driverNote || "");
   const [busy, setBusy] = useState(false);
+  const pro = plan === "pro";
+  const endWhen = when ? toLocal(new Date(new Date(when).getTime() + hours * 3600e3)) : "";
+  const toggle = (on, set, label, testid, sub) => (
+    <button data-testid={testid} onClick={() => (pro ? set(!on) : null)} className="press" style={{
+      width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "11px 12px", borderRadius: 14, marginBottom: 8, textAlign: "start",
+      border: `1px solid ${on && pro ? T.accent : T.lineDark}`, background: T.surface2, opacity: pro ? 1 : 0.5,
+    }}>
+      <span style={{ flex: 1 }}><span style={{ color: T.text, fontSize: 13.5, fontWeight: 700 }}>{label}</span><br /><span style={{ color: T.textDim, fontSize: 11.5 }}>{sub}</span></span>
+      <span style={{ width: 38, height: 22, borderRadius: 99, background: on && pro ? T.accent : "rgba(255,255,255,0.15)", position: "relative", flexShrink: 0 }}>
+        <span style={{ position: "absolute", top: 3, left: on && pro ? 19 : 3, width: 16, height: 16, borderRadius: 99, background: "#fff", transition: "left 0.15s" }} />
+      </span>
+    </button>
+  );
   const valid = title.trim() && place.location.trim() && when;
   const addSponsor = () => {
     const sp = sponsor.trim();
@@ -385,51 +435,74 @@ export function AddMeetForm({ onSubmit, editing }) {
     setSponsor("");
   };
   const capInput = (val, set, testid) => (
-    <input data-testid={testid} inputMode="numeric" value={val} onChange={(e) => set(e.target.value.replace(/[^0-9]/g, ""))} placeholder="No limit"
+    <input data-testid={testid} inputMode="numeric" value={val} onChange={(e) => set(e.target.value.replace(/[^0-9]/g, ""))} placeholder={tr("No limit")}
       style={{ width: "100%", padding: "11px 12px", borderRadius: 14, border: `1px solid ${T.lineDark}`, background: T.surface2, color: T.text, fontSize: 14, outline: "none" }} />
   );
 
   return (
     <div style={{ paddingBottom: 10 }}>
-      <div className="display" style={{ fontSize: 24, color: T.text, marginBottom: 14 }}>{editing ? "Edit meet" : "New meet"}</div>
+      <div className="display" style={{ fontSize: 24, color: T.text, marginBottom: 14 }}>{editing ? tr("Edit meet") : tr("New meet")}</div>
 
       {/* Cover + title, like an event poster */}
       <div style={{ marginBottom: 14 }}>
         {cover ? (
           <div style={{ position: "relative", borderRadius: 24, overflow: "hidden" }}>
             <img src={cover} alt="" style={{ width: "100%", aspectRatio: "16 / 9", objectFit: "cover", display: "block" }} />
-            <button onClick={() => setCover(null)} className="glass press" style={{ position: "absolute", right: 10, top: 10, border: "none", padding: "7px 12px", borderRadius: 999, color: "#fff", fontSize: 12, fontWeight: 600 }}>Change cover</button>
+            <button onClick={() => setCover(null)} className="glass press" style={{ position: "absolute", right: 10, top: 10, border: "none", padding: "7px 12px", borderRadius: 999, color: "#fff", fontSize: 12, fontWeight: 600 }}>{tr("Change cover")}</button>
           </div>
         ) : (
-          <PhotoPicker onPick={(src) => setCover(src)} aspect={16 / 9} maxDim={1080} quality={0.72} title="Event cover" hint="Shown at the top of the meet page (optional)" testid="meet-cover" />
+          <PhotoPicker onPick={(src) => setCover(src)} aspect={16 / 9} maxDim={1080} quality={0.72} title={tr("Event cover")} hint={tr("Shown at the top of the meet page (optional)")} testid="meet-cover" />
         )}
-        <input data-testid="meet-title-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Name your meet" maxLength={60}
+        <input data-testid="meet-title-input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("Name your meet")} maxLength={60}
           className="display" style={{ width: "100%", marginTop: 14, padding: "6px 2px", border: "none", borderBottom: `1.5px solid ${T.lineDark}`, background: "transparent", color: T.text, fontSize: 24, outline: "none" }} />
       </div>
 
-      <Section title="When & where" icon={<Calendar size={16} color={T.accent2} />}>
+      <Section title={tr("When & where")} icon={<Calendar size={16} color={T.accent2} />}>
         <DateTimePicker value={when} onChange={setWhen} />
-        <div style={{ height: 12 }} />
+        <div style={{ color: T.textDim, fontSize: 12, margin: "12px 0 6px" }}>{tr("How long?")}</div>
+        <div data-testid="meet-hours" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+          {[1, 2, 3, 4, 6, 8, 12].map((h) => (
+            <button key={h} onClick={() => setHours(h)} className="press" style={{
+              padding: "7px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 700,
+              border: `1px solid ${hours === h ? T.accent : T.lineDark}`, background: hours === h ? "rgba(230,56,70,0.14)" : "transparent", color: hours === h ? T.accent : T.text,
+            }}>{h}h</button>
+          ))}
+        </div>
         <LocationPicker value={place} onChange={setPlace} />
       </Section>
 
-      <Section title="About" icon={<FileText size={16} color={T.accent} />} hint="Reads like the article on the meet page.">
-        <TextArea value={note} onChange={setNote} placeholder="What's the plan? Route, entry, rules, food…" maxLength={500} rows={5} />
+      <Section title={tr("About")} icon={<FileText size={16} color={T.accent} />} hint={tr("Reads like the article on the meet page.")}>
+        <TextArea value={note} onChange={setNote} placeholder={tr("What's the plan? Route, entry, rules, food…")} maxLength={500} rows={5} maxLines={MAX_LINES.note} />
       </Section>
 
-      <Section title="Who can come" icon={<Users size={16} color={T.accentWarm} />} hint="You're on the organizing list. Leave a limit empty for no limit.">
+      <Section title={tr("Plan")} icon={<Crown size={16} color="#F2C76A" />} hint={tr("Free for friend groups, Pro for clubs and organizers.")}>
+        <PlanPicker value={plan} onChange={setPlan} />
+      </Section>
+
+      <Section title={tr("Who can come")} icon={<Users size={16} color={T.accentWarm} />} hint={pro ? tr("You're on the organizing list. Leave a limit empty for no limit.") : tr("Free: up to 50 people in total. Leave empty for up to 50.")}>
         <div style={{ display: "flex", gap: 10 }}>
-          <label style={{ flex: 1, color: T.textDim, fontSize: 12 }}>Driving limit{capInput(capDriver, setCapDriver, "form-cap-driver")}</label>
-          <label style={{ flex: 1, color: T.textDim, fontSize: 12 }}>Attending limit{capInput(capAttendee, setCapAttendee, "form-cap-attendee")}</label>
+          <label style={{ flex: 1, color: T.textDim, fontSize: 12 }}>{tr("Driving limit")}{capInput(capDriver, setCapDriver, "form-cap-driver")}</label>
+          <label style={{ flex: 1, color: T.textDim, fontSize: 12 }}>{tr("Attending limit")}{capInput(capAttendee, setCapAttendee, "form-cap-attendee")}</label>
         </div>
       </Section>
 
-      <Section title="Sponsors" icon={<Award size={16} color={T.accentWarm} />} hint="Optional.">
+      <Section title={tr("For drivers")} icon={<Info size={16} color="#8EC3D6" />} hint={tr("Only drivers and organizers see this (entry time, parking, route…).")}>
+        <TextArea value={driverNote} onChange={setDriverNote} placeholder={tr("e.g. Drivers enter from gate 3 at 7:30pm")} maxLength={300} rows={2} maxLines={6} />
+      </Section>
+
+      <Section title={tr("Pro extras")} icon={<Repeat size={16} color="#F2C76A" />} hint={pro ? tr("Optional.") : tr("Pick Pro above to turn these on.")}>
+        {toggle(recurring, setRecurring, tr("Repeats every week"), "opt-weekly", tr("Same day and time, every week"))}
+        {toggle(approveDrivers, setApproveDrivers, tr("Approve drivers"), "opt-approve", tr("You confirm each driver and their car"))}
+        {toggle(featured, setFeatured, tr("Featured in Local"), "opt-featured", tr("Shown first nearby, with a Featured label"))}
+      </Section>
+
+      <Section title={pro ? tr("Sponsors") : tr("Sponsors (Pro)")} icon={<Award size={16} color={T.accentWarm} />} hint={pro ? tr("Optional.") : tr("Pick Pro above to add sponsors.")}>
+        <div style={pro ? undefined : { opacity: 0.45, pointerEvents: "none" }}>
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ flex: 1 }} onKeyDown={(e) => { if (e.key === "Enter") addSponsor(); }}>
-            <TextInput value={sponsor} onChange={setSponsor} placeholder="e.g. Shine Garage" maxLength={40} />
+            <TextInput value={sponsor} onChange={setSponsor} placeholder={tr("e.g. Shine Garage")} maxLength={40} />
           </div>
-          <button onClick={addSponsor} aria-label="Add sponsor" disabled={!sponsor.trim()} className="press" style={{ padding: "0 16px", borderRadius: 16, border: "none", background: sponsor.trim() ? T.accent : T.surface2, color: sponsor.trim() ? "#fff" : T.textDim }}>
+          <button onClick={addSponsor} aria-label={tr("Add sponsor")} disabled={!sponsor.trim()} className="press" style={{ padding: "0 16px", borderRadius: 16, border: "none", background: sponsor.trim() ? T.accent : T.surface2, color: sponsor.trim() ? "#fff" : T.textDim }}>
             <Plus size={16} />
           </button>
         </div>
@@ -438,21 +511,22 @@ export function AddMeetForm({ onSubmit, editing }) {
             {sponsors.map((sp) => (
               <span key={sp} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 8px 6px 12px", borderRadius: 999, background: "rgba(242,184,75,0.16)", color: "#F2C76A", fontSize: 12.5, fontWeight: 600 }}>
                 {sp}
-                <button aria-label={`Remove ${sp}`} onClick={() => setSponsors(sponsors.filter((x) => x !== sp))} style={{ background: "none", border: "none", padding: 0, display: "flex" }}><X size={13} color="#F2C76A" /></button>
+                <button aria-label={tr("Remove {0}", sp)} onClick={() => setSponsors(sponsors.filter((x) => x !== sp))} style={{ background: "none", border: "none", padding: 0, display: "flex" }}><X size={13} color="#F2C76A" /></button>
               </span>
             ))}
           </div>
         )}
+        </div>
       </Section>
 
-      <button disabled={!valid || busy} className="press"
-        onClick={async () => { setBusy(true); await onSubmit({ title, ...place, when, note, cover, sponsors, caps: { driver: capDriver, attendee: capAttendee } }); setBusy(false); }}
+      <button data-testid="submit-meet" disabled={!valid || busy} className="press"
+        onClick={async () => { setBusy(true); await onSubmit({ title, ...place, when, endWhen, note, cover, sponsors: pro ? sponsors : [], caps: { driver: capDriver, attendee: capAttendee }, plan, recurring: pro && recurring ? "weekly" : "none", approveDrivers: pro && approveDrivers, featured: pro && featured, driverNote }); setBusy(false); }}
         style={{ width: "100%", padding: "14px 16px", borderRadius: 16, border: "none", background: valid ? T.accent : T.surface2, color: valid ? "#fff" : T.textDim, fontWeight: 700, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
-        {busy ? (editing ? "Saving…" : "Posting…") : (editing ? "Save changes" : "Post meet")}
+        {busy ? (editing ? tr("Saving…") : tr("Posting…")) : (editing ? tr("Save changes") : tr("Post meet"))}
       </button>
       {!valid && (
         <div style={{ fontSize: 12, color: T.textDim, textAlign: "center", marginTop: 8 }}>
-          Still needed: {[!title.trim() && "name", !when && "date & time", !place.location.trim() && "location"].filter(Boolean).join(", ")}
+          {tr("Still needed:")} {[!title.trim() && tr("name"), !when && tr("date & time"), !place.location.trim() && tr("location")].filter(Boolean).join(tr(", "))}
         </div>
       )}
     </div>

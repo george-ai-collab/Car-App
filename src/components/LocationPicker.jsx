@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 import { MapPin, Search, LocateFixed, Loader2 } from "lucide-react";
 import { T } from "../theme";
 import { handleLocationError } from "../lib/permissions";
+import { tr } from "../lib/i18n";
 
 // Map tiles: CARTO's dark style (built on OpenStreetMap). Free for a small beta;
 // before a public launch we need a paid tile plan (e.g. CARTO, MapTiler or Stadia).
@@ -99,7 +100,7 @@ export function LocationPicker({ value, onChange }) {
           setError("");
         }
       } catch {
-        if (!cancelled) { setResults([]); setError("Search isn't reachable right now. You can still tap the map."); }
+        if (!cancelled) { setResults([]); setError(tr("Search isn't reachable right now. You can still tap the map.")); }
       } finally {
         if (!cancelled) setSearching(false);
       }
@@ -127,14 +128,14 @@ export function LocationPicker({ value, onChange }) {
       const json = await res.json();
       const props = json.features?.[0]?.properties || {};
       const label = json.features?.[0] ? labelFor(props) : "";
-      const text = label || `Pinned spot (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+      const text = label || tr("Pinned spot ({0}, {1})", lat.toFixed(4), lng.toFixed(4));
       skipSearch.current = true;
       setQuery(text);
       setResults([]);
       onChange({ location: text, lat, lng, ...placeArea(props) });
     } catch {
       if (!query.trim()) {
-        const text = `Pinned spot (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+        const text = tr("Pinned spot ({0}, {1})", lat.toFixed(4), lng.toFixed(4));
         skipSearch.current = true;
         setQuery(text);
         onChange({ ...value, location: text, lat, lng });
@@ -143,11 +144,11 @@ export function LocationPicker({ value, onChange }) {
   };
 
   const useMyLocation = () => {
-    if (!navigator.geolocation) { setError("Location isn't available on this device."); return; }
+    if (!navigator.geolocation) { setError(tr("Location isn't available on this device.")); return; }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => { setLocating(false); setError(""); pickPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
-      (err) => { setLocating(false); if (!handleLocationError(err)) setError("Couldn't get your location right now. Try again, or search instead."); else setError("Location is off for Carfooly. Search for the place instead, or turn location on."); },
+      (err) => { setLocating(false); if (!handleLocationError(err)) setError(tr("Couldn't get your location right now. Try again, or search instead.")); else setError(tr("Location is off for Carfooly. Search for the place instead, or turn location on.")); },
       { enableHighAccuracy: true, timeout: 12000 },
     );
   };
@@ -158,7 +159,7 @@ export function LocationPicker({ value, onChange }) {
         <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.textDim, display: "flex" }}>
           {searching ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Search size={14} />}
         </div>
-        <input value={query} onChange={(e) => setText(e.target.value)} placeholder="Search a place or address" maxLength={120}
+        <input value={query} onChange={(e) => setText(e.target.value)} placeholder={tr("Search a place or address")} maxLength={120}
           style={{ width: "100%", padding: "11px 14px 11px 34px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 14.5, outline: "none" }} />
       </div>
 
@@ -167,7 +168,7 @@ export function LocationPicker({ value, onChange }) {
           {results.map((r, i) => (
             <button key={i} data-testid="place-result" onClick={() => choose(r)} style={{
               width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "11px 12px", background: "none", border: "none",
-              borderTop: i ? `1px solid ${T.lineDark}` : "none", color: T.text, fontSize: 13.5, textAlign: "left", lineHeight: 1.35,
+              borderTop: i ? `1px solid ${T.lineDark}` : "none", color: T.text, fontSize: 13.5, textAlign: "start", lineHeight: 1.35,
             }}>
               <MapPin size={14} color={T.accent} style={{ flexShrink: 0, marginTop: 2 }} />{r.label}
             </button>
@@ -181,11 +182,11 @@ export function LocationPicker({ value, onChange }) {
           position: "absolute", right: 10, bottom: 26, zIndex: 500, border: "none", padding: "8px 12px", borderRadius: 999,
           display: "flex", alignItems: "center", gap: 6, color: "#fff", fontSize: 12, fontWeight: 600,
         }}>
-          {locating ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <LocateFixed size={14} />} Use my location
+          {locating ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <LocateFixed size={14} />} {tr("Use my location")}
         </button>
       </div>
       <div style={{ fontSize: 11.5, color: error ? T.accent : T.textDim, marginTop: 6, lineHeight: 1.4 }}>
-        {error || (pin ? "Pinned. Tap the map to move the pin." : "Search, or tap the map to drop a pin.")}
+        {error || (pin ? tr("Pinned. Tap the map to move the pin.") : tr("Search, or tap the map to drop a pin."))}
       </div>
     </div>
   );

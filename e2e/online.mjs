@@ -22,6 +22,11 @@ async function phone(name) {
   page.setDefaultTimeout(15000);
   page.on("pageerror", (e) => errors.push(`${name}: ${e.message}`));
   await page.goto(url);
+  // First open: pick English on the language screen (the app restarts in it).
+  await page.getByTestId("language-screen").waitFor();
+  await page.getByTestId("lang-en").click();
+  await page.getByTestId("language-continue").click();
+  await page.getByTestId("language-screen").waitFor({ state: "detached" });
   return page;
 }
 const btn = (page, name) => page.getByRole("button", { name, exact: true });

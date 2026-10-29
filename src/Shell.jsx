@@ -22,6 +22,9 @@ import { ShareTagSheet } from "./components/ShareTag";
 import { Welcome } from "./components/Welcome";
 import { parseTag } from "./lib/tag";
 import { scanTag } from "./lib/scan";
+import { LinkNotice } from "./components/RichText";
+import { AdminReports } from "./screens/Admin";
+import { tr } from "./lib/i18n";
 
 const ADD_VIEWS = ["addChoice", "compose", "quickSpot", "addCar", "addMeet"];
 
@@ -43,7 +46,7 @@ export function Shell({ store, toast }) {
     }).catch(() => {});
   }, [me]);
   const finishSetup = async (data, addCar) => {
-    await a.updateProfile(data, true);
+    if ((await a.updateProfile(data, true)) === false) return; // e.g. a word we don't allow: stay on the setup
     window.storage.set(`carfooly-setup:${me}`, "done", false).catch(() => {});
     setSetup(false);
     setTour(true);
@@ -91,7 +94,7 @@ export function Shell({ store, toast }) {
   // Cars without a public page can only be opened by their owner.
   const openCar = (id) => {
     const car = cars[id];
-    if (car && car.hasPage === false && car.ownerUsername !== me) { store.flash("This car doesn't have a public page"); return; }
+    if (car && car.hasPage === false && car.ownerUsername !== me) { store.flash(tr("This car doesn't have a public page")); return; }
     go("car", { id });
   };
   const openPost = (id) => go("postDetail", { id });
@@ -103,13 +106,13 @@ export function Shell({ store, toast }) {
   const [tagFor, setTagFor] = useState(null); // { kind, id, title, subtitle }
   const openFromTag = (text) => {
     const t = parseTag(text);
-    if (!t) { store.flash("That's not a Carfooly tag"); return; }
+    if (!t) { store.flash(tr("That's not a Carfooly tag")); return; }
     if (t.kind === "user") {
-      if (!users[t.id]) { store.flash("No one on Carfooly has that tag"); return; }
+      if (!users[t.id]) { store.flash(tr("No one on Carfooly has that tag")); return; }
       setTagFor(null); openProfile(t.id);
     } else {
       const car = cars[t.id];
-      if (!car || (car.hasPage === false && car.ownerUsername !== me)) { store.flash("This car's page isn't available"); return; }
+      if (!car || (car.hasPage === false && car.ownerUsername !== me)) { store.flash(tr("This car's page isn't available")); return; }
       setTagFor(null); go("car", { id: t.id });
     }
   };
@@ -137,9 +140,18 @@ export function Shell({ store, toast }) {
         openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
         openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
       break;
+    case "reports":
+      page = store.isAdmin && <AdminReports me={me} reports={store.reports} data={{ posts, users, discussions, meets, communities, cars }}
+        onResolve={a.adminResolve} openProfile={openProfile} />;
+      break;
+    case "userPosts":
+      page = <Feed me={me} cars={cars} posts={posts} users={users} onlyUser={p.username} startId={p.id}
+        openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
+        actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
+      break;
     case "inbox":
       page = <InboxView me={me} notifications={notifications[me] || []} posts={posts} cars={cars} discussions={discussions}
-        onMount={a.markNotificationsRead} openPost={openPost} openCar={openCar} openProfile={openProfile} openThread={openThread} />;
+        onMount={a.markNotificationsRead} openPost={openPost} openCar={openCar} openProfile={openProfile} openThread={openThread} meets={meets} openMeet={openMeet} />;
       break;
     case "discover":
       page = <DiscoverView onScan={scan} me={me} cars={cars} users={users} news={news} meets={meets} communities={communities}
@@ -224,7 +236,7 @@ export function Shell({ store, toast }) {
     case "profile":
       page = p.username && <Profile username={p.username} me={me} cars={cars} posts={posts} users={users} sightings={sightings}
         tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })}
-        onToggleFollow={() => a.toggleFollow(p.username)} openCar={openCar} openPost={openPost}
+        onToggleFollow={() => a.toggleFollow(p.username)} openCar={openCar} openPost={(id) => go("userPosts", { username: p.username, id })}
         onAddCar={() => go("addCar")} onOpenSettings={() => go("settings")} />;
       break;
     case "postDetail": {
@@ -236,10 +248,10 @@ export function Shell({ store, toast }) {
       break;
     }
     case "settings":
-      page = <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={go} actions={a} onTour={() => setTour(true)} />;
+      page = <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={go} actions={a} onTour={() => setTour(true)} isAdmin={store.isAdmin} openReports={store.reports.length} />;
       break;
     case "editProfile":
-      page = <EditProfile me={me} users={users} onSave={async (data) => { await a.updateProfile(data); back(); }} />;
+      page = <EditProfile me={me} users={users} onSave={async (data) => { if ((await a.updateProfile(data)) !== false) back(); }} />;
       break;
     case "manageCars":
       page = <ManageCars me={me} cars={cars} posts={posts} onOpen={openCar} onEdit={(id) => go("editCar", { id })} onDelete={a.deleteCar} />;
@@ -255,18 +267,18 @@ export function Shell({ store, toast }) {
   if (!page) {
     page = (
       <div style={{ paddingTop: 60, textAlign: "center", color: T.textDim, fontSize: 14 }}>
-        This isn't available anymore.
+        {tr("This isn't available anymore.")}
       </div>
     );
   }
 
   return (
-    <SafetyContext.Provider value={{ me, prefs: store.prefs, actions: a, flash: store.flash, openTag: setTagFor, scanTag: scan }}>
+    <SafetyContext.Provider value={{ me, prefs: store.prefs, actions: a, flash: store.flash, openTag: setTagFor, scanTag: scan, openProfile, openCar, cars, users }}>
     <SheetContext.Provider value={sheetDelta}>
       <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", position: "relative", paddingBottom: 96 + kb, overflowX: "clip" }}>
         {/* No on-screen back arrow: the phone's back gesture/button goes back (see main.jsx). */}
         <div key={cur.key} className="fade-in" data-view={cur.view} style={
-          cur.view === "feed" ? { padding: 0 } : cur.view === "car" ? { padding: "0 16px" } : { padding: "18px 16px 0" }}>
+          cur.view === "feed" || cur.view === "userPosts" ? { padding: 0 } : cur.view === "car" ? { padding: "0 16px" } : { padding: "18px 16px 0" }}>
           {page}
         </div>
 
@@ -279,6 +291,7 @@ export function Shell({ store, toast }) {
         {setup && <Welcome me={me} user={users[me]} onDone={finishSetup} />}
         {tour && !setup && <Tour onDone={endTour} />}
         <PermissionNotice />
+        <LinkNotice />
         <ShareTagSheet open={!!tagFor} onClose={() => setTagFor(null)} {...(tagFor || {})} flash={store.flash} onScan={() => { setTagFor(null); scan(); }} />
         <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0 || setup} />
       </div>

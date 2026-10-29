@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Camera, Image as ImageIcon, Plus, X, ChevronLeft, Crop, Sparkles, SlidersHorizontal, Type, Square, RotateCw, Trash2, Loader2, MapPin, AtSign, Users, Car, Search } from "lucide-react";
+import { Camera, Film, Image as ImageIcon, Plus, X, ChevronLeft, Crop, Sparkles, SlidersHorizontal, Type, Square, RotateCw, Trash2, Loader2, MapPin, AtSign, Users, Car, Search } from "lucide-react";
 import { T } from "../../theme";
 import { uid } from "../../lib/utils";
 import { readPhoto } from "./CameraCapture";
@@ -7,8 +7,15 @@ import { canPickNatively, pickFromGallery, takePhoto } from "../../lib/media";
 import { SHAPES, FILTERS, TEXT_COLORS, blankEdit, shapeRatio, angleOf, coverScale, clampPan, dragToPan, cssFilter, warmthLayer, bakeEdit } from "./edit";
 import { Avatar, BottomSheet, ChipPicker, Section, TextArea, TextInput } from "../ui";
 import { labelFor, placeArea } from "../LocationPicker";
+import { MAX_LINES } from "../../lib/text";
+import { VideoTrim } from "./VideoTrim";
+import { readVideo, processVideo, MAX_SECONDS, fmtSecs } from "../../lib/video";
+import { REMOTE } from "../../backend/config";
+import { tr , AT } from "../../lib/i18n";
 
 const MAX_PHOTOS = 10;
+const blobToDataUrl = (b) => new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(b); });
+const alertVideo = () => window.dispatchEvent(new CustomEvent("carfooly-flash", { detail: tr("Couldn't open that video.") }));
 
 // Posting, in three steps like the big apps:
 //   1. pick photos (camera or gallery, up to 10)  2. edit them  3. details, then Share.
@@ -17,6 +24,18 @@ export function ComposerFlow({ me, cars, communities, users, initialCommunityId,
   const [edits, setEdits] = useState([]);
   const [shape, setShape] = useState("original");
   const [busy, setBusy] = useState(false);
+  const [video, setVideo] = useState(null); // { url, duration, w, h, start, end, muted }
+  const [preparing, setPreparing] = useState(null); // 0..1 while the video is being prepared
+
+  const addVideo = async (file) => {
+    if (!file) return;
+    try {
+      const v = await readVideo(file);
+      if (!(v.duration > 0.5)) throw new Error("too short");
+      setVideo({ ...v, start: 0, end: Math.min(v.duration, MAX_SECONDS), muted: false });
+      setStep("video");
+    } catch { alertVideo(); }
+  };
 
   const addFiles = async (files) => {
     const list = [...files].slice(0, MAX_PHOTOS - edits.length);
@@ -29,6 +48,21 @@ export function ComposerFlow({ me, cars, communities, users, initialCommunityId,
 
   const share = async (details) => {
     setBusy(true);
+    if (video) {
+      try {
+        setPreparing(0);
+        const out = await processVideo(video.url, video.start, video.end, { muted: video.muted, onProgress: setPreparing });
+        setPreparing(null);
+        // Online: the file is uploaded when the post is saved. Phone-only test mode keeps it as text.
+        const url = REMOTE ? URL.createObjectURL(out.blob) : await blobToDataUrl(out.blob);
+        await onSubmit({ ...details, photos: [{ type: "video", url, poster: out.poster, aspect: out.aspect, duration: out.duration, mime: out.type }] });
+      } catch (e) {
+        setPreparing(null);
+        if (e?.message !== "cancelled") window.dispatchEvent(new CustomEvent("carfooly-flash", { detail: tr("Couldn't prepare that video. Try a shorter part.") }));
+      }
+      setBusy(false);
+      return;
+    }
     const ratio = shapeRatio(shape, edits[0]);
     const photos = [];
     for (const e of edits) photos.push(await bakeEdit(e, ratio));
@@ -38,22 +72,35 @@ export function ComposerFlow({ me, cars, communities, users, initialCommunityId,
 
   return (
     <div data-testid={`compose-${step}`} style={{ paddingBottom: 10 }}>
-      {step === "pick" && <PickStep onFiles={addFiles} onCancel={onCancel} />}
+      {step === "pick" && <PickStep onFiles={addFiles} onVideo={addVideo} onCancel={onCancel} />}
+      {step === "video" && video && (
+        <VideoTrim video={video} setVideo={setVideo} onBack={() => { setVideo(null); setStep("pick"); }} onNext={() => setStep("details")} />
+      )}
+      {preparing !== null && (
+        <div data-testid="video-preparing" style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(6,6,7,0.9)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 30 }}>
+          <Loader2 size={30} color={T.accent} style={{ animation: "spin 1s linear infinite" }} />
+          <div style={{ color: T.text, fontWeight: 800, fontSize: 16 }}>{tr("Preparing your video…")} {Math.round(preparing * 100)}%</div>
+          <div style={{ width: 220, height: 6, borderRadius: 99, background: "rgba(255,255,255,0.12)", overflow: "hidden" }}>
+            <div style={{ width: `${Math.round(preparing * 100)}%`, height: "100%", background: T.accent, transition: "width 0.3s" }} />
+          </div>
+          <div style={{ color: T.textDim, fontSize: 12.5, textAlign: "center" }}>{tr("Making it smaller so it uploads fast. This takes about as long as the clip.")}</div>
+        </div>
+      )}
       {step === "edit" && (
         <EditStep edits={edits} setEdits={setEdits} shape={shape} setShape={setShape} onFiles={addFiles}
           onBack={() => { setEdits([]); setStep("pick"); }} onNext={() => setStep("details")} />
       )}
       {step === "details" && (
         <DetailsStep me={me} cars={cars} communities={communities} users={users} initialCommunityId={initialCommunityId}
-          edits={edits} shape={shape} busy={busy} onBack={() => setStep("edit")} onShare={share} />
+          edits={edits} shape={shape} busy={busy} video={video} onBack={() => setStep(video ? "video" : "edit")} onShare={share} />
       )}
     </div>
   );
 }
 
 // ---------- 1. pick: gallery first (recent photos + albums), camera as the other option ----------
-function PickStep({ onFiles, onCancel }) {
-  const cam = useRef(null), lib = useRef(null);
+function PickStep({ onFiles, onVideo, onCancel }) {
+  const cam = useRef(null), lib = useRef(null), vid = useRef(null);
   const [opening, setOpening] = useState(false);
   const openGallery = async () => {
     if (canPickNatively()) {
@@ -65,25 +112,33 @@ function PickStep({ onFiles, onCancel }) {
   };
   return (
     <div>
-      <TopRow title="New post" left={<IconBtn label="Close" onClick={onCancel}><X size={20} /></IconBtn>} />
+      <TopRow title={tr("New post")} left={<IconBtn label={tr("Close")} onClick={onCancel}><X size={20} /></IconBtn>} />
       <input ref={cam} type="file" accept="image/*" capture="environment" style={{ display: "none" }} data-testid="pick-camera" onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
       <input ref={lib} type="file" accept="image/*" multiple style={{ display: "none" }} data-testid="pick-gallery" onChange={(e) => { onFiles(e.target.files); e.target.value = ""; }} />
       <button data-testid="open-gallery" onClick={openGallery} className="press" style={{
         width: "100%", aspectRatio: "4 / 3", borderRadius: 26, border: "none", padding: 20, marginBottom: 12,
         background: `linear-gradient(160deg, ${T.accent}, ${T.accentDeep})`, boxShadow: T.shadowAccent,
-        display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "flex-start", textAlign: "left",
+        display: "flex", flexDirection: "column", justifyContent: "space-between", alignItems: "flex-start", textAlign: "start",
       }}>
         {opening ? <Loader2 size={32} color="#fff" style={{ animation: "spin 1s linear infinite" }} /> : <ImageIcon size={34} color="#fff" />}
         <div>
-          <div style={{ color: "#fff", fontSize: 22, fontWeight: 800 }}>Choose from gallery</div>
-          <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, marginTop: 3 }}>Recent photos and albums · up to {MAX_PHOTOS}</div>
+          <div style={{ color: "#fff", fontSize: 22, fontWeight: 800 }}>{tr("Choose from gallery")}</div>
+          <div style={{ color: "rgba(255,255,255,0.82)", fontSize: 13, marginTop: 3 }}>{tr("Recent photos and albums · up to {0}", MAX_PHOTOS)}</div>
         </div>
       </button>
-      <button data-testid="open-camera" onClick={async () => { if (canPickNatively()) { const b = await takePhoto(); if (b) onFiles([b]); } else cam.current.click(); }} className="press" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: 16, borderRadius: 20, border: `1px solid ${T.lineDark}`, background: T.surface, textAlign: "left" }}>
+      <button data-testid="open-camera" onClick={async () => { if (canPickNatively()) { const b = await takePhoto(); if (b) onFiles([b]); } else cam.current.click(); }} className="press" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: 16, borderRadius: 20, border: `1px solid ${T.lineDark}`, background: T.surface, textAlign: "start" }}>
         <Camera size={22} color={T.text} />
         <div style={{ flex: 1 }}>
-          <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>Take a photo</div>
-          <div style={{ color: T.textDim, fontSize: 12.5 }}>Use the camera instead</div>
+          <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>{tr("Take a photo")}</div>
+          <div style={{ color: T.textDim, fontSize: 12.5 }}>{tr("Use the camera instead")}</div>
+        </div>
+      </button>
+      <input ref={vid} type="file" accept="video/*" style={{ display: "none" }} data-testid="pick-video" onChange={(e) => { onVideo(e.target.files?.[0]); e.target.value = ""; }} />
+      <button data-testid="open-video" onClick={() => vid.current.click()} className="press" style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: 16, marginTop: 10, borderRadius: 20, border: `1px solid ${T.lineDark}`, background: T.surface, textAlign: "start" }}>
+        <Film size={22} color={T.text} />
+        <div style={{ flex: 1 }}>
+          <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>{tr("Post a video")}</div>
+          <div style={{ color: T.textDim, fontSize: 12.5 }}>{tr("Up to 1 minute · you can trim longer clips")}</div>
         </div>
       </button>
     </div>
@@ -92,11 +147,11 @@ function PickStep({ onFiles, onCancel }) {
 
 // ---------- 2. edit ----------
 const TOOLS = [
-  { id: "crop", label: "Crop", icon: Crop },
-  { id: "filter", label: "Filters", icon: Sparkles },
-  { id: "adjust", label: "Adjust", icon: SlidersHorizontal },
-  { id: "text", label: "Text", icon: Type },
-  { id: "plate", label: "Plates", icon: Square },
+  { id: "crop", label: tr("Crop"), icon: Crop },
+  { id: "filter", label: tr("Filters"), icon: Sparkles },
+  { id: "adjust", label: tr("Adjust"), icon: SlidersHorizontal },
+  { id: "text", label: tr("Text"), icon: Type },
+  { id: "plate", label: tr("Plates"), icon: Square },
 ];
 
 function EditStep({ edits, setEdits, shape, setShape, onFiles, onBack, onNext }) {
@@ -118,8 +173,8 @@ function EditStep({ edits, setEdits, shape, setShape, onFiles, onBack, onNext })
 
   return (
     <div>
-      <TopRow title="Edit" left={<IconBtn label="Back" onClick={onBack}><ChevronLeft size={22} /></IconBtn>}
-        right={<button onClick={onNext} className="press" style={nextBtn}>Next</button>} />
+      <TopRow title={tr("Edit")} left={<IconBtn label={tr("Back")} onClick={onBack}><ChevronLeft size={22} /></IconBtn>}
+        right={<button onClick={onNext} className="press" style={nextBtn}>{tr("Next")}</button>} />
 
       <Frame e={e} ratio={ratio} update={update} tool={tool} selText={selText} setSelText={setSelText} />
 
@@ -132,14 +187,14 @@ function EditStep({ edits, setEdits, shape, setShape, onFiles, onBack, onNext })
               background: `url(${x.src}) center/cover`, filter: cssFilter(x),
             }} />
             {edits.length > 0 && (
-              <button aria-label={`Remove photo ${k + 1}`} onClick={() => remove(k)} style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: 999, border: "none", background: T.surface2, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+              <button aria-label={tr("Remove photo {0}", k + 1)} onClick={() => remove(k)} style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: 999, border: "none", background: T.surface2, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
                 <X size={12} color={T.text} />
               </button>
             )}
           </div>
         ))}
         {edits.length < MAX_PHOTOS && (
-          <button aria-label="Add more photos" onClick={async () => { if (canPickNatively()) { const b = await pickFromGallery(MAX_PHOTOS - edits.length); if (b.length) onFiles(b); } else more.current.click(); }} style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 12, border: `1.5px dashed ${T.lineDark}`, background: T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <button aria-label={tr("Add more photos")} onClick={async () => { if (canPickNatively()) { const b = await pickFromGallery(MAX_PHOTOS - edits.length); if (b.length) onFiles(b); } else more.current.click(); }} style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 12, border: `1.5px dashed ${T.lineDark}`, background: T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Plus size={20} color={T.textDim} />
           </button>
         )}
@@ -155,16 +210,16 @@ function EditStep({ edits, setEdits, shape, setShape, onFiles, onBack, onNext })
                 <button key={sh.id} onClick={() => setShape(sh.id)} className="press" style={chip(shape === sh.id)}>{sh.label}</button>
               ))}
             </div>
-            <Slider label="Zoom" min={1} max={4} step={0.01} value={e.zoom} onChange={(v) => update((x) => ({ zoom: v, ...clampPan({ ...x, zoom: v }, 1, 1 / ratio, x.panX, x.panY) }))} />
+            <Slider label={tr("Zoom")} min={1} max={4} step={0.01} value={e.zoom} onChange={(v) => update((x) => ({ zoom: v, ...clampPan({ ...x, zoom: v }, 1, 1 / ratio, x.panX, x.panY) }))} />
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ flex: 1 }}>
-                <Slider label="Straighten" min={-15} max={15} step={0.5} value={e.straighten} onChange={(v) => update((x) => ({ straighten: v, ...clampPan({ ...x, straighten: v }, 1, 1 / ratio, x.panX, x.panY) }))} />
+                <Slider label={tr("Straighten")} min={-15} max={15} step={0.5} value={e.straighten} onChange={(v) => update((x) => ({ straighten: v, ...clampPan({ ...x, straighten: v }, 1, 1 / ratio, x.panX, x.panY) }))} />
               </div>
-              <button aria-label="Rotate" onClick={() => update((x) => ({ rot: (x.rot + 1) % 4, panX: 0, panY: 0 }))} className="press" style={{ ...chip(false), display: "flex", alignItems: "center", gap: 5 }}>
-                <RotateCw size={14} /> Rotate
+              <button aria-label={tr("Rotate")} onClick={() => update((x) => ({ rot: (x.rot + 1) % 4, panX: 0, panY: 0 }))} className="press" style={{ ...chip(false), display: "flex", alignItems: "center", gap: 5 }}>
+                <RotateCw size={14} /> {tr("Rotate")}
               </button>
             </div>
-            <div style={{ color: T.textDim, fontSize: 11, marginTop: 4 }}>Drag the photo to move it. Pinch or use Zoom to get closer.</div>
+            <div style={{ color: T.textDim, fontSize: 11, marginTop: 4 }}>{tr("Drag the photo to move it. Pinch or use Zoom to get closer.")}</div>
           </>
         )}
         {tool === "filter" && (
@@ -179,7 +234,7 @@ function EditStep({ edits, setEdits, shape, setShape, onFiles, onBack, onNext })
         )}
         {tool === "adjust" && (
           <>
-            {[["brightness", "Brightness"], ["contrast", "Contrast"], ["saturation", "Saturation"], ["warmth", "Warmth"]].map(([k, label]) => (
+            {[["brightness", tr("Brightness")], ["contrast", tr("Contrast")], ["saturation", tr("Saturation")], ["warmth", tr("Warmth")]].map(([k, label]) => (
               <Slider key={k} label={label} min={-100} max={100} step={1} value={e.adjust[k]} center testid={`adjust-${k}`}
                 onChange={(v) => update((x) => ({ adjust: { ...x.adjust, [k]: v } }))} />
             ))}
@@ -187,27 +242,27 @@ function EditStep({ edits, setEdits, shape, setShape, onFiles, onBack, onNext })
         )}
         {tool === "text" && (
           <>
-            <button onClick={() => setTextSheet(true)} className="press" style={{ ...chip(false), display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 10 }}><Plus size={14} /> Add text</button>
+            <button onClick={() => setTextSheet(true)} className="press" style={{ ...chip(false), display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 10 }}><Plus size={14} /> {tr("Add text")}</button>
             {selected ? (
               <>
                 <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                   {TEXT_COLORS.map((c) => (
-                    <button key={c} aria-label={`Colour ${c}`} onClick={() => update((x) => ({ texts: x.texts.map((t) => (t.id === selText ? { ...t, color: c } : t)) }))} style={{ width: 28, height: 28, borderRadius: 999, background: c, border: `2px solid ${selected.color === c ? T.accent : "rgba(255,255,255,0.3)"}` }} />
+                    <button key={c} aria-label={tr("Colour {0}", c)} onClick={() => update((x) => ({ texts: x.texts.map((t) => (t.id === selText ? { ...t, color: c } : t)) }))} style={{ width: 28, height: 28, borderRadius: 999, background: c, border: `2px solid ${selected.color === c ? T.accent : "rgba(255,255,255,0.3)"}` }} />
                   ))}
                   <span style={{ flex: 1 }} />
-                  <button aria-label="Delete text" onClick={() => { update((x) => ({ texts: x.texts.filter((t) => t.id !== selText) })); setSelText(null); }} style={{ background: "none", border: "none" }}><Trash2 size={18} color={T.accent} /></button>
+                  <button aria-label={tr("Delete text")} onClick={() => { update((x) => ({ texts: x.texts.filter((t) => t.id !== selText) })); setSelText(null); }} style={{ background: "none", border: "none" }}><Trash2 size={18} color={T.accent} /></button>
                 </div>
-                <Slider label="Size" min={0.04} max={0.16} step={0.005} value={selected.size} onChange={(v) => update((x) => ({ texts: x.texts.map((t) => (t.id === selText ? { ...t, size: v } : t)) }))} />
+                <Slider label={tr("Size")} min={0.04} max={0.16} step={0.005} value={selected.size} onChange={(v) => update((x) => ({ texts: x.texts.map((t) => (t.id === selText ? { ...t, size: v } : t)) }))} />
               </>
-            ) : <div style={{ color: T.textDim, fontSize: 12 }}>Tap text on the photo to change its colour or size. Drag to move it.</div>}
+            ) : <div style={{ color: T.textDim, fontSize: 12 }}>{tr("Tap text on the photo to change its colour or size. Drag to move it.")}</div>}
           </>
         )}
         {tool === "plate" && (
           <>
             <button onClick={() => update((x) => ({ stickers: [...x.stickers, { id: uid("st"), x: 34, y: 60, w: 30, h: 10 }] }))} className="press" style={{ ...chip(false), display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <Plus size={14} /> Cover a plate
+              <Plus size={14} /> {tr("Cover a plate")}
             </button>
-            <div style={{ color: T.textDim, fontSize: 11.5, marginTop: 8, lineHeight: 1.4 }}>Drag a cover onto the plate. Use the corner to resize, the × to remove. Keeps your car (and you) private.</div>
+            <div style={{ color: T.textDim, fontSize: 11.5, marginTop: 8, lineHeight: 1.4 }}>{tr("Drag a cover onto the plate. Use the corner to resize, the × to remove. Keeps your car (and you) private.")}</div>
           </>
         )}
       </div>
@@ -304,8 +359,8 @@ function Frame({ e, ratio, update, tool, selText, setSelText }) {
       )}
       {e.stickers.map((s) => (
         <div key={s.id} data-testid="plate-cover" onPointerDown={(ev) => down(ev, "sticker", s.id)} style={{ position: "absolute", left: `${s.x}%`, top: `${s.y}%`, width: `${s.w}%`, height: `${s.h}%`, background: "rgba(10,10,11,0.94)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "grab" }}>
-          <span className="plate" style={{ fontSize: 9, color: "rgba(255,255,255,0.45)" }}>PLATE</span>
-          <button aria-label="Remove plate cover" onPointerDown={(ev) => ev.stopPropagation()} onClick={() => update((x) => ({ stickers: x.stickers.filter((k) => k.id !== s.id) }))} style={{ position: "absolute", top: -8, right: -8, width: 18, height: 18, borderRadius: 999, background: T.accent, border: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><X size={11} color="#fff" /></button>
+          <span className="plate" style={{ fontSize: 9, color: "rgba(255,255,255,0.45)" }}>{tr("PLATE")}</span>
+          <button aria-label={tr("Remove plate cover")} onPointerDown={(ev) => ev.stopPropagation()} onClick={() => update((x) => ({ stickers: x.stickers.filter((k) => k.id !== s.id) }))} style={{ position: "absolute", top: -8, right: -8, width: 18, height: 18, borderRadius: 999, background: T.accent, border: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><X size={11} color="#fff" /></button>
           <div onPointerDown={(ev) => down(ev, "resize", s.id)} style={{ position: "absolute", right: -5, bottom: -5, width: 16, height: 16, borderRadius: 999, background: "#fff", border: `2px solid ${T.accent}` }} />
         </div>
       ))}
@@ -323,15 +378,15 @@ function Frame({ e, ratio, update, tool, selText, setSelText }) {
 function TextSheet({ open, onClose, onAdd }) {
   const [text, setText] = useState("");
   return (
-    <BottomSheet open={open} onClose={() => { setText(""); onClose(); }} title="Add text" maxHeight="60vh">
-      <TextInput value={text} onChange={setText} placeholder="Type something" maxLength={40} autoFocus />
-      <button disabled={!text.trim()} onClick={() => { onAdd(text.trim()); setText(""); onClose(); }} className="press" style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 16, border: "none", background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim, fontWeight: 700, fontSize: 15 }}>Add</button>
+    <BottomSheet open={open} onClose={() => { setText(""); onClose(); }} title={tr("Add text")} maxHeight="60vh">
+      <TextInput value={text} onChange={setText} placeholder={tr("Type something")} maxLength={40} autoFocus />
+      <button disabled={!text.trim()} onClick={() => { onAdd(text.trim()); setText(""); onClose(); }} className="press" style={{ width: "100%", marginTop: 12, padding: 13, borderRadius: 16, border: "none", background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim, fontWeight: 700, fontSize: 15 }}>{tr("Add")}</button>
     </BottomSheet>
   );
 }
 
 // ---------- 3. details ----------
-function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, shape, busy, onBack, onShare }) {
+function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, shape, busy, video, onBack, onShare }) {
   const byName = (a, b) => a.make.localeCompare(b.make);
   const myCars = Object.values(cars).filter((c) => c.ownerUsername === me).sort(byName);
   const spotted = Object.values(cars).filter((c) => c.ownerUsername !== me && c.hasPage !== false && c.spotterUsernames.includes(me)).sort(byName);
@@ -342,49 +397,55 @@ function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, 
   const [caption, setCaption] = useState("");
   const [location, setLocation] = useState(null);
   const [tags, setTags] = useState([]);
-  const canShare = !busy && edits.length > 0;
+  const canShare = !busy && (edits.length > 0 || !!video);
   const ratio = shapeRatio(shape, edits[0]);
 
   const carOptions = [
-    ...myCars.map((c) => ({ id: c.id, label: c.nickname || `${c.make} ${c.model}`, sub: `Your car · '${c.year}` })),
-    ...spotted.map((c) => ({ id: c.id, label: `${c.make} ${c.model}`, sub: `Spotted · @${c.ownerUsername}` })),
-    { id: "other", label: "Another car", sub: "Type what it is" },
-    { id: "none", label: "No car tag", sub: "Just the post" },
+    ...myCars.map((c) => ({ id: c.id, label: c.nickname || `${c.make} ${c.model}`, sub: tr("Your car · '{0}", c.year) })),
+    ...spotted.map((c) => ({ id: c.id, label: `${c.make} ${c.model}`, sub: tr("Spotted · @{0}", c.ownerUsername) })),
+    { id: "other", label: tr("Another car"), sub: tr("Type what it is") },
+    { id: "none", label: tr("No car tag"), sub: tr("Just the post") },
   ];
 
   return (
     <div>
-      <TopRow title="Details" left={<IconBtn label="Back" onClick={onBack}><ChevronLeft size={22} /></IconBtn>}
+      <TopRow title={tr("Details")} left={<IconBtn label={tr("Back")} onClick={onBack}><ChevronLeft size={22} /></IconBtn>}
         right={<button disabled={!canShare} onClick={() => onShare({
           caption, communityId, location, tags,
           carId: carId !== "other" && carId !== "none" ? carId : null, carLabel: carId === "other" ? carLabel : "",
-        })} className="press" style={{ ...nextBtn, opacity: canShare ? 1 : 0.5 }}>{busy ? <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> : "Share"}</button>} />
+        })} className="press" style={{ ...nextBtn, opacity: canShare ? 1 : 0.5 }}>{busy ? <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> : tr("Share")}</button>} />
 
       <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
-        {edits.length > 0 && (
+        {video && (
+          <div style={{ position: "relative", width: 84, flexShrink: 0, aspectRatio: String(Math.max(0.56, Math.min(1.78, video.w / video.h || 1))), borderRadius: 14, overflow: "hidden", background: "#000", alignSelf: "flex-start" }}>
+            <video src={`${video.url}#t=${video.start}`} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <span style={{ position: "absolute", right: 4, bottom: 4, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 10.5, fontWeight: 700, padding: "2px 6px", borderRadius: 999 }}>{fmtSecs(video.end - video.start)}</span>
+          </div>
+        )}
+        {edits.length > 0 && !video && (
           <div style={{ position: "relative", width: 84, flexShrink: 0, aspectRatio: String(ratio), borderRadius: 14, overflow: "hidden", background: `url(${edits[0].src}) center/cover`, filter: cssFilter(edits[0]), alignSelf: "flex-start" }}>
             {edits.length > 1 && <span style={{ position: "absolute", right: 4, top: 4, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 10.5, fontWeight: 700, padding: "2px 6px", borderRadius: 999 }}>{edits.length}</span>}
           </div>
         )}
-        <div style={{ flex: 1 }}><TextArea value={caption} onChange={setCaption} placeholder="Write a caption…" maxLength={280} rows={4} /></div>
+        <div style={{ flex: 1 }}><TextArea value={caption} onChange={setCaption} placeholder={tr("Write a caption…")} maxLength={280} maxLines={MAX_LINES.caption} rows={4} /></div>
       </div>
 
-      <Section title="Car" icon={<Car size={16} color={T.accent} />} testid="post-details">
+      <Section title={tr("Car")} icon={<Car size={16} color={T.accent} />} testid="post-details">
         <ChipPicker testid="car-chips" value={carId} onChange={setCarId} options={carOptions} />
-        {carId === "other" && <div style={{ marginTop: 10 }}><TextInput value={carLabel} onChange={setCarLabel} placeholder="e.g. Porsche 911 GT3 RS" maxLength={50} /></div>}
+        {carId === "other" && <div style={{ marginTop: 10 }}><TextInput value={carLabel} onChange={setCarLabel} placeholder={tr("e.g. Porsche 911 GT3 RS")} maxLength={50} /></div>}
       </Section>
 
-      <Section title="Location" icon={<MapPin size={16} color={T.accent2} />}>
+      <Section title={tr("Location")} icon={<MapPin size={16} color={T.accent2} />}>
         <PlaceField value={location} onChange={setLocation} />
       </Section>
 
-      <Section title="Tag people" icon={<AtSign size={16} color={T.accentWarm} />}>
+      <Section title={tr("Tag people")} icon={<AtSign size={16} color={T.accentWarm} />}>
         <PeopleField me={me} users={users} value={tags} onChange={setTags} />
       </Section>
 
       {joined.length > 0 && (
-        <Section title="Community" icon={<Users size={16} color={T.accent} />}>
-          <ChipPicker testid="community-chips" value={communityId} onChange={setCommunityId} options={[{ id: "", label: "None" }, ...joined.map((c) => ({ id: c.id, label: c.name }))]} />
+        <Section title={tr("Community")} icon={<Users size={16} color={T.accent} />}>
+          <ChipPicker testid="community-chips" value={communityId} onChange={setCommunityId} options={[{ id: "", label: tr("None") }, ...joined.map((c) => ({ id: c.id, label: c.name }))]} />
         </Section>
       )}
     </div>
@@ -411,15 +472,15 @@ function PlaceField({ value, onChange }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: 14, background: T.surface2 }}>
         <MapPin size={14} color={T.accent2} />
         <span data-testid="post-location" style={{ color: T.text, fontSize: 13.5, flex: 1 }}>{value.label}</span>
-        <button aria-label="Remove location" onClick={() => onChange(null)} style={{ background: "none", border: "none", padding: 0, display: "flex" }}><X size={15} color={T.textDim} /></button>
+        <button aria-label={tr("Remove location")} onClick={() => onChange(null)} style={{ background: "none", border: "none", padding: 0, display: "flex" }}><X size={15} color={T.textDim} /></button>
       </div>
     );
   }
   return (
     <>
-      <TextInput value={q} onChange={setQ} placeholder="Add a place (optional)" icon={<Search size={14} />} />
+      <TextInput value={q} onChange={setQ} placeholder={tr("Add a place (optional)")} icon={<Search size={14} />} />
       {results.map((r, k) => (
-        <button key={k} data-testid="place-option" onClick={() => { onChange({ ...r, label: r.label.split(",").slice(0, 2).join(",") }); setQ(""); setResults([]); }} style={{ width: "100%", display: "flex", gap: 8, padding: "10px 4px", background: "none", border: "none", borderBottom: `1px solid ${T.lineDark}`, color: T.text, fontSize: 13, textAlign: "left" }}>
+        <button key={k} data-testid="place-option" onClick={() => { onChange({ ...r, label: r.label.split(",").slice(0, 2).join(",") }); setQ(""); setResults([]); }} style={{ width: "100%", display: "flex", gap: 8, padding: "10px 4px", background: "none", border: "none", borderBottom: `1px solid ${T.lineDark}`, color: T.text, fontSize: 13, textAlign: "start" }}>
           <MapPin size={13} color={T.accent2} /> {r.label}
         </button>
       ))}
@@ -437,18 +498,18 @@ function PeopleField({ me, users, value, onChange }) {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
           {value.map((h) => (
             <span key={h} data-testid="tag-chip" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 8px 5px 5px", borderRadius: 999, background: T.surface2, color: T.text, fontSize: 12.5, fontWeight: 600 }}>
-              <Avatar username={h} size={20} /> @{h}
-              <button aria-label={`Untag ${h}`} onClick={() => onChange(value.filter((x) => x !== h))} style={{ background: "none", border: "none", padding: 0, display: "flex" }}><X size={13} color={T.textDim} /></button>
+              <Avatar username={h} size={20} /> {AT}{h}
+              <button aria-label={tr("Untag {0}", h)} onClick={() => onChange(value.filter((x) => x !== h))} style={{ background: "none", border: "none", padding: 0, display: "flex" }}><X size={13} color={T.textDim} /></button>
             </span>
           ))}
         </div>
       )}
-      {value.length < 10 && <TextInput value={q} onChange={setQ} placeholder="Search people" icon={<AtSign size={14} />} />}
+      {value.length < 10 && <TextInput value={q} onChange={setQ} placeholder={tr("Search people")} icon={<AtSign size={14} />} />}
       {matches.map(([h, u]) => (
-        <button key={h} data-testid="tag-option" onClick={() => { onChange([...value, h]); setQ(""); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 2px", background: "none", border: "none", textAlign: "left" }}>
+        <button key={h} data-testid="tag-option" onClick={() => { onChange([...value, h]); setQ(""); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 2px", background: "none", border: "none", textAlign: "start" }}>
           <Avatar username={h} size={28} />
           <span style={{ color: T.text, fontSize: 13.5, fontWeight: 600 }}>{u.name || h}</span>
-          <span style={{ color: T.textDim, fontSize: 12 }}>@{h}</span>
+          <span style={{ color: T.textDim, fontSize: 12 }}>{AT}{h}</span>
         </button>
       ))}
     </>

@@ -1,8 +1,9 @@
 import { useEffect } from "react";
-import { Car, User, MapPin, Heart, MessageCircle, Bell } from "lucide-react";
+import { Car, User, MapPin, Heart, MessageCircle, Bell, Megaphone } from "lucide-react";
 import { T } from "../theme";
 import { timeAgo, notifText } from "../lib/utils";
 import { Avatar, EmptyState } from "../components/ui";
+import { tr } from "../lib/i18n";
 
 export function notifIcon(type) {
   if (type === "like") return <Heart size={16} color={T.accent} fill={T.accent} />;
@@ -14,10 +15,11 @@ export function notifIcon(type) {
   if (type === "commentLike") return <Heart size={16} color={T.accent} fill={T.accent} />;
   if (type === "tag") return <User size={16} color={T.accent2} />;
   if (type === "threadReply") return <MessageCircle size={16} color={T.accent2} />;
+  if (type === "meetUpdate") return <Megaphone size={16} color={T.accentWarm} />;
   return null;
 }
 
-export function InboxView({ me, notifications, posts, cars, discussions = {}, onMount, openPost, openCar, openProfile, openThread }) {
+export function InboxView({ me, notifications, posts, cars, discussions = {}, meets = {}, onMount, openPost, openCar, openProfile, openThread, openMeet }) {
   useEffect(() => { onMount(); }, []);
   const list = [...notifications].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -26,18 +28,19 @@ export function InboxView({ me, notifications, posts, cars, discussions = {}, on
     else if ((n.type === "spot" || n.type === "followBuild") && cars[n.carId]) openCar(n.carId);
     else if (n.type === "follow") openProfile(n.from);
     else if (n.type === "threadReply" && discussions[n.threadId] && openThread) openThread(n.threadId);
+    else if (n.type === "meetUpdate" && meets[n.meetId] && openMeet) openMeet(n.meetId);
   };
 
   return (
     <div style={{ paddingTop: 18 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 14 }}>Notifications</div>
+      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 14 }}>{tr("Notifications")}</div>
       {list.length === 0 ? (
-        <EmptyState icon={<Bell size={20} color={T.textDim} />} title="Nothing yet" body="When other people like, comment, follow or spot your car, it shows up here. Your own likes and comments don't." />
+        <EmptyState icon={<Bell size={20} color={T.textDim} />} title={tr("Nothing yet")} body={tr("When other people like, comment, follow or spot your car, it shows up here. Your own likes and comments don't.")} />
       ) : (
         list.map((n) => (
           <button key={n.id} onClick={() => go(n)} style={{
             width: "100%", background: "none", border: "none", padding: "12px 0",
-            display: "flex", alignItems: "center", gap: 12, borderBottom: `1px solid ${T.lineDark}`, textAlign: "left",
+            display: "flex", alignItems: "center", gap: 12, borderBottom: `1px solid ${T.lineDark}`, textAlign: "start",
           }}>
             <Avatar username={n.from} size={34} />
             <div style={{ flex: 1 }}>

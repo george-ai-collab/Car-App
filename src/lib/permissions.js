@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 // When someone says "no" to a permission, explain what won't work and how to turn it back on.
 // Anything can call showPermissionHelp("camera" | "photos" | "location"); the Shell shows the message.
 export function showPermissionHelp(kind) {
@@ -12,18 +13,18 @@ export function handleLocationError(err) {
 
 export const PERMISSION_HELP = {
   camera: {
-    title: "Camera access is off",
-    body: "Carfooly can't take photos without camera access. You can still choose photos from your gallery.",
-    steps: "Settings → Apps → Carfooly → Permissions → Camera → Allow",
+    title: tr("Camera access is off"),
+    body: tr("Carfooly can't take photos without camera access. You can still choose photos from your gallery."),
+    steps: tr("Settings → Apps → Carfooly → Permissions → Camera → Allow"),
   },
   photos: {
-    title: "Photo access is off",
-    body: "Carfooly can't open your gallery without photo access, so you can't add photos from it.",
-    steps: "Settings → Apps → Carfooly → Permissions → Photos and videos → Allow",
+    title: tr("Photo access is off"),
+    body: tr("Carfooly can't open your gallery without photo access, so you can't add photos from it."),
+    steps: tr("Settings → Apps → Carfooly → Permissions → Photos and videos → Allow"),
   },
   location: {
-    title: "Location is off",
-    body: "\"Use my location\" and meets near you won't work without it. You can still search for a place or city instead.",
-    steps: "Settings → Apps → Carfooly → Permissions → Location → Allow while using the app",
+    title: tr("Location is off"),
+    body: tr("\"Use my location\" and meets near you won't work without it. You can still search for a place or city instead."),
+    steps: tr("Settings → Apps → Carfooly → Permissions → Location → Allow while using the app"),
   },
 };
