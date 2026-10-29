@@ -98,9 +98,9 @@ export function TabButton({ active, onClick, label }) {
   );
 }
 
-export function IconTab({ active, onClick, icon }) {
+export function IconTab({ active, onClick, icon, label }) {
   return (
-    <button onClick={onClick} className="press" style={{
+    <button onClick={onClick} aria-label={label} className="press" style={{
       width: 46, height: 40, borderRadius: 999, border: `1px solid ${active ? T.accent : T.lineDark}`,
       background: active ? T.accent : T.surface, color: active ? "#fff" : T.textDim,
       display: "flex", alignItems: "center", justifyContent: "center", boxShadow: active ? T.shadowAccent : "none",

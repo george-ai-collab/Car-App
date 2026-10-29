@@ -39,15 +39,17 @@ export function ShareTagSheet({ open, onClose, kind, id, title, subtitle, onScan
     setBusy(true);
     const r = await shareImage({
       png: drawTagCard({ link, title, subtitle, kind }),
-      name: `carfooly-tag-${kind === "car" ? "car" : id}.png`,
-      text: kind === "car" ? tr("{0} on Carfooly. Scan the tag to open its page.", title) : tr("Find me on Carfooly: @{0}. Scan my tag to open my profile.", id),
+      name: `carfooly-tag-${kind === "user" ? id : kind}.png`,
+      text: kind === "car" ? tr("{0} on Carfooly. Scan the tag to open its page.", title)
+        : kind === "meet" ? tr("{0} on Carfooly. Scan the tag to see the meet and say you're going.", title)
+        : tr("Find me on Carfooly: @{0}. Scan my tag to open my profile.", id),
     });
     setBusy(false);
     if (r === "saved" && flash) flash(tr("Tag saved"));
     if (r === "failed" && flash) flash(tr("Couldn't share the tag. Try again."));
   };
   return (
-    <BottomSheet open={open} onClose={onClose} title={kind === "car" ? tr("Car tag") : tr("Your tag")} maxHeight="90vh">
+    <BottomSheet open={open} onClose={onClose} title={kind === "car" ? tr("Car tag") : kind === "meet" ? tr("Meet tag") : tr("Your tag")} maxHeight="90vh">
       <div data-testid="share-tag" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
         <div style={{
           width: "100%", borderRadius: 26, padding: "20px 18px 18px", textAlign: "center",
@@ -61,11 +63,13 @@ export function ShareTagSheet({ open, onClose, kind, id, title, subtitle, onScan
             <TagQR text={link} size={216} />
           </div>
           <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 12 }}>
-            {kind === "car" ? tr("Scan to open this car's page") : tr("Scan to open my profile")}
+            {kind === "car" ? tr("Scan to open this car's page") : kind === "meet" ? tr("Scan to see the meet") : tr("Scan to open my profile")}
           </div>
         </div>
         <div style={{ color: T.textDim, fontSize: 11.5, lineHeight: 1.45, margin: "12px 4px 14px", textAlign: "center" }}>
-          {tr("This tag never changes. Print it, stick it on the car, or post it. To keep a copy, pick \"Save\" in the share menu.")}
+          {kind === "meet"
+            ? tr("Put it on your poster or story, or show it at the gate. People who scan it land on the meet page. To keep a copy, pick \"Save\" in the share menu.")
+            : tr("This tag never changes. Print it, stick it on the car, or post it. To keep a copy, pick \"Save\" in the share menu.")}
         </div>
         <button data-testid="tag-share" disabled={busy} onClick={doShare} className="press" style={{ ...btn(true), width: "100%" }}><Share2 size={16} /> {tr("Share tag")}</button>
         {onScan && (
@@ -107,7 +111,7 @@ export function drawTagCard({ link, title, subtitle, kind }) {
   for (let r = 0; r < m.n; r++) for (let c = 0; c < m.n; c++) if (m.dark(r, c)) g.fillRect(off + c * cell, offY + r * cell, cell, cell);
   // logo space stays white
   g.fillStyle = "rgba(245,244,242,0.6)"; g.font = "500 34px system-ui, sans-serif";
-  g.fillText(kind === "car" ? tr("Scan with Carfooly to open this car") : tr("Scan with Carfooly to open my profile"), W / 2, by + box + 100);
+  g.fillText(kind === "car" ? tr("Scan with Carfooly to open this car") : kind === "meet" ? tr("Scan with Carfooly to see the meet") : tr("Scan with Carfooly to open my profile"), W / 2, by + box + 100);
   return cv.toDataURL("image/png");
 }
 

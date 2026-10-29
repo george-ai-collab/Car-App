@@ -5,7 +5,7 @@ import { fmtDate, hueForId, verbPhrase } from "../lib/utils";
 import { Avatar, EmptyState, TextInput, SectionLabel, Section, Segmented, isDriver } from "../components/ui";
 import { useSwipe } from "../lib/useSwipe";
 import { PhotoPicker } from "../components/photo/PhotoPicker";
-import { MoreMenu, useSafety } from "../components/Safety";
+import { MoreMenu, useSafety, CAR_REPORT_REASONS } from "../components/Safety";
 import { tr , AT } from "../lib/i18n";
 
 export function CarsView({ cars, onOpen, onAdd }) {
@@ -218,7 +218,7 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
                 ...(isOwner && onEdit ? [{ label: tr("Edit car"), icon: <Pencil size={17} />, onClick: onEdit }] : []),
                 ...(showTag ? [{ label: isOwner ? tr("Share tag") : tr("Show tag"), icon: <QrCode size={17} />, onClick: showTag }] : []),
               ]}
-              report={isOwner ? null : { what: "car", onSend: (reason, note) => safety.actions.report({ kind: "car", id: car.id, reason, note }) }} />
+              report={isOwner ? null : { what: "car", reasons: CAR_REPORT_REASONS, onSend: (reason, note) => safety.actions.report({ kind: "car", id: car.id, reason, note }) }} />
           </div>
         )}
         <div style={{ position: "absolute", left: 16, right: 16, bottom: 14 }}>

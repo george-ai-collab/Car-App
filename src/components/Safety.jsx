@@ -17,16 +17,19 @@ export const REPORT_REASONS = [
   "Something else",
 ];
 
+// Cars get one more reason first: someone posting a car as theirs when it belongs to someone else.
+export const CAR_REPORT_REASONS = ["GTA / stolen / carjacked: this isn't their car", ...REPORT_REASONS];
+
 // Pick a reason, add an optional note, send.
-export function ReportSheet({ open, onClose, what, onSend }) {
+export function ReportSheet({ open, onClose, what, onSend, reasons = REPORT_REASONS }) {
   const [reason, setReason] = useState(null);
   const [note, setNote] = useState("");
   const close = () => { setReason(null); setNote(""); onClose(); };
   return (
-    <BottomSheet open={open} onClose={close} title={tr("Report {0}", what)} maxHeight="80vh">
+    <BottomSheet open={open} onClose={close} title={tr("Report {0}", tr(what))} maxHeight="80vh">
       <div style={{ color: T.textDim, fontSize: 13, marginBottom: 12 }}>{tr("Reports are private. The person won't know it was you.")}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {REPORT_REASONS.map((r) => (
+        {reasons.map((r) => (
           <button key={r} data-testid="report-reason" onClick={() => setReason(r)} className="press" style={{
             padding: "12px 14px", borderRadius: 14, textAlign: "start", fontSize: 14, fontWeight: 600,
             border: `1px solid ${reason === r ? T.accent : "transparent"}`, background: reason === r ? "rgba(230,56,70,0.14)" : "rgba(255,255,255,0.06)", color: T.text,
@@ -51,7 +54,7 @@ export function MoreMenu({ label = tr("More options"), testid = "more-menu", ite
     ...items,
     share && { label: tr("Share"), icon: <Share2 size={17} />, onClick: async () => { const r = await shareText(share); if (r === "copied" && flash) flash(tr("Copied to share")); } },
     hide && { label: tr("Not interested"), icon: <EyeOff size={17} />, onClick: hide },
-    report && { label: tr("Report {0}", report.what), icon: <Flag size={17} />, danger: true, onClick: () => setReporting(true) },
+    report && { label: tr("Report {0}", tr(report.what)), icon: <Flag size={17} />, danger: true, onClick: () => setReporting(true) },
     block && { label: block.blocked ? tr("Unblock @{0}", block.handle) : tr("Block @{0}", block.handle), icon: <Ban size={17} />, danger: !block.blocked, onClick: block.onToggle },
   ].filter(Boolean);
   if (!rows.length) return null;
@@ -63,7 +66,7 @@ export function MoreMenu({ label = tr("More options"), testid = "more-menu", ite
         <MoreHorizontal size={overlay ? 28 : size} color={overlay ? "#fff" : T.text} style={overlay ? { filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" } : undefined} />
       </button>
       <ActionMenu open={open} onClose={() => setOpen(false)} items={rows} />
-      {report && <ReportSheet open={reporting} onClose={() => setReporting(false)} what={report.what} onSend={report.onSend} />}
+      {report && <ReportSheet open={reporting} onClose={() => setReporting(false)} what={report.what} onSend={report.onSend} reasons={report.reasons} />}
     </>
   );
 }
