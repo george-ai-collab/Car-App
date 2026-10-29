@@ -5,7 +5,7 @@ import { hueForId, timeAgo } from "../lib/utils";
 import { Avatar, FollowAvatar, EmptyState, TextInput, BottomSheet, AccountLabel } from "../components/ui";
 import { CommentRow } from "./PostDetail";
 import { PostMenu } from "../components/PostMenu";
-import { PhotoCarousel, postPhotos } from "../components/photo/PhotoCarousel";
+import { PhotoCarousel, postPhotos, VideoButtons } from "../components/photo/PhotoCarousel";
 import { useTapGestures } from "../lib/useTapGestures";
 import { shareText } from "../lib/share";
 import { ActionMenu } from "../components/ui";
@@ -108,10 +108,10 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
           onLike={() => toggleLike(holdPost.id)} onComment={() => setCommentsPostId(holdPost.id)} onOpen={() => openPost && openPost(holdPost.id)} />
       )}
       <BottomSheet open={!!commentsPost} onClose={() => setCommentsPostId(null)} maxHeight="74vh" fixedHeight
-        title={commentsPost ? `${commentsPost.comments.length} ${commentsPost.comments.length === 1 ? "comment" : "comments"}` : ""}>
+        title={commentsPost ? (commentsPost.comments.length === 1 ? tr("1 comment") : tr("{0} comments", commentsPost.comments.length)) : ""}
+        footer={commentsPost && <FeedCommentInput postId={commentsPost.id} addComment={addComment} />}>
         {commentsPost && (
-          // Fills the panel so the comment box stays pinned at the bottom, even with few comments.
-          <div style={{ minHeight: "calc(74vh - 96px)", display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
             {commentsPost.caption && (
               <div data-testid="comments-caption" style={{ display: "flex", gap: 10, paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${T.lineDark}` }}>
                 <button onClick={() => { setCommentsPostId(null); openProfile(commentsPost.authorUsername); }} style={{ background: "none", border: "none", padding: 0, alignSelf: "flex-start" }}>
@@ -131,8 +131,6 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
             {commentsPost.comments.map((c) => (
               <CommentRow key={c.id} comment={c} postId={commentsPost.id} addReply={addReply} />
             ))}
-            <div style={{ flex: 1 }} />
-            <FeedCommentInput postId={commentsPost.id} addComment={addComment} />
           </div>
         )}
       </BottomSheet>
@@ -144,8 +142,8 @@ export function FeedCommentInput({ postId, addComment }) {
   const [text, setTextState] = useState(() => drafts.get(postId) || "");
   const setText = (v) => { setTextState(v); if (v) drafts.set(postId, v); else drafts.delete(postId); };
   return (
-    // Pinned to the very bottom of the panel (covers the panel's bottom padding too).
-    <div style={{ display: "flex", gap: 8, marginTop: 8, position: "sticky", bottom: "calc(-24px - env(safe-area-inset-bottom))", paddingTop: 10, paddingBottom: "calc(14px + env(safe-area-inset-bottom))", marginBottom: "calc(-24px - env(safe-area-inset-bottom))", background: "rgba(24,24,27,0.98)", borderTop: `1px solid ${T.lineDark}`, marginLeft: -20, marginRight: -20, paddingLeft: 20, paddingRight: 20 }}>
+    // Shown as the comments panel's footer, so it's pinned to the bottom edge.
+    <div data-testid="comment-bar" style={{ display: "flex", gap: 8 }}>
       <div style={{ flex: 1 }}>
         <TextInput value={text} onChange={setText} placeholder={tr("Add a comment…")} maxLength={220} />
       </div>
@@ -163,15 +161,19 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
   const [pop, setPop] = useState(false);
   const [burst, setBurst] = useState(null);
   // Double-tap anywhere on the post to like it (never un-likes, like Instagram). Hold for quick actions.
+  const slideRef = useRef(null);
+  const pics = postPhotos(post);
+  const hasVideo = pics.some((p) => p.type === "video");
   const gesture = useTapGestures({
+    // Videos: one tap pauses or plays (a quick second tap still likes the post).
+    onTap: hasVideo ? () => { const v = slideRef.current?.querySelector("video"); if (v) { if (v.paused) v.play().catch(() => {}); else v.pause(); } } : undefined,
     onDoubleTap: (x, y) => { if (!liked) toggleLike(post.id); setBurst({ x, y, k: Date.now() }); },
     onHold: () => onHold && onHold(),
   });
   const hue = hueForId(post.id);
-  const pics = postPhotos(post);
   const doLike = () => { toggleLike(post.id); if (!liked) { setPop(true); setTimeout(() => setPop(false), 350); } };
   return (
-    <div data-testid="feed-slide" {...gesture} style={{
+    <div ref={slideRef} data-testid="feed-slide" {...gesture} style={{
       height: "100%", width: "100%", scrollSnapAlign: "start", scrollSnapStop: "always",
       position: "relative", display: "flex", alignItems: "flex-end", overflow: "hidden",
       background: pics.length ? "#000" : `linear-gradient(135deg, hsl(${hue},45%,20%), hsl(${hue},35%,10%))`,
@@ -202,6 +204,7 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
           <MessageCircle size={29} color="#fff" style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }} />
           <span style={railCount}>{post.comments.length}</span>
         </button>
+        {hasVideo && <VideoButtons column />}
         {actions && <PostMenu post={post} me={me} actions={actions} overlay carName={car ? `${car.make} ${car.model}` : post.carLabel} />}
       </div>
 

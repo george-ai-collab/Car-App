@@ -154,11 +154,12 @@ export function TextInput({ value, onChange, placeholder, icon, autoFocus, maxLe
   );
 }
 
-export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh", fixedHeight }) {
+export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh", fixedHeight, footer }) {
   const sheets = useContext(SheetContext);
   const kb = useKeyboardOffset();
   const wasTyping = useRef(false);
   const sheetRef = useRef(null);
+  const scrollRef = useRef(null); // the part that scrolls (the footer, if any, stays put below it)
   const backRef = useRef(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -173,7 +174,8 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
   // it springs back.
   useEffect(() => {
     const el = sheetRef.current;
-    if (!open || !el) return;
+    const sc = scrollRef.current;
+    if (!open || !el || !sc) return;
     let startY = 0, startT = 0, dy = 0, tracking = false, dragging = false, fromHandle = false;
     const skip = (t) => t.closest?.("input, textarea, select, [contenteditable], [data-noswipe], input[type=range]");
     const set = (y, animate) => {
@@ -187,7 +189,7 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
     const begin = (y, target) => {
       if (skip(target)) return;
       fromHandle = !!target.closest?.("[data-sheet-handle]");
-      if (!fromHandle && el.scrollTop > 0) return;
+      if (!fromHandle && sc.scrollTop > 0) return;
       tracking = true; dragging = false; startY = y; startT = Date.now(); dy = 0;
     };
     const move = (y, e) => {
@@ -195,7 +197,7 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
       dy = y - startY;
       if (!dragging) {
         if (dy < -4 && !fromHandle) { tracking = false; return; } // scrolling the content up
-        if (dy > 6 && (fromHandle || el.scrollTop <= 0)) dragging = true;
+        if (dy > 6 && (fromHandle || sc.scrollTop <= 0)) dragging = true;
       }
       if (dragging) {
         if (e.cancelable) e.preventDefault();
@@ -255,27 +257,40 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
         position: "fixed", inset: 0, zIndex: 40, background: "rgba(6,6,7,0.78)",
         backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)",
       }} />
-      <div ref={sheetRef} data-sheet className="glass sheet-in" style={{
+      {/* Solid background: a see-through panel picked up the colours of the photo behind it. */}
+      <div ref={sheetRef} data-sheet className="sheet-in" style={{
         position: "fixed", left: "50%", bottom: kb, transform: "translateX(-50%)",
         width: "100%", maxWidth: 480, zIndex: 41,
         maxHeight: kb ? `min(${maxHeight}, ${Math.max(200, window.innerHeight - kb - 40)}px)` : maxHeight,
         // Fixed-height panels (comments) leave room above them while typing, so a tap there closes the keyboard.
         ...(fixedHeight ? { height: kb ? `min(${maxHeight}, ${Math.max(200, window.innerHeight - kb - 110)}px)` : maxHeight, ...(kb ? { maxHeight: `${Math.max(200, window.innerHeight - kb - 110)}px` } : {}) } : {}),
         borderRadius: kb ? 26 : "26px 26px 0 0",
-        padding: kb ? "10px 20px 12px" : "10px 20px calc(24px + env(safe-area-inset-bottom))",
-        overflowY: "auto", overscrollBehavior: "contain", transition: "bottom 0.18s ease",
+        background: SHEET_BG, border: `1px solid ${T.glassBorder}`, borderBottom: "none", boxShadow: T.shadowRaised,
+        display: "flex", flexDirection: "column", overflow: "hidden", transition: "bottom 0.18s ease",
       }}>
+       <div ref={scrollRef} style={{
+        flex: "1 1 auto", minHeight: 0, overflowY: "auto", overscrollBehavior: "contain",
+        padding: footer ? "10px 20px 12px" : kb ? "10px 20px 12px" : "10px 20px calc(24px + env(safe-area-inset-bottom))",
+       }}>
         {/* Handle + title stay pinned at the top while the content scrolls (and the handle can
             always be dragged to close). A bigger invisible grab area surrounds the little bar. */}
-        <div data-sheet-handle style={{ position: "sticky", top: -10, zIndex: 2, margin: "-10px -20px 0", padding: "14px 20px 0", background: "#141417", touchAction: "none", cursor: "grab" }}>
+        <div data-sheet-handle style={{ position: "sticky", top: -10, zIndex: 2, margin: "-10px -20px 0", padding: "14px 20px 0", background: SHEET_BG, touchAction: "none", cursor: "grab" }}>
           <div style={{ width: 36, height: 4, borderRadius: 99, background: "rgba(255,255,255,0.25)", margin: "0 auto 16px" }} />
           {title && <div className="display" style={{ fontSize: 18, color: T.text, paddingBottom: 14 }}>{title}</div>}
         </div>
         {children}
+       </div>
+       {/* Pinned under the scrolling part, down to the bottom edge (e.g. the comment box). */}
+       {footer && (
+         <div data-sheet-footer style={{ flexShrink: 0, background: SHEET_BG, borderTop: `1px solid ${T.lineDark}`, padding: kb ? "10px 20px 12px" : "10px 20px calc(14px + env(safe-area-inset-bottom))" }}>
+           {footer}
+         </div>
+       )}
       </div>
     </>
   );
 }
+const SHEET_BG = "#141417";
 
 export function Stat({ label, value, small, dark }) {
   return (
