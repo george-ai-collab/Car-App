@@ -18,7 +18,7 @@ export const REPORT_REASONS = [
 ];
 
 // Cars get one more reason first: someone posting a car as theirs when it belongs to someone else.
-export const CAR_REPORT_REASONS = ["GTA / stolen / carjacked: this isn't their car", ...REPORT_REASONS];
+export const CAR_REPORT_REASONS = ["Carjacked : this isn't their car", ...REPORT_REASONS];
 
 // Pick a reason, add an optional note, send.
 export function ReportSheet({ open, onClose, what, onSend, reasons = REPORT_REASONS }) {
