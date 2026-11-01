@@ -281,18 +281,22 @@ export function Shell({ store, toast }) {
     );
   }
 
+  const fullBleed = cur.view === "feed" || cur.view === "userPosts";
   return (
     <SafetyContext.Provider value={{ me, prefs: store.prefs, actions: a, flash: store.flash, openTag: setTagFor, scanTag: scan, openProfile, openCar, cars, users }}>
     <SheetContext.Provider value={sheetDelta}>
-      <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", position: "relative", paddingBottom: 96 + kb, overflowX: "clip" }}>
+      <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", position: "relative", paddingBottom: fullBleed ? 0 : `calc(${96 + kb}px + var(--inset-bottom))`, overflowX: "clip" }}>
         {/* No on-screen back arrow: the phone's back gesture/button goes back (see main.jsx). */}
         <div key={cur.key} className="fade-in" data-view={cur.view} style={
-          cur.view === "feed" || cur.view === "userPosts" ? { padding: 0 } : cur.view === "car" ? { padding: "0 16px" } : { padding: "18px 16px 0" }}>
+          // The feed fills the whole screen, under the status bar and the nav (like TikTok/Instagram).
+          fullBleed ? { padding: 0 } : cur.view === "car" ? { padding: "var(--inset-top) 16px 0" } : { padding: "calc(18px + var(--inset-top)) 16px 0" }}>
           {page}
         </div>
 
+        {/* Pages scroll under the status bar: keep a solid strip behind its icons (the feed shows through). */}
+        {!fullBleed && <div aria-hidden style={{ position: "fixed", top: 0, left: 0, right: 0, height: "var(--inset-top)", background: T.bg, zIndex: 35 }} />}
         {toast && (
-          <div style={{ position: "fixed", bottom: 86, left: "50%", transform: "translateX(-50%)", background: T.text, color: T.ink, padding: "10px 18px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, zIndex: 60, boxShadow: "0 6px 20px rgba(0,0,0,0.3)", whiteSpace: "nowrap" }}>
+          <div style={{ position: "fixed", bottom: "calc(86px + var(--inset-bottom))", left: "50%", transform: "translateX(-50%)", background: T.text, color: T.ink, padding: "10px 18px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, zIndex: 60, boxShadow: "0 6px 20px rgba(0,0,0,0.3)", whiteSpace: "nowrap" }}>
             {toast}
           </div>
         )}

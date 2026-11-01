@@ -33,7 +33,7 @@ function LocalOnboarding({ onSubmit, users }) {
   const go = async (h, name) => { setBusy(true); await onSubmit(h, name); setBusy(false); };
 
   return (
-    <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center", padding: "40px 22px" }}>
+    <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center", padding: "calc(40px + var(--inset-top)) 22px calc(40px + var(--inset-bottom))" }}>
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(90% 55% at 50% 0%, rgba(230,56,70,0.28), rgba(10,10,11,0) 70%), radial-gradient(60% 40% at 100% 100%, rgba(69,123,144,0.18), rgba(10,10,11,0) 70%)" }} />
       <div style={{ position: "relative", maxWidth: 400, width: "100%", margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 28 }}>
@@ -107,7 +107,7 @@ function LocalOnboarding({ onSubmit, users }) {
 function Frame({ children, note }) {
   const kb = useKeyboardOffset(); // (the box you type in is moved above the keyboard by lib/keyboard)
   return (
-    <div data-testid="auth-page" style={{ minHeight: "100vh", position: "relative", overflowX: "clip", display: "flex", flexDirection: "column", justifyContent: kb ? "flex-start" : "center", padding: `${kb ? 24 : 40}px 22px ${kb + 40}px` }}>
+    <div data-testid="auth-page" style={{ minHeight: "100vh", position: "relative", overflowX: "clip", display: "flex", flexDirection: "column", justifyContent: kb ? "flex-start" : "center", padding: `calc(${kb ? 24 : 40}px + var(--inset-top)) 22px calc(${kb + 40}px + var(--inset-bottom))` }}>
       <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(90% 55% at 50% 0%, rgba(230,56,70,0.28), rgba(10,10,11,0) 70%), radial-gradient(60% 40% at 100% 100%, rgba(69,123,144,0.18), rgba(10,10,11,0) 70%)" }} />
       <div style={{ position: "relative", maxWidth: 400, width: "100%", margin: "0 auto" }}>
         {!kb && (
