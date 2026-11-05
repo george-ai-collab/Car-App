@@ -5,7 +5,7 @@ import { fmtDate, hueForId, verbPhrase } from "../lib/utils";
 import { Avatar, EmptyState, TextInput, SectionLabel, Section, Segmented, isDriver } from "../components/ui";
 import { useSwipe } from "../lib/useSwipe";
 import { PhotoPicker } from "../components/photo/PhotoPicker";
-import { MoreMenu, useSafety } from "../components/Safety";
+import { MoreMenu, useSafety, CAR_REPORT_REASONS } from "../components/Safety";
 import { tr , AT } from "../lib/i18n";
 
 export function CarsView({ cars, onOpen, onAdd }) {
@@ -199,8 +199,8 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
   const order = ["posts", "build", "specs", "spotters"];
   const sw = useSwipe({ onLeft: () => setTab && setTab(order[Math.min(3, order.indexOf(tab) + 1)]), onRight: () => setTab && setTab(order[Math.max(0, order.indexOf(tab) - 1)]) });
   const name = car.nickname || `${car.make} ${car.model}`;
-  // Only cars with a public page get a tag (otherwise nobody else could open it).
-  const showTag = safety?.openTag && car.hasPage !== false
+  // A car's tag is the owner's to share (like a key): only the owner sees it, and only for cars with a public page.
+  const showTag = safety?.openTag && isOwner && car.hasPage !== false
     ? () => safety.openTag({ kind: "car", id: car.id, title: name, subtitle: `${car.year} · ${car.make} ${car.model}` })
     : null;
 
@@ -216,9 +216,9 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
               share={{ title: tr("Carfooly"), text: tr("{0} ({1}), kept by @{2} on Carfooly", name, car.year, car.ownerUsername) }}
               items={[
                 ...(isOwner && onEdit ? [{ label: tr("Edit car"), icon: <Pencil size={17} />, onClick: onEdit }] : []),
-                ...(showTag ? [{ label: isOwner ? tr("Share tag") : tr("Show tag"), icon: <QrCode size={17} />, onClick: showTag }] : []),
+                ...(showTag ? [{ label: tr("Share tag"), icon: <QrCode size={17} />, onClick: showTag }] : []),
               ]}
-              report={isOwner ? null : { what: "car", onSend: (reason, note) => safety.actions.report({ kind: "car", id: car.id, reason, note }) }} />
+              report={isOwner ? null : { what: "car", reasons: CAR_REPORT_REASONS, onSend: (reason, note) => safety.actions.report({ kind: "car", id: car.id, reason, note }) }} />
           </div>
         )}
         <div style={{ position: "absolute", left: 16, right: 16, bottom: 14 }}>

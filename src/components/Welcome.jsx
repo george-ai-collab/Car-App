@@ -55,7 +55,7 @@ export function Welcome({ me, user = {}, onDone }) {
   return (
     <div data-testid="welcome" style={{ position: "fixed", inset: 0, zIndex: 70, background: T.bg, overflowY: "auto" }}>
       <div aria-hidden style={{ position: "absolute", inset: 0, height: 360, pointerEvents: "none", background: "radial-gradient(90% 60% at 50% 0%, rgba(230,56,70,0.22), rgba(10,10,11,0) 70%)" }} />
-      <div style={{ position: "relative", maxWidth: 440, margin: "0 auto", padding: `28px 20px ${kb + 30}px`, minHeight: "100%", display: "flex", flexDirection: "column" }}>
+      <div style={{ position: "relative", maxWidth: 440, margin: "0 auto", padding: `calc(28px + var(--inset-top)) 20px calc(${kb + 30}px + var(--inset-bottom))`, minHeight: "100%", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
           <div style={{ display: "flex", gap: 6 }}>
             {Array.from({ length: steps }, (_, i) => (

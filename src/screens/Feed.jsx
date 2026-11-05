@@ -45,11 +45,11 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
   }, [memoKey, list.length > 0]);
 
   return (
-    <div data-testid="feed" style={{ position: "relative", height: "calc(100vh - 92px)", background: T.bg, overflow: "hidden" }}>
+    <div data-testid="feed" style={{ position: "relative", height: "100dvh", background: T.bg, overflow: "hidden" }}>
       {/* Top controls: search on the left, tabs in the middle, notifications on the right. */}
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, zIndex: 8, display: "flex", alignItems: "center",
-        justifyContent: "space-between", gap: 8, padding: "14px 14px 34px",
+        justifyContent: "space-between", gap: 8, padding: "calc(10px + var(--inset-top)) 14px 34px",
         background: "linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0))",
         pointerEvents: "none",
       }}>
@@ -138,6 +138,9 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
   );
 }
 
+// Posts run under the floating nav bar; buttons and captions sit just above it.
+export const FEED_BOTTOM = "calc(84px + var(--inset-bottom))";
+
 export function FeedCommentInput({ postId, addComment }) {
   const [text, setTextState] = useState(() => drafts.get(postId) || "");
   const setText = (v) => { setTextState(v); if (v) drafts.set(postId, v); else drafts.delete(postId); };
@@ -195,7 +198,7 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0) 65%)" }} />
 
       {/* Right-side action column: like, comment, and (on your own posts) the ··· menu, all lined up. */}
-      <div style={{ position: "absolute", right: 6, bottom: 20, zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+      <div style={{ position: "absolute", right: 6, bottom: FEED_BOTTOM, zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
         <button onClick={doLike} aria-label={tr("Like")} style={railBtn}>
           <Heart size={30} color={liked ? T.accent : "#fff"} fill={liked ? T.accent : "none"} className={pop ? "heart-pop" : ""} style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }} />
           <span style={railCount}>{post.likes.length}</span>
@@ -208,7 +211,7 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
         {actions && <PostMenu post={post} me={me} actions={actions} overlay carName={car ? `${car.make} ${car.model}` : post.carLabel} />}
       </div>
 
-      <div style={{ position: "relative", zIndex: 2, padding: "0 72px 22px 14px", width: "100%" }}>
+      <div style={{ position: "relative", zIndex: 2, padding: "0 72px 0 14px", paddingBottom: FEED_BOTTOM, width: "100%" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
           <FollowAvatar username={post.authorUsername} size={34} onOpen={() => openProfile(post.authorUsername)}
             showFollow={post.authorUsername !== me && !!onFollow} following={following} onFollow={() => onFollow(post.authorUsername)} />

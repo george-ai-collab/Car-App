@@ -68,7 +68,6 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         )}
         {!isMe && safety && (
           <MoreMenu label={tr("Profile options")} testid="profile-menu" flash={safety.flash}
-            items={safety.openTag && !blocked ? [{ label: tr("Show tag"), icon: <QrCode size={17} />, onClick: () => safety.openTag({ kind: "user", id: username, title: user.name || username, subtitle: `@${username}` }) }] : []}
             share={{ title: tr("Carfooly"), text: tr("Check out @{0} on Carfooly", username) }}
             report={{ what: "account", onSend: (reason, note) => safety.actions.report({ kind: "user", id: username, reason, note }) }}
             block={{ handle: username, blocked, onToggle: () => safety.actions.toggleBlock(username) }} />
@@ -87,9 +86,9 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
       {/* Clubs and businesses just have posts: no garage, spots or badges. */}
       {driver && <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "center", gap: 10 }}>
-          <IconTab active={tab === "posts"} onClick={() => { setTab("posts"); setShowBadges(false); }} icon={<ImageIcon size={17} />} />
-          <IconTab active={tab === "cars"} onClick={() => { setTab("cars"); setShowBadges(false); }} icon={<Car size={17} />} />
-          <IconTab active={tab === "spotted"} onClick={() => setTab("spotted")} icon={<MapPin size={17} />} />
+          <IconTab label={tr("Posts")} active={tab === "posts"} onClick={() => { setTab("posts"); setShowBadges(false); }} icon={<ImageIcon size={17} />} />
+          <IconTab label={tr("Garage")} active={tab === "cars"} onClick={() => { setTab("cars"); setShowBadges(false); }} icon={<Car size={17} />} />
+          <IconTab label={tr("Spotted")} active={tab === "spotted"} onClick={() => setTab("spotted")} icon={<MapPin size={17} />} />
         </div>
       </div>}
       {view === "spotted" && (

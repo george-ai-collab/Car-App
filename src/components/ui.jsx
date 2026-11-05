@@ -9,6 +9,9 @@ import { tr } from "../lib/i18n";
 export function GlobalStyle() {
   return (
     <style>{`
+      /* Space taken by the phone's status bar (top) and gesture/home bar (bottom). The app draws edge to
+         edge; the Android app sets these to the real sizes (see scripts/patch-android.mjs). */
+      :root { --inset-top: env(safe-area-inset-top, 0px); --inset-bottom: env(safe-area-inset-bottom, 0px); }
       * { box-sizing: border-box; }
       html, body { margin: 0; overscroll-behavior: none; }
       *::-webkit-scrollbar { display: none; }
@@ -98,9 +101,9 @@ export function TabButton({ active, onClick, label }) {
   );
 }
 
-export function IconTab({ active, onClick, icon }) {
+export function IconTab({ active, onClick, icon, label }) {
   return (
-    <button onClick={onClick} className="press" style={{
+    <button onClick={onClick} aria-label={label} className="press" style={{
       width: 46, height: 40, borderRadius: 999, border: `1px solid ${active ? T.accent : T.lineDark}`,
       background: active ? T.accent : T.surface, color: active ? "#fff" : T.textDim,
       display: "flex", alignItems: "center", justifyContent: "center", boxShadow: active ? T.shadowAccent : "none",
@@ -270,7 +273,7 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
       }}>
        <div ref={scrollRef} style={{
         flex: "1 1 auto", minHeight: 0, overflowY: "auto", overscrollBehavior: "contain",
-        padding: footer ? "10px 20px 12px" : kb ? "10px 20px 12px" : "10px 20px calc(24px + env(safe-area-inset-bottom))",
+        padding: footer ? "10px 20px 12px" : kb ? "10px 20px 12px" : "10px 20px calc(24px + var(--inset-bottom))",
        }}>
         {/* Handle + title stay pinned at the top while the content scrolls (and the handle can
             always be dragged to close). A bigger invisible grab area surrounds the little bar. */}
@@ -282,7 +285,7 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
        </div>
        {/* Pinned under the scrolling part, down to the bottom edge (e.g. the comment box). */}
        {footer && (
-         <div data-sheet-footer style={{ flexShrink: 0, background: SHEET_BG, borderTop: `1px solid ${T.lineDark}`, padding: kb ? "10px 20px 12px" : "10px 20px calc(14px + env(safe-area-inset-bottom))" }}>
+         <div data-sheet-footer style={{ flexShrink: 0, background: SHEET_BG, borderTop: `1px solid ${T.lineDark}`, padding: kb ? "10px 20px 12px" : "10px 20px calc(14px + var(--inset-bottom))" }}>
            {footer}
          </div>
        )}

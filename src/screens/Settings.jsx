@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { User, Car, Archive, LogOut, Trash2, ChevronRight, Info, Pencil, Image as ImageIcon, Users, ShieldCheck, Globe, Type } from "lucide-react";
+import { User, Car, Archive, LogOut, Trash2, ChevronRight, Info, Pencil, Image as ImageIcon, Users, ShieldCheck, Globe } from "lucide-react";
 import { T } from "../theme";
 import { fmtDate } from "../lib/utils";
 import { Avatar, EmptyState, Field, TextInput, TextArea, ConfirmDialog, SectionLabel, BottomSheet, isDriver } from "../components/ui";
@@ -8,7 +8,6 @@ import { REMOTE } from "../backend/config";
 import { MAX_LINES } from "../lib/text";
 import { tr, LANGS, lang , AT } from "../lib/i18n";
 import { LanguageSettings } from "../components/LanguagePicker";
-import { FontSettings } from "../components/FontPicker";
 
 export const APP_VERSION = `0.2${import.meta.env?.VITE_BUILD ? `.${import.meta.env.VITE_BUILD}` : ".0"} beta`;
 
@@ -42,7 +41,7 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, is
   const remote = REMOTE;
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [sheet, setSheet] = useState(null); // "language" | "fonts"
+  const [sheet, setSheet] = useState(null); // "language"
   const user = users[me] || {};
   const carCount = Object.values(cars).filter((c) => c.ownerUsername === me).length;
   const archivedCount = Object.values(posts).filter((p) => p.authorUsername === me && p.archived).length;
@@ -90,7 +89,6 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, is
       <SectionLabel>{tr("App")}</SectionLabel>
       <Group>
         <Row icon={<Globe size={16} />} label={tr("Language")} sub={LANGS.find((l) => l.code === lang)?.native} onClick={() => setSheet("language")} />
-        <Row icon={<Type size={16} />} label={tr("Fonts (testing)")} sub={tr("Try different fonts while we choose")} onClick={() => setSheet("fonts")} />
       </Group>
 
       <SectionLabel>{tr("Help")}</SectionLabel>
@@ -108,9 +106,6 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, is
 
       <BottomSheet open={sheet === "language"} onClose={() => setSheet(null)} title={tr("Language")}>
         <LanguageSettings />
-      </BottomSheet>
-      <BottomSheet open={sheet === "fonts"} onClose={() => setSheet(null)} title={tr("Fonts (testing)")} maxHeight="88vh">
-        <FontSettings />
       </BottomSheet>
 
       <ConfirmDialog open={confirmLogout} onClose={() => setConfirmLogout(false)} title={tr("Log out?")} confirmLabel={tr("Log out")}

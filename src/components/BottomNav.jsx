@@ -52,7 +52,7 @@ export function BottomNav({ active, onTab, hidden, raised }) {
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { drag.current = null; setPreview(null); }}
       onClickCapture={(e) => { if (swallow.current) { swallow.current = false; e.stopPropagation(); e.preventDefault(); } }}
       style={{
-        position: "fixed", bottom: "calc(14px + env(safe-area-inset-bottom))", left: "50%", transform: "translateX(-50%)",
+        position: "fixed", bottom: "calc(14px + var(--inset-bottom))", left: "50%", transform: "translateX(-50%)",
         width: "calc(100% - 32px)", maxWidth: 360, display: "flex", borderRadius: 999,
         padding: "5px 8px", zIndex: raised ? 45 : 20, gap: 2, touchAction: "none",
         opacity: hidden ? 0 : 1, pointerEvents: hidden ? "none" : "auto", transition: "opacity 0.2s ease",

@@ -61,7 +61,7 @@ export function Tour({ onDone }) {
   const sw = useSwipe({ onLeft: () => setI((n) => Math.min(SLIDES.length - 1, n + 1)), onRight: () => setI((n) => Math.max(0, n - 1)) });
   const S = SLIDES[i];
   return (
-    <div data-testid="tour" {...sw.bind} style={{ ...sw.bind.style, position: "fixed", inset: 0, zIndex: 80, background: T.bg, display: "flex", flexDirection: "column", padding: "28px 24px calc(28px + env(safe-area-inset-bottom))" }}>
+    <div data-testid="tour" {...sw.bind} style={{ ...sw.bind.style, position: "fixed", inset: 0, zIndex: 80, background: T.bg, display: "flex", flexDirection: "column", padding: "calc(28px + var(--inset-top)) 24px calc(28px + var(--inset-bottom))" }}>
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(80% 50% at 50% 30%, rgba(230,56,70,0.22), rgba(10,10,11,0) 70%)", pointerEvents: "none" }} />
       <div style={{ display: "flex", justifyContent: "flex-end", position: "relative" }}>
         {!last && <button onClick={onDone} style={{ background: "none", border: "none", color: T.textDim, fontSize: 14, fontWeight: 700 }}>{tr("Skip")}</button>}

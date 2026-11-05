@@ -95,13 +95,13 @@ export function PostVideo({ item, mode }) {
         onPointerDown={(e) => { e.stopPropagation(); e.currentTarget.setPointerCapture?.(e.pointerId); setScrub(true); seekTo(e.clientX); }}
         onPointerMove={(e) => { if (scrub) seekTo(e.clientX); }}
         onPointerUp={() => setScrub(false)} onPointerCancel={() => setScrub(false)}
-        style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 22, zIndex: 5, touchAction: "none", display: "flex", alignItems: "flex-end", cursor: "pointer" }}>
+        style={{ position: "absolute", left: 0, right: 0, bottom: mode === "feed" ? "calc(72px + var(--inset-bottom))" : 0, height: 22, zIndex: 5, touchAction: "none", display: "flex", alignItems: "flex-end", cursor: "pointer" }}>
         <div style={{ position: "relative", width: "100%", height: scrub ? 6 : 3, background: "rgba(255,255,255,0.28)", transition: "height .15s ease" }}>
           <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${pct}%`, background: "#fff" }} />
           {scrub && <div style={{ position: "absolute", left: `${pct}%`, top: "50%", width: 14, height: 14, marginLeft: -7, marginTop: -7, borderRadius: 99, background: "#fff" }} />}
         </div>
         {scrub && dur > 0 && (
-          <div data-testid="video-time" style={{ position: "absolute", left: "50%", bottom: mode === "feed" ? 130 : 40, transform: "translateX(-50%)", color: "#fff", fontSize: 20, fontWeight: 800, whiteSpace: "nowrap", pointerEvents: "none", ...onDark, textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+          <div data-testid="video-time" style={{ position: "absolute", left: "50%", bottom: mode === "feed" ? 150 : 40, transform: "translateX(-50%)", color: "#fff", fontSize: 20, fontWeight: 800, whiteSpace: "nowrap", pointerEvents: "none", ...onDark, textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
             {fmt(t)} / {fmt(dur)}
           </div>
         )}
@@ -149,10 +149,10 @@ export function PhotoCarousel({ photos, mode = "feed" }) {
       </div>
       {many && (
         <>
-          <div data-testid="photo-count" style={{ position: "absolute", top: mode === "feed" ? 76 : 10, right: 12, background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 11.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999, pointerEvents: "none" }}>
+          <div data-testid="photo-count" style={{ position: "absolute", top: mode === "feed" ? "calc(72px + var(--inset-top))" : 10, right: 12, background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 11.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999, pointerEvents: "none" }}>
             {i + 1}/{photos.length}
           </div>
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: mode === "feed" ? 8 : 10, display: "flex", justifyContent: "center", gap: 5, pointerEvents: "none" }}>
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: mode === "feed" ? "calc(76px + var(--inset-bottom))" : 10, display: "flex", justifyContent: "center", gap: 5, pointerEvents: "none" }}>
             {photos.map((_, k) => <span key={k} style={{ width: k === i ? 16 : 6, height: 6, borderRadius: 99, background: k === i ? T.accent : "rgba(255,255,255,0.55)", transition: "width .2s ease" }} />)}
           </div>
         </>

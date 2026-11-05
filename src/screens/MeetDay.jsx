@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ScanLine, Megaphone, SlidersHorizontal, BarChart3, Download, Check, X, Car, MapPin, BadgeCheck, Lock, QrCode, Info } from "lucide-react";
+import { ScanLine, Megaphone, SlidersHorizontal, BarChart3, Download, Check, X, Car, MapPin, BadgeCheck, QrCode, Info, Repeat } from "lucide-react";
 import { T } from "../theme";
 import { Avatar, BottomSheet, TextArea, SectionLabel } from "../components/ui";
 import { useSafety } from "../components/Safety";
@@ -7,7 +7,6 @@ import { scanTag } from "../lib/scan";
 import { parseTag } from "../lib/tag";
 import { shareText } from "../lib/share";
 import { timeAgo } from "../lib/utils";
-import { PLANS, PLAN_FEATURES, isPro } from "../lib/meets";
 import { tr , AT } from "../lib/i18n";
 
 const card = { background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 20, padding: 14, marginTop: 14 };
@@ -20,26 +19,19 @@ const tool = (locked) => ({
   border: `1px solid ${T.lineDark}`, background: "rgba(255,255,255,0.04)", color: locked ? T.textDim : T.text, fontWeight: 700, fontSize: 13,
 });
 
-export function PlanBadge({ meet }) {
-  if (!isPro(meet)) return null;
-  return <span data-testid="pro-badge" className="plate" style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: "0.08em", color: "#1A1205", background: "linear-gradient(135deg, #F2C76A, #E0A93B)", borderRadius: 5, padding: "2px 6px" }}>{tr("PRO")}</span>;
-}
-
-// ---------- organizer tools ----------
-export function OrganizerTools({ meet, users, onManage }) {
+// ---------- organizer tools (all of them free while Carfooly is in beta) ----------
+export function OrganizerTools({ meet, users, onManage, onInsights, onRepeat }) {
   const safety = useSafety();
   const a = safety.actions;
   const [announcing, setAnnouncing] = useState(false);
   const [text, setText] = useState("");
-  const [stats, setStats] = useState(false);
-  const pro = isPro(meet);
+  const [audience, setAudience] = useState("all");
   const people = meet.attendees || [];
   const drivers = people.filter((p) => p.role === "driver" && p.approved !== false);
   const attending = people.filter((p) => p.role === "attendee");
   const pending = people.filter((p) => p.role === "driver" && p.approved === false);
   const checked = people.filter((p) => p.checkedIn).length;
   const caps = meet.caps || {};
-  const annLeft = pro ? null : Math.max(0, PLANS.free.announcements - (meet.announcements || []).length);
 
   const doCheckIn = async () => {
     const r = await scanTag();
@@ -51,45 +43,41 @@ export function OrganizerTools({ meet, users, onManage }) {
     safety.flash(res === "ok" ? tr("@{0} checked in ✓", t.id) : res === "already" ? tr("@{0} is already checked in", t.id) : tr("@{0} isn't on the list", t.id));
   };
   const exportList = () => {
-    if (!pro) { safety.flash(tr("Export is a Pro feature")); return; }
-    const rows = [["handle", "name", "role", "car", "checked in"], ...people.map((p) => {
+    const rows = [["handle", "name", "role", "car", "said going", "checked in"], ...people.map((p) => {
       const car = p.carId && safety.cars?.[p.carId];
-      return [p.username, users[p.username]?.name || "", p.role, car ? `${car.year} ${car.make} ${car.model}` : "", p.checkedIn ? "yes" : "no"];
+      return [p.username, users[p.username]?.name || "", p.role, car ? `${car.year} ${car.make} ${car.model}` : "", p.joinedAt ? p.joinedAt.slice(0, 16).replace("T", " ") : "", p.checkedInAt ? p.checkedInAt.slice(0, 16).replace("T", " ") : p.checkedIn ? "yes" : ""];
     })];
     shareText({ title: tr("{0}: people", meet.title), text: rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n") });
   };
-  const spots = meet.spots || [];
+  const meetTag = () => safety.openTag({ kind: "meet", id: meet.id, title: meet.title, subtitle: [meet.city, meet.location].filter(Boolean)[0] || "" });
 
   return (
     <div data-testid="organizer-tools" style={card}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <SlidersHorizontal size={15} color={T.accent} />
         <span style={{ color: T.text, fontWeight: 800, fontSize: 14.5, flex: 1 }}>{tr("Organizer tools")}</span>
-        {pro ? <PlanBadge meet={meet} /> : <span style={{ color: T.textDim, fontSize: 11.5 }}>{tr("Free plan")}</span>}
+        <span data-testid="pro-free" style={{ color: "#F2C76A", fontSize: 11, fontWeight: 700 }}>{tr("Pro · free in beta")}</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
         {[
-          [tr("Driving"), `${drivers.length}${caps.driver ? `/${caps.driver}` : ""}`],
-          [tr("Attending"), `${attending.length}${caps.attendee ? `/${caps.attendee}` : ""}`],
-          [tr("Checked in"), `${checked}/${people.length}`],
-        ].map(([l, v]) => (
-          <div key={l} style={{ textAlign: "center", padding: "9px 4px", borderRadius: 14, background: "rgba(255,255,255,0.04)" }}>
-            <div className="plate" data-testid={`count-${l.replace(" ", "-").toLowerCase()}`} style={{ color: T.text, fontSize: 17, fontWeight: 700 }}>{v}</div>
+          [tr("Driving"), `${drivers.length}${caps.driver ? `/${caps.driver}` : ""}`, "driving"],
+          [tr("Attending"), `${attending.length}${caps.attendee ? `/${caps.attendee}` : ""}`, "attending"],
+          [tr("Checked in"), `${checked}/${people.length}`, "checked-in"],
+        ].map(([l, v, id]) => (
+          <div key={id} style={{ textAlign: "center", padding: "9px 4px", borderRadius: 14, background: "rgba(255,255,255,0.04)" }}>
+            <div className="plate" data-testid={`count-${id}`} style={{ color: T.text, fontSize: 17, fontWeight: 700 }}>{v}</div>
             <div style={{ color: T.textDim, fontSize: 10.5 }}>{l}</div>
           </div>
         ))}
       </div>
-      {!pro && <div style={{ color: T.textDim, fontSize: 11.5, marginBottom: 10 }}>{tr("Free: up to {0} people, {1} co-organizer, {2} announcement.", PLANS.free.maxPeople, PLANS.free.coOrganizers, PLANS.free.announcements)}</div>}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <button data-testid="tool-checkin" onClick={doCheckIn} className="press" style={tool(false)}><ScanLine size={15} /> {tr("Check in")}</button>
-        <button data-testid="tool-announce" onClick={() => setAnnouncing(true)} className="press" style={tool(annLeft === 0)}>
-          <Megaphone size={15} /> {tr("Announce")}{annLeft !== null ? tr(" ({0} left)", annLeft) : ""}
-        </button>
+        <button data-testid="tool-announce" onClick={() => setAnnouncing(true)} className="press" style={tool(false)}><Megaphone size={15} /> {tr("Announce")}</button>
+        <button data-testid="tool-insights" onClick={onInsights} className="press" style={tool(false)}><BarChart3 size={15} /> {tr("Insights")}</button>
         <button data-testid="tool-manage" onClick={onManage} className="press" style={tool(false)}><SlidersHorizontal size={15} /> {tr("Manage people")}</button>
-        <button data-testid="tool-stats" onClick={() => (pro ? setStats(true) : safety.flash(tr("Stats are a Pro feature")))} className="press" style={tool(!pro)}>
-          {pro ? <BarChart3 size={15} /> : <Lock size={14} />} {tr("Stats")}
-        </button>
-        <button data-testid="tool-export" onClick={exportList} className="press" style={tool(!pro)}>{pro ? <Download size={15} /> : <Lock size={14} />} {tr("Export list")}</button>
+        <button data-testid="tool-tag" onClick={meetTag} className="press" style={tool(false)}><QrCode size={15} /> {tr("Meet tag")}</button>
+        <button data-testid="tool-export" onClick={exportList} className="press" style={tool(false)}><Download size={15} /> {tr("Export list")}</button>
+        {onRepeat && <button data-testid="tool-repeat" onClick={onRepeat} className="press" style={{ ...tool(false), flexBasis: "100%" }}><Repeat size={15} /> {tr("Run it again next week")}</button>}
       </div>
 
       {meet.approveDrivers && (
@@ -114,26 +102,17 @@ export function OrganizerTools({ meet, users, onManage }) {
       )}
 
       <BottomSheet open={announcing} onClose={() => setAnnouncing(false)} title={tr("Announcement")} maxHeight="70vh">
-        <div style={{ color: T.textDim, fontSize: 12.5, marginBottom: 10 }}>{tr("Everyone going gets a notification.")} {pro ? tr("One every 10 minutes.") : tr("Free meets get 1.")}</div>
-        <TextArea value={text} onChange={setText} placeholder={tr("e.g. Gate moved to the north entrance")} maxLength={300} rows={3} maxLines={6} autoFocus />
-        <button data-testid="send-announcement" disabled={!text.trim()} onClick={async () => { if (await a.announce(meet.id, text)) { setText(""); setAnnouncing(false); } }} className="press" style={{
-          width: "100%", marginTop: 10, padding: 13, borderRadius: 16, border: "none", fontWeight: 700, fontSize: 15,
-          background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim,
-        }}>{tr("Send to everyone going")}</button>
-      </BottomSheet>
-
-      <BottomSheet open={stats} onClose={() => setStats(false)} title={tr("Meet stats")} maxHeight="70vh">
-        <div data-testid="meet-stats" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          {[
-            [tr("Page views"), meet.views || 0], [tr("Going"), people.length], [tr("Driving"), drivers.length], [tr("Attending"), attending.length],
-            [tr("Checked in"), checked], [tr("Cars listed"), drivers.filter((d) => d.carId).length], [tr("Spots"), spots.length], [tr("Scanned spots"), spots.filter((s) => s.verified).length],
-          ].map(([l, v]) => (
-            <div key={l} style={{ padding: 12, borderRadius: 14, background: "rgba(255,255,255,0.05)" }}>
-              <div className="plate" style={{ color: T.text, fontSize: 20, fontWeight: 700 }}>{v}</div>
-              <div style={{ color: T.textDim, fontSize: 11.5 }}>{l}</div>
-            </div>
+        <div data-testid="announce-audience" style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          {[["all", tr("Everyone going")], ["drivers", tr("Drivers only")]].map(([id, label]) => (
+            <button key={id} data-testid={`audience-${id}`} onClick={() => setAudience(id)} className="press" style={pill(audience === id)}>{label}</button>
           ))}
         </div>
+        <div style={{ color: T.textDim, fontSize: 12.5, marginBottom: 10 }}>{audience === "drivers" ? tr("Drivers and organizers get a notification.") : tr("Everyone going gets a notification.")} {tr("One every 10 minutes.")}</div>
+        <TextArea value={text} onChange={setText} placeholder={tr("e.g. Gate moved to the north entrance")} maxLength={300} rows={3} maxLines={6} autoFocus />
+        <button data-testid="send-announcement" disabled={!text.trim()} onClick={async () => { if (await a.announce(meet.id, text, audience)) { setText(""); setAnnouncing(false); } }} className="press" style={{
+          width: "100%", marginTop: 10, padding: 13, borderRadius: 16, border: "none", fontWeight: 700, fontSize: 15,
+          background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim,
+        }}>{audience === "drivers" ? tr("Send to drivers") : tr("Send to everyone going")}</button>
       </BottomSheet>
     </div>
   );
@@ -176,8 +155,10 @@ export function DriverCard({ meet, me, users }) {
 }
 
 // ---------- announcements ----------
-export function Announcements({ meet }) {
-  const list = meet.announcements || [];
+export function Announcements({ meet, me }) {
+  const myRole = (meet.attendees || []).find((p) => p.username === me)?.role;
+  const insider = meet.submittedBy === me || myRole === "driver" || myRole === "organizer";
+  const list = (meet.announcements || []).filter((x) => x.audience !== "drivers" || insider);
   if (!list.length) return null;
   return (
     <div data-testid="announcements" style={card}>
@@ -187,7 +168,7 @@ export function Announcements({ meet }) {
       {list.map((x) => (
         <div key={x.id} style={{ padding: "8px 0", borderTop: `1px solid ${T.lineDark}` }}>
           <div style={{ color: T.text, fontSize: 14, lineHeight: 1.45 }}>{x.text}</div>
-          <div style={{ color: T.textDim, fontSize: 11, marginTop: 2 }}>{AT}{x.author} · {timeAgo(x.date)}</div>
+          <div style={{ color: T.textDim, fontSize: 11, marginTop: 2 }}>{AT}{x.author} · {timeAgo(x.date)}{x.audience === "drivers" ? tr(" · drivers only") : ""}</div>
         </div>
       ))}
     </div>
@@ -241,44 +222,6 @@ export function CarsAtMeet({ meet, me, openCar }) {
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-// ---------- Free vs Pro (shown on the meet form) ----------
-export function PlanPicker({ value, onChange }) {
-  const [compare, setCompare] = useState(false);
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 8 }}>
-        {[["free", tr("Free"), tr("Friend groups")], ["pro", tr("Pro"), tr("Clubs & organizers")]].map(([id, label, sub]) => (
-          <button key={id} data-testid={`plan-${id}`} onClick={() => onChange(id)} className="press" style={{
-            flex: 1, padding: "12px 10px", borderRadius: 16, textAlign: "start",
-            border: `1px solid ${value === id ? (id === "pro" ? "#E0A93B" : T.accent) : T.lineDark}`,
-            background: value === id ? (id === "pro" ? "rgba(242,199,106,0.12)" : "rgba(230,56,70,0.12)") : T.surface,
-          }}>
-            <div style={{ color: T.text, fontWeight: 800, fontSize: 14.5 }}>{label}</div>
-            <div style={{ color: T.textDim, fontSize: 11.5 }}>{sub}</div>
-          </button>
-        ))}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-        <span style={{ color: T.textDim, fontSize: 11.5 }}>{tr("Testing: no payment yet.")}</span>
-        <button data-testid="compare-plans" onClick={() => setCompare(true)} style={{ background: "none", border: "none", padding: 0, color: T.accent, fontSize: 12.5, fontWeight: 700 }}>{tr("Compare plans")}</button>
-      </div>
-      <BottomSheet open={compare} onClose={() => setCompare(false)} title={tr("Free vs Pro")} maxHeight="85vh">
-        <div data-testid="plan-table" style={{ fontSize: 12.5 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr", gap: 6, color: T.textDim, fontWeight: 700, paddingBottom: 6, borderBottom: `1px solid ${T.lineDark}` }}>
-            <span /><span>{tr("Free")}</span><span style={{ color: "#F2C76A" }}>{tr("Pro")}</span>
-          </div>
-          {PLAN_FEATURES.map(([f, a, b]) => (
-            <div key={f} style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr 1fr", gap: 6, padding: "8px 0", borderBottom: `1px solid ${T.lineDark}`, color: T.text }}>
-              <span>{f}</span><span style={{ color: a === "—" ? T.textDim : T.text }}>{a}</span><span>{b}</span>
-            </div>
-          ))}
-          <div style={{ color: T.textDim, fontSize: 11.5, marginTop: 10 }}>{tr("Safety stays free for everyone: report, block and organizer controls.")}</div>
-        </div>
-      </BottomSheet>
     </div>
   );
 }
