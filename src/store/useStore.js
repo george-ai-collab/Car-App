@@ -674,6 +674,7 @@ export function useStore(flash) {
     const item = get().meets[id];
     if (!item) return;
     if (role === "organizer" && !isOrganizer(item, me)) return;
+    if (role === "driver" && !isDriverAcct()) { flash(tr("Driving is for driver accounts.")); return; }
     const existing = item.attendees.find((a) => a.username === me);
     if (existing && existing.role === role) {
       if (item.submittedBy === me && role === "organizer") return; // the creator always stays on the organizing list
@@ -697,6 +698,8 @@ export function useStore(flash) {
   const setMeetRole = async (meetId, username, role) => {
     const item = get().meets[meetId];
     if (!item || !isOrganizer(item, me) || username === item.submittedBy) return;
+    const t = get().users[username]?.accountType;
+    if (role === "driver" && t && t !== "personal") { flash(tr("Driving is for driver accounts.")); return; }
     const attendees = role
       ? item.attendees.map((a) => (a.username === username ? { ...a, role } : a))
       : item.attendees.filter((a) => a.username !== username);

@@ -5,7 +5,7 @@ import { fmtWhen, isPast } from "../lib/utils";
 import { useSwipe } from "../lib/useSwipe";
 import { NEAR_KM, isNear, loadArea, saveArea } from "../lib/geo";
 import { handleLocationError } from "../lib/permissions";
-import { Avatar, EmptyState, TextInput, TextArea, ConfirmDialog, Segmented, SectionLabel, BottomSheet, Section } from "../components/ui";
+import { Avatar, EmptyState, TextInput, TextArea, ConfirmDialog, Segmented, SectionLabel, BottomSheet, Section, isDriver } from "../components/ui";
 import { PhotoPicker } from "../components/photo/PhotoPicker";
 import { MoreMenu, useSafety } from "../components/Safety";
 import { DateTimePicker } from "../components/DateTimePicker";
@@ -257,7 +257,8 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
           const cap = r.id === "organizer" ? null : caps[r.id];
           const on = myRole === r.id;
           const full = cap && count >= cap && !on;
-          const locked = r.id === "organizer" && !canManage;
+          // Driving means bringing your own car, so it's for driver accounts (clubs and shops have no garage).
+          const locked = (r.id === "organizer" && !canManage) || (r.id === "driver" && !isDriver(users[me]));
           return (
             <button key={r.id} data-testid={`rsvp-${r.id}`} disabled={full || locked} onClick={() => {
               // Saying you're going to a meet with rules: agree to them first (once).
@@ -275,6 +276,7 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
         })}
       </div>
 
+      {!isDriver(users[me]) && <div data-testid="no-driving-note" style={{ color: T.textDim, fontSize: 12, margin: "-10px 0 12px" }}>{tr("Clubs and businesses can attend or organize. Driving is for driver accounts with a car.")}</div>}
       {meet.rules && (
         <div data-testid="meet-rules" style={{ marginTop: 4, marginBottom: 4, padding: "12px 14px", borderRadius: 16, background: "rgba(123,211,137,0.08)", border: "1px solid rgba(123,211,137,0.25)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#7BD389", fontSize: 12.5, fontWeight: 800, marginBottom: 4 }}><ShieldCheck size={14} /> {tr("Meet rules")}</div>
@@ -399,7 +401,7 @@ function ManagePeople({ open, onClose, meet, users, onSetRole, onSetCaps }) {
           </div>
           {a.username === meet.submittedBy ? <div style={{ color: T.textDim, fontSize: 11.5 }}>{tr("Created the meet · always organizing")}</div> : (
             <div style={{ display: "flex", gap: 6 }}>
-              {MEET_ROLES.map((r) => (
+              {MEET_ROLES.filter((r) => r.id !== "driver" || isDriver(users[a.username])).map((r) => (
                 <button key={r.id} data-testid={`set-${r.id}-${a.username}`} onClick={() => onSetRole(meet.id, a.username, r.id)} className="press" style={{
                   flex: 1, padding: "7px 4px", borderRadius: 999, fontSize: 11.5, fontWeight: 600,
                   border: `1px solid ${a.role === r.id ? T.accent : T.lineDark}`, background: a.role === r.id ? "rgba(230,56,70,0.14)" : "transparent", color: a.role === r.id ? T.accent : T.textDim,

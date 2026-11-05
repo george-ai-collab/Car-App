@@ -461,6 +461,7 @@ export function writeMessage(error) {
   if (m.includes("free plan") || m.includes("pro only")) return tr("That's a Pro feature (or over the Free limit) for this meet.");
   if (m.includes("wait a few minutes")) return tr("One announcement every 10 minutes, please.");
   if (m.includes("not your car")) return tr("You can only bring your own car.");
+  if (m.includes("drivers only")) return tr("That's for driver accounts.");
   if (m.includes("communities_name_unique") || (error?.code === "23505" && m.includes("communit"))) return tr("A community with that name already exists");
   if (m.includes("not allowed words")) return tr("That includes words we don't allow on Carfooly. Please keep it respectful.");
   if (m === "banned" || m.includes("banned")) return tr("Your account has been suspended, so you can't post right now.");
