@@ -852,7 +852,7 @@ export const AR = {
   "This looks blurry.": "تبدو الصورة غير واضحة.",
   "A clearer photo helps people (and later our car check) see what it is. Retake it, or keep it if it's the best you can get.": "الصورة الأوضح تساعد الناس (ولاحقًا فحص السيارات لدينا) على معرفة السيارة. أعد التصوير، أو أبقِها إن كانت أفضل ما يمكنك.",
   "If it matches a car with a page, the owner gets a \"spotted\" notification.": "إذا طابقت سيارة لها صفحة، يصل لمالكها إشعار \"رُصدت\".",
-  "GTA / stolen / carjacked: this isn't their car": "GTA / مسروقة / مستولى عليها: هذه ليست سيارته",
+  "Carjacked : this isn't their car": "سيارة مسروقة: هذه ليست سيارته",
   "account": "الحساب",
   "meet": "اللقاء",
   "community": "المجتمع",
