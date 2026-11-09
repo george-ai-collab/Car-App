@@ -143,7 +143,7 @@ export async function load(userId) {
     profiles, follows, cars, carMods, carEvents, carFollows, carSpots, sightings,
     communities, members, threads, threadReplies, threadLikes,
     posts, postLikes, comments, commentLikes, meets, attendees, newsLikes, notifications, blocks, hidden, reports,
-    announcements, meetSpots, meetViews,
+    announcements, meetSpots, meetViews, newsItems,
   ] = await Promise.all([
     t("profiles", "id,handle,name,bio,avatar_url,account_type,is_admin,banned,created_at"),
     t("follows", "follower_id,followee_id"),
@@ -161,6 +161,7 @@ export async function load(userId) {
     t("hidden_posts", "post_id", (q) => q.eq("user_id", userId)),
     t("reports", "*", (q) => q.eq("status", "open").order("created_at", { ascending: false }).limit(300)), // admins only (others get none)
     t("meet_announcements"), t("meet_spots"), t("meet_views", "meet_id,user_id,source,created_at"), // views: organizers only
+    t("news_items", "id,url,title,source,summary,image,category,lang,published_at", (q) => q.order("published_at", { ascending: false }).limit(180)).catch(() => []),
   ]);
 
   const H = {}; // user id -> handle
@@ -280,10 +281,15 @@ export async function load(userId) {
     };
   });
 
-  // News: the built-in stories, plus who liked them.
+  // News: headlines fetched from car news sites (news-refresh), plus who liked them.
+  // Until the first fetch has happened, the built-in stories show instead.
   const newsLikesOf = group(newsLikes, "news_id");
   const news = {};
-  SEED_NEWS.forEach((item) => { news[item.id] = { ...item, submittedBy: null, likes: handles(newsLikesOf[item.id] || [], "user_id") }; });
+  const newsRows = newsItems.length ? newsItems.map((n) => ({
+    id: n.id, title: n.title, url: n.url, source: n.source, note: n.summary, image: n.image,
+    category: n.category, lang: n.lang, date: n.published_at,
+  })) : SEED_NEWS;
+  newsRows.forEach((item) => { news[item.id] = { ...item, submittedBy: null, likes: handles(newsLikesOf[item.id] || [], "user_id") }; });
 
   // Your notifications only.
   const notifs = notifications.map((n) => ({
@@ -460,6 +466,7 @@ export function writeMessage(error) {
   if (m === "full" || m.includes(" full")) return tr("That list is full");
   if (m.includes("free plan") || m.includes("pro only")) return tr("That's a Pro feature (or over the Free limit) for this meet.");
   if (m.includes("wait a few minutes")) return tr("One announcement every 10 minutes, please.");
+  if (m.includes("unknown car model")) return tr("Pick the make and model from the list.");
   if (m.includes("not your car")) return tr("You can only bring your own car.");
   if (m.includes("drivers only")) return tr("That's for driver accounts.");
   if (m.includes("communities_name_unique") || (error?.code === "23505" && m.includes("communit"))) return tr("A community with that name already exists");

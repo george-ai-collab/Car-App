@@ -3,13 +3,13 @@ import { MapPin, Clock, Pencil, Trash2, Navigation, Plus, Calendar, LocateFixed,
 import { T } from "../theme";
 import { fmtWhen, isPast } from "../lib/utils";
 import { useSwipe } from "../lib/useSwipe";
-import { NEAR_KM, isNear, loadArea, saveArea } from "../lib/geo";
+import { NEAR_KM, isNear, loadArea, saveArea, searchPlaces, reversePlace } from "../lib/geo";
 import { handleLocationError } from "../lib/permissions";
 import { Avatar, EmptyState, TextInput, TextArea, ConfirmDialog, Segmented, SectionLabel, BottomSheet, Section, isDriver } from "../components/ui";
 import { PhotoPicker } from "../components/photo/PhotoPicker";
 import { MoreMenu, useSafety } from "../components/Safety";
 import { DateTimePicker } from "../components/DateTimePicker";
-import { LocationPicker, LeafletMap, directionsUrl, labelFor, placeArea } from "../components/LocationPicker";
+import { LocationPicker, LeafletMap, directionsUrl } from "../components/LocationPicker";
 import { MAX_LINES } from "../lib/text";
 import { RichText } from "../components/RichText";
 import { meetStatus, occurrence, groupMeets, toLocal, hoursBetween } from "../lib/meets";
@@ -147,9 +147,8 @@ function AreaPicker({ onPick }) {
     let off = false;
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q.trim())}&limit=5&layer=city&layer=state`);
-        const j = await r.json();
-        if (!off) setResults((j.features || []).map((f) => ({ label: labelFor(f.properties || {}), ...placeArea(f.properties || {}), lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] })));
+        const found = await searchPlaces(q, { cities: true });
+        if (!off) setResults(found);
       } catch { if (!off) setError(tr("City search isn't reachable right now.")); }
     }, 400);
     return () => { off = true; clearTimeout(t); };
@@ -162,9 +161,8 @@ function AreaPicker({ onPick }) {
       const lat = pos.coords.latitude, lng = pos.coords.longitude;
       let area = { label: tr("your location"), city: "", country: "", lat, lng };
       try {
-        const r = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`);
-        const p = (await r.json()).features?.[0]?.properties;
-        if (p) { const a = placeArea(p); area = { ...area, ...a, label: a.city || tr("your location") }; }
+        const p = await reversePlace(lat, lng);
+        if (p) area = { ...area, city: p.city, country: p.country, label: p.city || tr("your location") };
       } catch { /* keep "your location" */ }
       setBusy(false);
       onPick(area);

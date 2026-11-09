@@ -6,7 +6,7 @@ import { readPhoto } from "./CameraCapture";
 import { canPickNatively, pickFromGallery, takePhoto } from "../../lib/media";
 import { SHAPES, FILTERS, TEXT_COLORS, blankEdit, shapeRatio, angleOf, coverScale, clampPan, dragToPan, cssFilter, warmthLayer, bakeEdit } from "./edit";
 import { Avatar, BottomSheet, ChipPicker, Section, TextArea, TextInput } from "../ui";
-import { labelFor, placeArea } from "../LocationPicker";
+import { searchPlaces } from "../../lib/geo";
 import { MAX_LINES } from "../../lib/text";
 import { VideoTrim } from "./VideoTrim";
 import { readVideo, processVideo, MAX_SECONDS, fmtSecs } from "../../lib/video";
@@ -460,9 +460,8 @@ function PlaceField({ value, onChange }) {
     let off = false;
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q.trim())}&limit=5`);
-        const j = await r.json();
-        if (!off) setResults((j.features || []).map((f) => ({ label: labelFor(f.properties || {}), ...placeArea(f.properties || {}), lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] })).filter((x) => x.label));
+        const found = await searchPlaces(q);
+        if (!off) setResults(found);
       } catch { if (!off) setResults([]); }
     }, 400);
     return () => { off = true; clearTimeout(t); };

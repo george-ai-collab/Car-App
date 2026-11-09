@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Car, AtSign, User, ChevronRight, Check, Mail, Lock, Eye, EyeOff, KeyRound } from "lucide-react";
+import { AtSign, User, ChevronRight, Check, Mail, Lock, Eye, EyeOff, KeyRound } from "lucide-react";
 import { T } from "../theme";
+import { LogoTile } from "../components/Logo";
 import { Avatar } from "../components/ui";
 import { useKeyboardOffset } from "../lib/keyboard";
 import { findBanned, handleProblem } from "../lib/moderation";
@@ -37,9 +38,7 @@ function LocalOnboarding({ onSubmit, users }) {
       <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(90% 55% at 50% 0%, rgba(230,56,70,0.28), rgba(10,10,11,0) 70%), radial-gradient(60% 40% at 100% 100%, rgba(69,123,144,0.18), rgba(10,10,11,0) 70%)" }} />
       <div style={{ position: "relative", maxWidth: 400, width: "100%", margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 28 }}>
-          <div style={{ width: 72, height: 72, borderRadius: 24, background: `linear-gradient(150deg, ${T.accent}, ${T.accentDeep})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 40px rgba(230,56,70,0.45)" }}>
-            <Car size={36} color="#fff" />
-          </div>
+          <LogoTile size={76} />
           <div className="display" style={{ fontSize: 34, color: T.text, marginTop: 16, letterSpacing: "0.04em" }}>{tr("CARFOOLY")}</div>
           <div style={{ color: T.textDim, fontSize: 14.5, marginTop: 6 }}>{tr("Every car has a story. This is where it lives.")}</div>
         </div>
@@ -112,9 +111,7 @@ function Frame({ children, note }) {
       <div style={{ position: "relative", maxWidth: 400, width: "100%", margin: "0 auto" }}>
         {!kb && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 28 }}>
-            <div style={{ width: 72, height: 72, borderRadius: 24, background: `linear-gradient(150deg, ${T.accent}, ${T.accentDeep})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 40px rgba(230,56,70,0.45)" }}>
-              <Car size={36} color="#fff" />
-            </div>
+            <LogoTile size={76} />
             <div className="display" style={{ fontSize: 34, color: T.text, marginTop: 16, letterSpacing: "0.04em" }}>{tr("CARFOOLY")}</div>
             <div style={{ color: T.textDim, fontSize: 14.5, marginTop: 6 }}>{tr("Every car has a story. This is where it lives.")}</div>
           </div>

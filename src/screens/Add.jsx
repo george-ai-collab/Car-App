@@ -5,6 +5,7 @@ import { TextInput, Section } from "../components/ui";
 import { PhotoPicker } from "../components/photo/PhotoPicker";
 import { tr } from "../lib/i18n";
 import { checkPhoto } from "../lib/photoCheck";
+import { useCarPick, useCarField, CarSuggestions, CarCheck, yearOk } from "../components/CarPicker";
 
 const TIPS = [
   [Sun, "Good light", "Daylight or a well-lit spot. At night, turn on the flash."],
@@ -23,7 +24,9 @@ export function SpotForm({ onSubmit, flash }) {
   const [make, setMake] = useState(""); const [model, setModel] = useState("");
   const [year, setYear] = useState(""); const [trim, setTrim] = useState("");
   const [busy, setBusy] = useState(false);
-  const valid = photo && make.trim() && model.trim() && year.trim();
+  const cf = useCarField(); const { field, setField } = cf;
+  const pick = useCarPick(make, model);
+  const valid = photo && pick.canonMake && pick.canonModel && yearOk(year);
   const corner = (pos) => ({ position: "absolute", width: 34, height: 34, borderColor: "rgba(255,255,255,0.8)", borderStyle: "solid", borderWidth: 0, ...pos });
 
   return (
@@ -67,18 +70,21 @@ export function SpotForm({ onSubmit, flash }) {
 
       <Section title={tr("What is it?")} icon={<Search size={16} color={T.accent2} />}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <div><div className="plate" style={miniLabel}>{tr("Make")}</div><TextInput value={make} onChange={setMake} placeholder={tr("Nissan")} maxLength={30} /></div>
-          <div><div className="plate" style={miniLabel}>{tr("Model")}</div><TextInput value={model} onChange={setModel} placeholder={tr("Skyline GT-R")} maxLength={40} /></div>
+          <div><div className="plate" style={miniLabel}>{tr("Make")}</div><TextInput value={make} onChange={(v) => { setMake(v); setModel(""); }} onFocus={() => cf.focus("make")} onBlur={cf.blur} placeholder={tr("Nissan")} maxLength={30} /></div>
+          <div><div className="plate" style={miniLabel}>{tr("Model")}</div><TextInput value={model} onChange={setModel} onFocus={() => cf.focus("model")} onBlur={cf.blur} placeholder={tr("Skyline GT-R")} maxLength={40} /></div>
           <div><div className="plate" style={miniLabel}>{tr("Year")}</div><TextInput value={year} onChange={(v) => setYear(v.replace(/[^0-9]/g, ""))} placeholder="1999" maxLength={4} /></div>
           <div><div className="plate" style={miniLabel}>{tr("Trim (optional)")}</div><TextInput value={trim} onChange={setTrim} placeholder={tr("V-Spec")} maxLength={30} /></div>
         </div>
+        <CarSuggestions field={field} make={make} model={model} pick={pick}
+          onMake={(x) => { setMake(x); setModel(""); setField("model"); }} onModel={(x) => { setModel(x); setField(null); }} />
+        <CarCheck make={make} model={model} year={year} pick={pick} flash={flash} />
         <div style={{ fontSize: 11.5, color: T.textDim, lineHeight: 1.5, marginTop: 12 }}>
           {tr("If it matches a car with a page, the owner gets a \"spotted\" notification.")}
         </div>
       </Section>
 
       <button disabled={!valid || busy} className="press"
-        onClick={async () => { setBusy(true); await onSubmit({ make, model, year, trim, photoUrl: photo }); setBusy(false); }}
+        onClick={async () => { setBusy(true); await onSubmit({ make: pick.canonMake, model: pick.canonModel, year, trim, photoUrl: photo }); setBusy(false); }}
         style={{ width: "100%", padding: "14px 16px", borderRadius: 16, border: "none", background: valid ? T.accent2 : T.surface2, color: valid ? "#fff" : T.textDim, fontWeight: 700, fontSize: 15, opacity: busy ? 0.7 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
         <MapPin size={16} /> {busy ? tr("Logging…") : tr("Log spot")}
       </button>

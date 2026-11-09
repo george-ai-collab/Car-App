@@ -5,9 +5,13 @@ import { BottomSheet } from "./ui";
 import { qrMatrix, tagLink } from "../lib/tag";
 import { shareImage } from "../lib/shareImage";
 import { tr } from "../lib/i18n";
+import { logoTile } from "./Logo";
 
-// The QR code itself. Black on white (scans best), with an empty square in the middle
-// kept free for the app logo.
+// Loaded once so the shared tag picture can draw it straight away.
+const logoImg = typeof Image !== "undefined" ? Object.assign(new Image(), { src: logoTile }) : null;
+
+// The QR code itself. Black on white (scans best), with the app logo in the square
+// kept free in the middle.
 export function TagQR({ text, size = 240 }) {
   const m = useMemo(() => qrMatrix(text), [text]);
   const quiet = 3;
@@ -23,8 +27,8 @@ export function TagQR({ text, size = 240 }) {
     <svg data-testid="tag-qr" data-tag={text} width={size} height={size} viewBox={`0 0 ${total} ${total}`} shapeRendering="crispEdges" style={{ display: "block" }}>
       <rect width={total} height={total} fill="#fff" />
       <path d={rects.join("")} fill="#0A0A0B" />
-      {/* Logo space: left empty on purpose for now. */}
-      <rect data-testid="tag-logo-space" x={h.start + quiet + 0.5} y={h.start + quiet + 0.5} width={h.size - 1} height={h.size - 1} rx={1.4} fill="#fff" stroke="#E7E4E0" strokeWidth={0.18} />
+      <rect data-testid="tag-logo-space" x={h.start + quiet + 0.5} y={h.start + quiet + 0.5} width={h.size - 1} height={h.size - 1} rx={1.4} fill="#fff" />
+      <image href={logoTile} x={h.start + quiet + 0.9} y={h.start + quiet + 0.9} width={h.size - 1.8} height={h.size - 1.8} />
     </svg>
   );
 }
@@ -109,7 +113,11 @@ export function drawTagCard({ link, title, subtitle, kind }) {
   const pad = 56, cell = Math.floor((box - pad * 2) / m.n), off = Math.round(bx + (box - cell * m.n) / 2), offY = Math.round(by + (box - cell * m.n) / 2);
   g.fillStyle = "#0A0A0B";
   for (let r = 0; r < m.n; r++) for (let c = 0; c < m.n; c++) if (m.dark(r, c)) g.fillRect(off + c * cell, offY + r * cell, cell, cell);
-  // logo space stays white
+  // the logo in the middle
+  if (logoImg && logoImg.complete && logoImg.naturalWidth) {
+    const hs = m.hole.size * cell, hx = off + m.hole.start * cell, hy = offY + m.hole.start * cell;
+    g.drawImage(logoImg, hx + cell * 0.4, hy + cell * 0.4, hs - cell * 0.8, hs - cell * 0.8);
+  }
   g.fillStyle = "rgba(245,244,242,0.6)"; g.font = "500 34px system-ui, sans-serif";
   g.fillText(kind === "car" ? tr("Scan with Carfooly to open this car") : kind === "meet" ? tr("Scan with Carfooly to see the meet") : tr("Scan with Carfooly to open my profile"), W / 2, by + box + 100);
   return cv.toDataURL("image/png");

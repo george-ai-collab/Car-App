@@ -8,7 +8,7 @@ import { BottomNav } from "./components/BottomNav";
 import { Feed } from "./screens/Feed";
 import { InboxView } from "./screens/Inbox";
 import { PostDetail } from "./screens/PostDetail";
-import { DiscoverView, SearchScreen, CommunitiesScreen, NewsScreen } from "./screens/Discover";
+import { DiscoverView, SearchScreen, CommunitiesScreen, NewsScreen, TracksScreen } from "./screens/Discover";
 import { CommunityPage, CreateCommunityForm, ThreadPage, NewThreadForm } from "./screens/Communities";
 import { AddCarForm, CarPage } from "./screens/Cars";
 import { Profile } from "./screens/Profile";
@@ -163,7 +163,7 @@ export function Shell({ store, toast }) {
         openCar={openCar} openProfile={openProfile} openCommunity={openCommunity}
         onLikeNews={a.toggleNewsLike} onToggleGoing={a.toggleGoing} onToggleCommunity={a.toggleCommunityMembership}
         onOpenSearch={() => go("search")} onOpenCommunities={() => go("communityList")}
-        onOpenMeets={() => go("meetList")} onOpenNews={() => go("newsList")} />;
+        onOpenMeets={() => go("meetList")} onOpenNews={() => go("newsList")} onOpenTracks={() => go("tracks")} />;
       break;
     case "search":
       page = <SearchScreen me={me} cars={cars} users={users} communities={communities}
@@ -204,7 +204,10 @@ export function Shell({ store, toast }) {
       page = meets[p.id] && <MeetInsights meet={meets[p.id]} meets={meets} cars={cars} openProfile={openProfile} />;
       break;
     case "newsList":
-      page = <NewsScreen me={me} news={news} onLike={a.toggleNewsLike} />;
+      page = <NewsScreen me={me} news={news} onLike={a.toggleNewsLike} onRefresh={a.reload} />;
+      break;
+    case "tracks":
+      page = <TracksScreen />;
       break;
     case "addMeet":
       page = <AddMeetForm key={p.id || p.copyFrom || "new"} editing={p.id ? meets[p.id] : null} copyFrom={p.copyFrom ? meets[p.copyFrom] : null}
@@ -214,7 +217,7 @@ export function Shell({ store, toast }) {
       page = <CreateCommunityForm onSubmit={async (data) => { const id = await a.createCommunity(data); if (id) replace("communityPage", { id }); }} />;
       break;
     case "addCar":
-      page = <AddCarForm onSubmit={async (data) => {
+      page = <AddCarForm flash={store.flash} onSubmit={async (data) => {
         const id = await a.addCar(data);
         if (!id) return;
         // Came from the + menu: land on the car, with back going home. From the profile: back returns to the profile.
@@ -223,7 +226,7 @@ export function Shell({ store, toast }) {
       }} />;
       break;
     case "editCar":
-      page = cars[p.id] && <AddCarForm initial={cars[p.id]} onSubmit={async (data) => { await a.editCar(p.id, data); back(); }} />;
+      page = cars[p.id] && <AddCarForm flash={store.flash} initial={cars[p.id]} onSubmit={async (data) => { await a.editCar(p.id, data); back(); }} />;
       break;
     case "addChoice":
       page = <AddPage onPick={pickAdd} driver={isDriver(users[me])} />;

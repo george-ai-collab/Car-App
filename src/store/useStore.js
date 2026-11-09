@@ -1063,7 +1063,7 @@ export function useStore(flash) {
       createThread, replyThread, toggleThreadLike, deleteThread, editThread, deleteThreadReply, deleteComment,
       setMeetRole, setMeetCaps, editCommunity, deleteCommunity,
       setMeetCar, approveDriver, checkIn, announce, spotAtMeet, viewMeet,
-      report, hidePost, undoHide, toggleBlock, adminResolve,
+      report, hidePost, undoHide, toggleBlock, adminResolve, reload: refresh,
     },
   };
 }

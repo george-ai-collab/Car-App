@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef } from "react";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { T, FONT_STACK, MONO_STACK } from "../theme";
+import { LogoTile } from "./Logo";
 import { hueForId } from "../lib/utils";
 import { useKeyboardOffset } from "../lib/keyboard";
 import { limitTyping } from "../lib/text";
@@ -23,6 +24,7 @@ export function GlobalStyle() {
       .plate.handle { text-transform: none; } /* handles are always lowercase */
       .display { font-family: ${FONT_STACK}; font-weight: 600; letter-spacing: 0.01em; }
       @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes logoPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.94); opacity: 0.85; } }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       .fade-in { animation: fadeIn 0.25s ease both; }
       button { transition: opacity 0.15s ease, transform 0.1s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease; }
@@ -61,8 +63,8 @@ export function GlobalStyle() {
 export function LoadingScreen() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: T.text }}>
-      <Loader2 size={28} color={T.accent} style={{ animation: "spin 1s linear infinite" }} />
-      <div style={{ fontFamily: MONO_STACK, fontSize: 12, color: T.textDim, letterSpacing: "0.08em" }}>{tr("LOADING CARFOOLY")}</div>
+      <LogoTile size={84} style={{ animation: "logoPulse 1.6s ease-in-out infinite" }} />
+      <div style={{ fontFamily: MONO_STACK, fontSize: 12, color: T.textDim, letterSpacing: "0.08em", marginTop: 8 }}>{tr("LOADING CARFOOLY")}</div>
     </div>
   );
 }
@@ -147,12 +149,13 @@ export function Field({ label, children }) {
   );
 }
 
-export function TextInput({ value, onChange, placeholder, icon, autoFocus, maxLength }) {
+export function TextInput({ value, onChange, placeholder, icon, autoFocus, maxLength, onFocus, onBlur, inputMode, invalid }) {
   return (
     <div style={{ position: "relative" }}>
       {icon && <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.textDim }}>{icon}</div>}
       <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoFocus={autoFocus} maxLength={maxLength}
-        style={{ width: "100%", padding: icon ? "11px 14px 11px 34px" : "11px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 14.5, outline: "none" }} />
+        onFocus={onFocus} onBlur={onBlur} inputMode={inputMode} aria-invalid={invalid || undefined}
+        style={{ width: "100%", padding: icon ? "11px 14px 11px 34px" : "11px 14px", borderRadius: 16, border: `1px solid ${invalid ? T.accent : T.lineDark}`, background: T.surface, color: T.text, fontSize: 14.5, outline: "none" }} />
     </div>
   );
 }

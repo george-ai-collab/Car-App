@@ -56,9 +56,11 @@ After changing the UI: `npm run android:sync`.
 
 ## Outside services (fine for the beta, need a plan before launch)
 
-- **Map tiles**: CARTO dark style (OpenStreetMap data). Needs a paid tile plan for a public launch.
-- **Place search**: Photon (komoot). Fair-use only; swap for a paid geocoder at launch.
-- **Directions** open Google Maps with the meet's pin.
+- **Maps and place search** (all in `src/lib/geo.js`): with a Geoapify key we use Geoapify (free for 3,000 requests a day, answers in Arabic). Add the key as a GitHub secret named `GEOAPIFY_KEY` and the next APK uses it. Without it the app falls back to CARTO tiles + Photon search, which are fair-use only.
+- **Directions** open Google Maps with the pin.
+- **Car list**: `car_makes` / `car_models` tables, filled once by the `catalog-seed` function from the US government's free vehicle database (NHTSA vPIC, public domain) plus our own Gulf/JDM list (`src/lib/carCatalog.js`). New cars must match the list (a database trigger checks). People can ask for a missing car; admins add it from the Reports screen.
+- **News**: the `news-refresh` function reads public RSS feeds (headline, short summary, picture link and the link to the article) into `news_items`, at most every 3 hours, when someone opens News. Feeds are listed in the function.
+- **Tracks**: `tracks` table (starter list of Gulf circuits, drag strips and karting; same rows in `src/lib/tracks.js`). Add rows in the Table Editor.
 
 ## Known limits
 

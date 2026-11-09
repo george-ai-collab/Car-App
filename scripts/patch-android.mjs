@@ -3,7 +3,7 @@
 //  - location permission, for "Use my location" when posting a meet
 //  - portrait lock, since every screen is designed for a portrait phone
 //  - carfooly:// links (share tags) open the app, and the QR scanner is set up
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, copyFileSync, mkdirSync } from "node:fs";
 
 const manifestPath = "android/app/src/main/AndroidManifest.xml";
 if (!existsSync(manifestPath)) {
@@ -136,4 +136,20 @@ if (buildNo && existsSync(gradlePath)) {
   writeFileSync(gradlePath, g);
 }
 
-console.log("patch-android: permissions, portrait lock, tag links, scanner, edge to edge, no scrollbar/bounce, version applied");
+// App icon (temporary lizard logo): white lizard on the red brand colour.
+// Icons are made by branding/ from the logo; the adaptive icon uses the foreground + this colour.
+const res = "android/app/src/main/res";
+if (existsSync("branding/android") && existsSync(res)) {
+  for (const dir of readdirSync("branding/android")) {
+    mkdirSync(`${res}/${dir}`, { recursive: true });
+    for (const f of readdirSync(`branding/android/${dir}`)) copyFileSync(`branding/android/${dir}/${f}`, `${res}/${dir}/${f}`);
+  }
+  mkdirSync(`${res}/values`, { recursive: true });
+  writeFileSync(`${res}/values/ic_launcher_background.xml`, `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#E63846</color>\n</resources>\n`);
+  mkdirSync(`${res}/mipmap-anydpi-v26`, { recursive: true });
+  const adaptive = `<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@color/ic_launcher_background"/>\n    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n</adaptive-icon>\n`;
+  writeFileSync(`${res}/mipmap-anydpi-v26/ic_launcher.xml`, adaptive);
+  writeFileSync(`${res}/mipmap-anydpi-v26/ic_launcher_round.xml`, adaptive);
+}
+
+console.log("patch-android: permissions, portrait lock, tag links, scanner, edge to edge, no scrollbar/bounce, version, app icon applied");
