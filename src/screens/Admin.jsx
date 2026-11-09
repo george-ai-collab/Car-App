@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { ShieldCheck, Trash2, Ban, Check, EyeOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ShieldCheck, Trash2, Ban, Check, EyeOff, Car, X } from "lucide-react";
 import { T } from "../theme";
 import { Avatar, EmptyState, ConfirmDialog } from "../components/ui";
 import { timeAgo } from "../lib/utils";
 import { tr , AT } from "../lib/i18n";
+import { openCarRequests, resolveCarRequest } from "../lib/catalog";
 
 const KIND_LABEL = { post: tr("Post"), comment: tr("Comment"), reply: tr("Reply"), user: tr("Account"), car: tr("Car"), meet: tr("Meet"), community: tr("Community"), thread: tr("Discussion"), threadReply: tr("Discussion reply") };
 
@@ -90,6 +91,36 @@ export function AdminReports({ me, reports = [], data, onResolve, openProfile })
         confirmLabel={confirm?.action === "ban" ? tr("Ban") : tr("Remove")}
         body={confirm?.action === "ban" ? tr("This removes it and stops @{0} from posting, commenting or liking.", confirm?.author) : tr("It's deleted for everyone. This can't be undone.")}
         onConfirm={() => { onResolve(confirm.kind, confirm.targetId, confirm.action); setConfirm(null); }} />
+      <CarRequests />
+    </div>
+  );
+}
+
+// "Can't find your car?" requests: add the car to the list, or turn it down.
+function CarRequests() {
+  const [list, setList] = useState([]);
+  useEffect(() => { openCarRequests().then(setList); }, []);
+  const decide = async (r, add) => {
+    try { await resolveCarRequest(r, add); setList((l) => l.filter((x) => x.id !== r.id)); } catch { /* stays in the list */ }
+  };
+  return (
+    <div data-testid="car-requests" style={{ marginTop: 22 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+        <Car size={18} color={T.accent2} />
+        <div className="display" style={{ fontSize: 19, color: T.text }}>{tr("Car list requests")}</div>
+      </div>
+      <div style={{ color: T.textDim, fontSize: 12.5, marginBottom: 12 }}>{tr("Cars people couldn't find in the list. Check it's a real model before adding it.")}</div>
+      {list.length === 0 && <div style={{ color: T.textDim, fontSize: 13 }}>{tr("No requests.")}</div>}
+      {list.map((r) => (
+        <div key={r.id} data-testid="car-request-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", marginBottom: 8, borderRadius: 16, background: T.surface, border: `1px solid ${T.lineDark}` }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: T.text, fontSize: 14, fontWeight: 700 }}>{r.make} {r.model}</div>
+            <div style={{ color: T.textDim, fontSize: 11.5 }}>{[r.year, timeAgo(r.date)].filter(Boolean).join(" · ")}</div>
+          </div>
+          <button onClick={() => decide(r, true)} className="press" style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 11px", borderRadius: 999, border: "none", background: T.accent2, color: "#fff", fontSize: 12, fontWeight: 700 }}><Check size={13} /> {tr("Add")}</button>
+          <button onClick={() => decide(r, false)} aria-label={tr("Turn down")} className="press" style={{ display: "flex", padding: 7, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: "none" }}><X size={14} color={T.textDim} /></button>
+        </div>
+      ))}
     </div>
   );
 }

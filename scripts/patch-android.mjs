@@ -3,7 +3,7 @@
 //  - location permission, for "Use my location" when posting a meet
 //  - portrait lock, since every screen is designed for a portrait phone
 //  - carfooly:// links (share tags) open the app, and the QR scanner is set up
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, copyFileSync, mkdirSync } from "node:fs";
 
 const manifestPath = "android/app/src/main/AndroidManifest.xml";
 if (!existsSync(manifestPath)) {
@@ -59,15 +59,55 @@ const findFile = (dir, name) => {
 const activity = findFile("android/app/src/main/java", "MainActivity.java");
 if (activity) {
   const src = readFileSync(activity, "utf8");
-  if (!src.includes("OVER_SCROLL_NEVER")) {
+  if (!src.includes("setDecorFitsSystemWindows")) {
     const pkg = (src.match(/^package\s+[\w.]+;/m) || ["package com.carfooly.app;"])[0];
     writeFileSync(activity, `${pkg}
 
+import android.graphics.Color;
+import android.os.Bundle;
 import android.view.View;
 import android.webkit.WebView;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
+    private int insetTop = 0;
+    private int insetBottom = 0;
+
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // Edge to edge: the app draws behind the status bar and the gesture bar (no dark strips),
+        // and tells the page how big those bars are (CSS --inset-top / --inset-bottom).
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
+        WindowInsetsControllerCompat bars = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        bars.setAppearanceLightStatusBars(false);     // white icons on the dark app
+        bars.setAppearanceLightNavigationBars(false);
+        WebView webView = getBridge().getWebView();
+        ViewCompat.setOnApplyWindowInsetsListener(webView, (v, insets) -> {
+            androidx.core.graphics.Insets b = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            float d = getResources().getDisplayMetrics().density;
+            insetTop = Math.round(b.top / d);
+            insetBottom = Math.round(b.bottom / d);
+            pushInsets();
+            return insets;
+        });
+    }
+
+    // The page may still be loading, so send the sizes a few times.
+    private void pushInsets() {
+        WebView w = getBridge().getWebView();
+        if (w == null) return;
+        String js = "document.documentElement.style.setProperty('--inset-top','" + insetTop + "px');"
+            + "document.documentElement.style.setProperty('--inset-bottom','" + insetBottom + "px');";
+        for (long delay : new long[] { 0, 400, 1500, 4000 }) w.postDelayed(() -> w.evaluateJavascript(js, null), delay);
+    }
+
     @Override
     public void onStart() {
         super.onStart();
@@ -75,6 +115,13 @@ public class MainActivity extends BridgeActivity {
         webView.setVerticalScrollBarEnabled(false);
         webView.setHorizontalScrollBarEnabled(false);
         webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        ViewCompat.requestApplyInsets(webView);
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        pushInsets();
     }
 }
 `);
@@ -89,4 +136,20 @@ if (buildNo && existsSync(gradlePath)) {
   writeFileSync(gradlePath, g);
 }
 
-console.log("patch-android: permissions, portrait lock, tag links, scanner, no scrollbar/bounce, version applied");
+// App icon (temporary lizard logo): white lizard on the red brand colour.
+// Icons are made by branding/ from the logo; the adaptive icon uses the foreground + this colour.
+const res = "android/app/src/main/res";
+if (existsSync("branding/android") && existsSync(res)) {
+  for (const dir of readdirSync("branding/android")) {
+    mkdirSync(`${res}/${dir}`, { recursive: true });
+    for (const f of readdirSync(`branding/android/${dir}`)) copyFileSync(`branding/android/${dir}/${f}`, `${res}/${dir}/${f}`);
+  }
+  mkdirSync(`${res}/values`, { recursive: true });
+  writeFileSync(`${res}/values/ic_launcher_background.xml`, `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#E63846</color>\n</resources>\n`);
+  mkdirSync(`${res}/mipmap-anydpi-v26`, { recursive: true });
+  const adaptive = `<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@color/ic_launcher_background"/>\n    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n</adaptive-icon>\n`;
+  writeFileSync(`${res}/mipmap-anydpi-v26/ic_launcher.xml`, adaptive);
+  writeFileSync(`${res}/mipmap-anydpi-v26/ic_launcher_round.xml`, adaptive);
+}
+
+console.log("patch-android: permissions, portrait lock, tag links, scanner, edge to edge, no scrollbar/bounce, version, app icon applied");

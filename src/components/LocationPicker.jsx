@@ -6,32 +6,9 @@ import { T } from "../theme";
 import { handleLocationError } from "../lib/permissions";
 import { tr } from "../lib/i18n";
 
-// Map tiles: CARTO's dark style (built on OpenStreetMap). Free for a small beta;
-// before a public launch we need a paid tile plan (e.g. CARTO, MapTiler or Stadia).
-const TILES = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-const ATTRIBUTION = "© OpenStreetMap contributors © CARTO";
-// Place search: Photon (OpenStreetMap data). Same note as above for launch.
-const SEARCH = "https://photon.komoot.io/api/";
-const REVERSE = "https://photon.komoot.io/reverse";
-
-export function directionsUrl(lat, lng) {
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-}
-
-// City + country of a place, so meets can be grouped and found "near you".
-export function placeArea(p) {
-  const isTown = ["city", "town", "village"].includes(p.type) || ["city", "town", "village"].includes(p.osm_value);
-  return { city: p.city || (isTown ? p.name : "") || p.county || p.state || "", country: p.country || "" };
-}
-
-export function labelFor(p) {
-  const parts = [];
-  if (p.name) parts.push(p.name);
-  const street = [p.housenumber, p.street].filter(Boolean).join(" ");
-  if (street && street !== p.name) parts.push(street);
-  [p.city || p.district, p.state, p.country].forEach((x) => { if (x && !parts.includes(x)) parts.push(x); });
-  return parts.join(", ");
-}
+// Map tiles and place search come from lib/geo (Geoapify with a key, free services without).
+import { TILES, searchPlaces, reversePlace, placeArea, labelFor, directionsUrl } from "../lib/geo";
+export { placeArea, labelFor, directionsUrl };
 
 export function LeafletMap({ pin, onPick, height = 220, interactive = true }) {
   const el = useRef(null);
@@ -46,7 +23,7 @@ export function LeafletMap({ pin, onPick, height = 220, interactive = true }) {
       dragging: interactive, scrollWheelZoom: interactive, doubleClickZoom: interactive, touchZoom: interactive, boxZoom: false, keyboard: false,
     });
     m.setView(pin ? [pin.lat, pin.lng] : [20, 0], pin ? 15 : 2);
-    L.tileLayer(TILES, { attribution: ATTRIBUTION, subdomains: "abcd", maxZoom: 20 }).addTo(m);
+    L.tileLayer(TILES.url, { attribution: TILES.attribution, subdomains: TILES.subdomains, maxZoom: 20 }).addTo(m);
     if (interactive) m.on("click", (e) => pickRef.current && pickRef.current({ lat: e.latlng.lat, lng: e.latlng.lng }));
     map.current = m;
     // The page fades in, so the map needs a nudge once it has its real size.
@@ -92,11 +69,9 @@ export function LocationPicker({ value, onChange }) {
     const t = setTimeout(async () => {
       setSearching(true);
       try {
-        const bias = pin ? `&lat=${pin.lat}&lon=${pin.lng}` : "";
-        const res = await fetch(`${SEARCH}?q=${encodeURIComponent(q)}&limit=5${bias}`);
-        const json = await res.json();
+        const found = await searchPlaces(q, { near: pin });
         if (!cancelled) {
-          setResults((json.features || []).map((f) => ({ label: labelFor(f.properties || {}), ...placeArea(f.properties || {}), lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] })).filter((r) => r.label));
+          setResults(found);
           setError("");
         }
       } catch {
@@ -124,15 +99,12 @@ export function LocationPicker({ value, onChange }) {
   const pickPoint = async ({ lat, lng }) => {
     onChange({ ...value, location: query, lat, lng });
     try {
-      const res = await fetch(`${REVERSE}?lat=${lat}&lon=${lng}`);
-      const json = await res.json();
-      const props = json.features?.[0]?.properties || {};
-      const label = json.features?.[0] ? labelFor(props) : "";
-      const text = label || tr("Pinned spot ({0}, {1})", lat.toFixed(4), lng.toFixed(4));
+      const place = await reversePlace(lat, lng);
+      const text = place?.label || tr("Pinned spot ({0}, {1})", lat.toFixed(4), lng.toFixed(4));
       skipSearch.current = true;
       setQuery(text);
       setResults([]);
-      onChange({ location: text, lat, lng, ...placeArea(props) });
+      onChange({ location: text, lat, lng, city: place?.city || "", country: place?.country || "" });
     } catch {
       if (!query.trim()) {
         const text = tr("Pinned spot ({0}, {1})", lat.toFixed(4), lng.toFixed(4));

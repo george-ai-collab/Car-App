@@ -5,8 +5,9 @@ import { fmtDate, hueForId, verbPhrase } from "../lib/utils";
 import { Avatar, EmptyState, TextInput, SectionLabel, Section, Segmented, isDriver } from "../components/ui";
 import { useSwipe } from "../lib/useSwipe";
 import { PhotoPicker } from "../components/photo/PhotoPicker";
-import { MoreMenu, useSafety } from "../components/Safety";
+import { MoreMenu, useSafety, CAR_REPORT_REASONS } from "../components/Safety";
 import { tr , AT } from "../lib/i18n";
+import { useCarPick, useCarField, CarSuggestions, CarCheck, yearOk } from "../components/CarPicker";
 
 export function CarsView({ cars, onOpen, onAdd }) {
   const list = Object.values(cars).sort((a, b) => {
@@ -78,7 +79,7 @@ export function SightingCard({ sighting }) {
 }
 
 // Add / edit a car. Looks like a garage card: cover photo + name up top, then a spec sheet.
-export function AddCarForm({ onSubmit, initial }) {
+export function AddCarForm({ onSubmit, initial, flash }) {
   const editing = !!initial;
   const v = (k) => (initial && initial[k]) || "";
   const [make, setMake] = useState(v("make")); const [model, setModel] = useState(v("model"));
@@ -90,7 +91,11 @@ export function AddCarForm({ onSubmit, initial }) {
   const [note, setNote] = useState(""); const [noteDetail, setNoteDetail] = useState("");
   const [hasPage, setHasPage] = useState(editing ? initial.hasPage !== false : false);
   const [busy, setBusy] = useState(false);
-  const valid = make.trim() && model.trim() && year.trim().length === 4;
+  const cf = useCarField(); const { field, setField } = cf;
+  const pick = useCarPick(make, model);
+  // An old car whose make/model was typed before the list existed can still be edited.
+  const unchanged = editing && make === initial.make && model === initial.model;
+  const valid = ((pick.canonMake && pick.canonModel) || unchanged) && yearOk(year);
   const spec = [
     ["Engine", engine, setEngine, "1.8 BP-ZE", 40], ["Power", power, setPower, "131 hp", 20],
     ["Gearbox", gearbox, setGearbox, "5-spd manual", 30], ["Weight", weight, setWeight, "990 kg", 20],
@@ -115,10 +120,13 @@ export function AddCarForm({ onSubmit, initial }) {
         )}
         <div style={{ background: T.paper, padding: "16px 16px 14px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 78px", gap: 8 }}>
-            <div><div className="plate" style={paperLabel}>{tr("Make")}</div><input value={make} onChange={(e) => setMake(e.target.value)} placeholder={tr("BMW")} maxLength={30} style={paperInput} /></div>
-            <div><div className="plate" style={paperLabel}>{tr("Model")}</div><input value={model} onChange={(e) => setModel(e.target.value)} placeholder="M4" maxLength={40} style={paperInput} /></div>
+            <div><div className="plate" style={paperLabel}>{tr("Make")}</div><input value={make} onChange={(e) => { setMake(e.target.value); setModel(""); }} onFocus={() => cf.focus("make")} onBlur={cf.blur} placeholder={tr("BMW")} maxLength={30} style={paperInput} autoComplete="off" /></div>
+            <div><div className="plate" style={paperLabel}>{tr("Model")}</div><input value={model} onChange={(e) => setModel(e.target.value)} onFocus={() => cf.focus("model")} onBlur={cf.blur} placeholder="M4" maxLength={40} style={paperInput} autoComplete="off" /></div>
             <div><div className="plate" style={paperLabel}>{tr("Year")}</div><input value={year} onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, ""))} placeholder="2024" maxLength={4} inputMode="numeric" style={paperInput} /></div>
           </div>
+          <CarSuggestions field={field} make={make} model={model} pick={pick}
+            onMake={(x) => { setMake(x); setModel(""); setField("model"); }} onModel={(x) => { setModel(x); setField(null); }} />
+          <CarCheck make={make} model={model} year={year} pick={pick} dark={false} flash={flash} />
           <div className="plate" style={{ ...paperLabel, marginTop: 10 }}>{tr("Build nickname (optional)")}</div>
           <input value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder={tr("e.g. Coilover Miata")} maxLength={40} style={{ ...paperInput, fontFamily: "inherit" }} />
         </div>
@@ -145,7 +153,7 @@ export function AddCarForm({ onSubmit, initial }) {
         sub={hasPage ? tr("Anyone can open it, follow the build and spot it.") : tr("Off: it just sits in your garage. Only you can open it.")} />
 
       <button disabled={!valid || busy} className="press"
-        onClick={async () => { setBusy(true); await onSubmit({ make, model, year, nickname, photoUrl, engine, power, gearbox, weight, wheels, zeroToSixty, topSpeed, note, noteDetail, hasPage }); setBusy(false); }}
+        onClick={async () => { setBusy(true); await onSubmit({ make: pick.canonMake || make, model: pick.canonModel || model, year, nickname, photoUrl, engine, power, gearbox, weight, wheels, zeroToSixty, topSpeed, note, noteDetail, hasPage }); setBusy(false); }}
         style={{ width: "100%", padding: "14px 16px", borderRadius: 16, border: "none", background: valid ? T.accent : T.surface2, color: valid ? "#fff" : T.textDim, fontWeight: 700, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
         {busy ? tr("Saving…") : editing ? tr("Save changes") : tr("Add to Carfooly")}
       </button>
@@ -199,8 +207,8 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
   const order = ["posts", "build", "specs", "spotters"];
   const sw = useSwipe({ onLeft: () => setTab && setTab(order[Math.min(3, order.indexOf(tab) + 1)]), onRight: () => setTab && setTab(order[Math.max(0, order.indexOf(tab) - 1)]) });
   const name = car.nickname || `${car.make} ${car.model}`;
-  // Only cars with a public page get a tag (otherwise nobody else could open it).
-  const showTag = safety?.openTag && car.hasPage !== false
+  // A car's tag is the owner's to share (like a key): only the owner sees it, and only for cars with a public page.
+  const showTag = safety?.openTag && isOwner && car.hasPage !== false
     ? () => safety.openTag({ kind: "car", id: car.id, title: name, subtitle: `${car.year} · ${car.make} ${car.model}` })
     : null;
 
@@ -216,9 +224,9 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
               share={{ title: tr("Carfooly"), text: tr("{0} ({1}), kept by @{2} on Carfooly", name, car.year, car.ownerUsername) }}
               items={[
                 ...(isOwner && onEdit ? [{ label: tr("Edit car"), icon: <Pencil size={17} />, onClick: onEdit }] : []),
-                ...(showTag ? [{ label: isOwner ? tr("Share tag") : tr("Show tag"), icon: <QrCode size={17} />, onClick: showTag }] : []),
+                ...(showTag ? [{ label: tr("Share tag"), icon: <QrCode size={17} />, onClick: showTag }] : []),
               ]}
-              report={isOwner ? null : { what: "car", onSend: (reason, note) => safety.actions.report({ kind: "car", id: car.id, reason, note }) }} />
+              report={isOwner ? null : { what: "car", reasons: CAR_REPORT_REASONS, onSend: (reason, note) => safety.actions.report({ kind: "car", id: car.id, reason, note }) }} />
           </div>
         )}
         <div style={{ position: "absolute", left: 16, right: 16, bottom: 14 }}>

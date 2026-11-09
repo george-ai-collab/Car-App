@@ -38,6 +38,8 @@ jobs:
       - name: Build the Carfooly frontend
         env:
           VITE_BUILD: ${{ github.run_number }}
+          # Optional: maps and place search from Geoapify. Without it the app uses the free services.
+          VITE_GEOAPIFY_KEY: ${{ secrets.GEOAPIFY_KEY }}
         run: |
           set -o pipefail
           npm run build 2>&1 | tee -a build.log

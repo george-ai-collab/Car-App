@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef } from "react";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { T, FONT_STACK, MONO_STACK } from "../theme";
+import { LogoTile } from "./Logo";
 import { hueForId } from "../lib/utils";
 import { useKeyboardOffset } from "../lib/keyboard";
 import { limitTyping } from "../lib/text";
@@ -9,6 +10,9 @@ import { tr } from "../lib/i18n";
 export function GlobalStyle() {
   return (
     <style>{`
+      /* Space taken by the phone's status bar (top) and gesture/home bar (bottom). The app draws edge to
+         edge; the Android app sets these to the real sizes (see scripts/patch-android.mjs). */
+      :root { --inset-top: env(safe-area-inset-top, 0px); --inset-bottom: env(safe-area-inset-bottom, 0px); }
       * { box-sizing: border-box; }
       html, body { margin: 0; overscroll-behavior: none; }
       *::-webkit-scrollbar { display: none; }
@@ -20,6 +24,7 @@ export function GlobalStyle() {
       .plate.handle { text-transform: none; } /* handles are always lowercase */
       .display { font-family: ${FONT_STACK}; font-weight: 600; letter-spacing: 0.01em; }
       @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes logoPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.94); opacity: 0.85; } }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
       .fade-in { animation: fadeIn 0.25s ease both; }
       button { transition: opacity 0.15s ease, transform 0.1s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease; }
@@ -58,8 +63,8 @@ export function GlobalStyle() {
 export function LoadingScreen() {
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: T.text }}>
-      <Loader2 size={28} color={T.accent} style={{ animation: "spin 1s linear infinite" }} />
-      <div style={{ fontFamily: MONO_STACK, fontSize: 12, color: T.textDim, letterSpacing: "0.08em" }}>{tr("LOADING CARFOOLY")}</div>
+      <LogoTile size={84} style={{ animation: "logoPulse 1.6s ease-in-out infinite" }} />
+      <div style={{ fontFamily: MONO_STACK, fontSize: 12, color: T.textDim, letterSpacing: "0.08em", marginTop: 8 }}>{tr("LOADING CARFOOLY")}</div>
     </div>
   );
 }
@@ -98,9 +103,9 @@ export function TabButton({ active, onClick, label }) {
   );
 }
 
-export function IconTab({ active, onClick, icon }) {
+export function IconTab({ active, onClick, icon, label }) {
   return (
-    <button onClick={onClick} className="press" style={{
+    <button onClick={onClick} aria-label={label} className="press" style={{
       width: 46, height: 40, borderRadius: 999, border: `1px solid ${active ? T.accent : T.lineDark}`,
       background: active ? T.accent : T.surface, color: active ? "#fff" : T.textDim,
       display: "flex", alignItems: "center", justifyContent: "center", boxShadow: active ? T.shadowAccent : "none",
@@ -144,12 +149,13 @@ export function Field({ label, children }) {
   );
 }
 
-export function TextInput({ value, onChange, placeholder, icon, autoFocus, maxLength }) {
+export function TextInput({ value, onChange, placeholder, icon, autoFocus, maxLength, onFocus, onBlur, inputMode, invalid }) {
   return (
     <div style={{ position: "relative" }}>
       {icon && <div style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: T.textDim }}>{icon}</div>}
       <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} autoFocus={autoFocus} maxLength={maxLength}
-        style={{ width: "100%", padding: icon ? "11px 14px 11px 34px" : "11px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 14.5, outline: "none" }} />
+        onFocus={onFocus} onBlur={onBlur} inputMode={inputMode} aria-invalid={invalid || undefined}
+        style={{ width: "100%", padding: icon ? "11px 14px 11px 34px" : "11px 14px", borderRadius: 16, border: `1px solid ${invalid ? T.accent : T.lineDark}`, background: T.surface, color: T.text, fontSize: 14.5, outline: "none" }} />
     </div>
   );
 }
@@ -270,7 +276,7 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
       }}>
        <div ref={scrollRef} style={{
         flex: "1 1 auto", minHeight: 0, overflowY: "auto", overscrollBehavior: "contain",
-        padding: footer ? "10px 20px 12px" : kb ? "10px 20px 12px" : "10px 20px calc(24px + env(safe-area-inset-bottom))",
+        padding: footer ? "10px 20px 12px" : kb ? "10px 20px 12px" : "10px 20px calc(24px + var(--inset-bottom))",
        }}>
         {/* Handle + title stay pinned at the top while the content scrolls (and the handle can
             always be dragged to close). A bigger invisible grab area surrounds the little bar. */}
@@ -282,7 +288,7 @@ export function BottomSheet({ open, onClose, title, children, maxHeight = "48vh"
        </div>
        {/* Pinned under the scrolling part, down to the bottom edge (e.g. the comment box). */}
        {footer && (
-         <div data-sheet-footer style={{ flexShrink: 0, background: SHEET_BG, borderTop: `1px solid ${T.lineDark}`, padding: kb ? "10px 20px 12px" : "10px 20px calc(14px + env(safe-area-inset-bottom))" }}>
+         <div data-sheet-footer style={{ flexShrink: 0, background: SHEET_BG, borderTop: `1px solid ${T.lineDark}`, padding: kb ? "10px 20px 12px" : "10px 20px calc(14px + var(--inset-bottom))" }}>
            {footer}
          </div>
        )}

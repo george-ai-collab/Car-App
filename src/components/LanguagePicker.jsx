@@ -10,7 +10,7 @@ export function LanguageScreen() {
   const [pick, setPick] = useState(deviceLanguage());
   const say = (en) => (pick === "ar" ? AR[en] || en : en);
   return (
-    <div data-testid="language-screen" dir={LANGS.find((l) => l.code === pick)?.dir} style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "32px 22px", maxWidth: 460, margin: "0 auto", color: T.text }}>
+    <div data-testid="language-screen" dir={LANGS.find((l) => l.code === pick)?.dir} style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "calc(32px + var(--inset-top)) 22px calc(32px + var(--inset-bottom))", maxWidth: 460, margin: "0 auto", color: T.text }}>
       <div style={{ width: 52, height: 52, borderRadius: 18, background: "rgba(230,56,70,0.14)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
         <Globe size={24} color={T.accent} />
       </div>
