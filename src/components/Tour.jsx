@@ -7,7 +7,7 @@ import { useSwipe } from "../lib/useSwipe";
 const SLIDES = [
   {
     title: "Every car has a story",
-    body: "Carfooly gives each car its own page: photos, mods and a build log that stays with it for good.",
+    body: "Lacerta gives each car its own page: photos, mods and a build log that stays with it for good.",
     art: () => <Orbit center={<Car size={42} color="#fff" />} items={[<Wrench key="w" size={18} />, <ImageIcon key="i" size={18} />, <Heart key="h" size={18} />]} />,
   },
   {
