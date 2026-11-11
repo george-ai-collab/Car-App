@@ -1,17 +1,18 @@
+import { tr } from "./i18n";
 // Spotting badges are computed from data the app already stores — nothing extra is saved.
 
 export const SPOT_BADGES = [
-  { count: 1, name: "First Find", tone: "warm" },
-  { count: 5, name: "Spotter", tone: "warm" },
-  { count: 15, name: "Scout", tone: "accent2" },
-  { count: 30, name: "Hunter", tone: "accent2" },
-  { count: 75, name: "Legend", tone: "accent" },
+  { count: 1, name: tr("First Find"), tone: "warm" },
+  { count: 5, name: tr("Spotter"), tone: "warm" },
+  { count: 15, name: tr("Scout"), tone: "accent2" },
+  { count: 30, name: tr("Hunter"), tone: "accent2" },
+  { count: 75, name: tr("Legend"), tone: "accent" },
 ];
 
 export const VARIETY_BADGES = [
-  { count: 3, name: "Explorer", tone: "warm" },
-  { count: 6, name: "Collector", tone: "accent2" },
-  { count: 10, name: "Connoisseur", tone: "accent" },
+  { count: 3, name: tr("Explorer"), tone: "warm" },
+  { count: 6, name: tr("Collector"), tone: "accent2" },
+  { count: 10, name: tr("Connoisseur"), tone: "accent" },
 ];
 
 function spotStats(username, cars, sightings) {

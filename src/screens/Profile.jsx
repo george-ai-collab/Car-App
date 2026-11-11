@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useSwipe } from "../lib/useSwipe";
 import { MoreMenu, useSafety } from "../components/Safety";
-import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus, Layers } from "lucide-react";
+import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus, Layers, QrCode, Play } from "lucide-react";
 import { T } from "../theme";
 import { computeBadges, nextBadgeProgress } from "../lib/badges";
-import { Avatar, FollowAvatar, IconTab, IconBadge, EmptyState, BottomSheet, MiniStat } from "../components/ui";
+import { Avatar, FollowAvatar, IconTab, IconBadge, EmptyState, BottomSheet, MiniStat, AccountLabel, isDriver } from "../components/ui";
 import { CarCard, SightingCard } from "./Cars";
+import { MAX_LINES } from "../lib/text";
+import { RichText } from "../components/RichText";
+import { tr , AT } from "../lib/i18n";
 
 export function Profile({ username, me, cars, posts, users, sightings, tab = "posts", setTab, onToggleFollow, openCar, openPost, onAddCar, onOpenSettings }) {
   const [showBadges, setShowBadges] = useState(false);
@@ -18,6 +21,8 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
   });
   const user = users[username] || { name: username, joinedAt: null, followers: [], following: [] };
   const isMe = username === me;
+  const driver = isDriver(user);
+  const view = driver ? tab : "posts";
   const iFollow = (users[me]?.following || []).includes(username);
 
   const myPosts = Object.values(posts).filter((p) => p.authorUsername === username && !p.archived).sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -33,17 +38,28 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         <FollowAvatar username={username} size={76} showFollow={!isMe && !blocked} following={iFollow} onFollow={onToggleFollow} />
         <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
           <div className="display" style={{ fontSize: 20, color: T.text, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name || username}</div>
-          <div className="plate" style={{ fontSize: 11.5, color: T.textDim, marginTop: 2 }}>@{username}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", columnGap: 12, rowGap: 4, marginTop: 8 }}>
-            <MiniStat value={myPosts.length} label="Posts" />
-            <MiniStat value={myCars.length} label="Cars" />
-            <MiniStat value={user.followers.length} label="Followers" />
-            <MiniStat value={user.following.length} label="Following" />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+            <span className="plate handle" style={{ fontSize: 11.5, color: T.textDim }}>{AT}{username}</span>
+            <AccountLabel username={username} />
           </div>
-          {user.bio && <div style={{ color: T.text, fontSize: 13, lineHeight: 1.45, marginTop: 10, whiteSpace: "pre-wrap" }}>{user.bio}</div>}
+          <div style={{ display: "flex", flexWrap: "wrap", columnGap: 12, rowGap: 4, marginTop: 8 }}>
+            <MiniStat value={myPosts.length} label={tr("Posts")} />
+            {driver && <MiniStat value={myCars.length} label={tr("Cars")} />}
+            <MiniStat value={user.followers.length} label={tr("Followers")} />
+            <MiniStat value={user.following.length} label={tr("Following")} />
+          </div>
+          {user.bio && <RichText text={user.bio} maxLines={MAX_LINES.bio} style={{ color: T.text, fontSize: 13, lineHeight: 1.45, marginTop: 10 }} />}
         </div>
+        {isMe && safety?.openTag && (
+          <button onClick={() => safety.openTag({ kind: "user", id: username, title: user.name || username, subtitle: `@${username}` })} aria-label={tr("Share tag")} data-testid="profile-tag" className="press" style={{
+            width: 38, height: 38, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface,
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            <QrCode size={17} color={T.text} />
+          </button>
+        )}
         {isMe && onOpenSettings && (
-          <button onClick={onOpenSettings} aria-label="Settings" className="press" style={{
+          <button onClick={onOpenSettings} aria-label={tr("Settings")} className="press" style={{
             width: 38, height: 38, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface,
             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
@@ -51,8 +67,8 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
           </button>
         )}
         {!isMe && safety && (
-          <MoreMenu label="Profile options" testid="profile-menu" flash={safety.flash}
-            share={{ title: "Carfooly", text: `Check out @${username} on Carfooly` }}
+          <MoreMenu label={tr("Profile options")} testid="profile-menu" flash={safety.flash}
+            share={{ title: tr("Carfooly"), text: tr("Check out @{0} on Carfooly", username) }}
             report={{ what: "account", onSend: (reason, note) => safety.actions.report({ kind: "user", id: username, reason, note }) }}
             block={{ handle: username, blocked, onToggle: () => safety.actions.toggleBlock(username) }} />
         )}
@@ -60,21 +76,22 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
 
       {blocked && (
         <div style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 18, padding: 16, textAlign: "center", marginBottom: 14 }}>
-          <div style={{ color: T.text, fontWeight: 700, fontSize: 14.5 }}>You blocked @{username}</div>
-          <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 4 }}>You won't see their posts, comments or discussions.</div>
-          <button onClick={() => safety.actions.toggleBlock(username)} className="press" style={{ marginTop: 12, padding: "8px 16px", borderRadius: 999, border: `1px solid ${T.lineDark}`, background: "transparent", color: T.text, fontWeight: 600, fontSize: 13 }}>Unblock</button>
+          <div style={{ color: T.text, fontWeight: 700, fontSize: 14.5 }}>{tr("You blocked @")}{username}</div>
+          <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 4 }}>{tr("You won't see their posts, comments or discussions.")}</div>
+          <button onClick={() => safety.actions.toggleBlock(username)} className="press" style={{ marginTop: 12, padding: "8px 16px", borderRadius: 999, border: `1px solid ${T.lineDark}`, background: "transparent", color: T.text, fontWeight: 600, fontSize: 13 }}>{tr("Unblock")}</button>
         </div>
       )}
       {!blocked && <>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative", marginBottom: 14 }}>
+      {/* Clubs and businesses just have posts: no garage, spots or badges. */}
+      {driver && <div style={{ display: "flex", alignItems: "center", justifyContent: "center", position: "relative", marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "center", gap: 10 }}>
-          <IconTab active={tab === "posts"} onClick={() => { setTab("posts"); setShowBadges(false); }} icon={<ImageIcon size={17} />} />
-          <IconTab active={tab === "cars"} onClick={() => { setTab("cars"); setShowBadges(false); }} icon={<Car size={17} />} />
-          <IconTab active={tab === "spotted"} onClick={() => setTab("spotted")} icon={<MapPin size={17} />} />
+          <IconTab label={tr("Posts")} active={tab === "posts"} onClick={() => { setTab("posts"); setShowBadges(false); }} icon={<ImageIcon size={17} />} />
+          <IconTab label={tr("Garage")} active={tab === "cars"} onClick={() => { setTab("cars"); setShowBadges(false); }} icon={<Car size={17} />} />
+          <IconTab label={tr("Spotted")} active={tab === "spotted"} onClick={() => setTab("spotted")} icon={<MapPin size={17} />} />
         </div>
-      </div>
-      {tab === "spotted" && (
+      </div>}
+      {view === "spotted" && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
           <button onClick={() => setShowBadges(true)} className="press" style={{
             width: 34, height: 34, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface,
@@ -85,30 +102,31 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         </div>
       )}
 
-      {tab === "posts" && (
-        myPosts.length === 0 ? <EmptyState icon={<Compass size={20} color={T.textDim} />} title="No posts yet" body="" /> :
+      {view === "posts" && (
+        myPosts.length === 0 ? <EmptyState icon={<Compass size={20} color={T.textDim} />} title={tr("No posts yet")} body="" /> :
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
           {myPosts.map((p) => (
             <button key={p.id} onClick={() => openPost(p.id)} style={{ position: "relative", aspectRatio: "1", borderRadius: 12, overflow: "hidden", border: "none", padding: 0, background: p.photoUrl ? `url(${p.photoUrl}) center/cover` : T.surface, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {!p.photoUrl && (p.caption ? <span style={{ color: T.text, fontSize: 11.5, fontWeight: 600, padding: 8, lineHeight: 1.3, overflow: "hidden", maxHeight: "100%" }}>{p.caption}</span> : <Car size={18} color={T.textDim} />)}
               {(p.photos || []).length > 1 && <Layers size={14} color="#fff" style={{ position: "absolute", top: 6, right: 6, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }} />}
+              {p.photos?.[0]?.type === "video" && <Play data-testid="grid-video" size={14} color="#fff" fill="#fff" style={{ position: "absolute", top: 6, right: 6, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }} />}
             </button>
           ))}
         </div>
       )}
-      {tab === "cars" && (
+      {view === "cars" && (
         <div>
           {isMe && onAddCar && (
             <button onClick={onAddCar} className="press" style={{ width: "100%", marginBottom: 14, padding: "10px 14px", borderRadius: 16, border: `1px dashed ${T.lineDark}`, background: T.surface, color: T.text, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-              <Plus size={14} /> Add a car
+              <Plus size={14} /> {tr("Add a car")}
             </button>
           )}
-          {myCars.length === 0 ? <EmptyState icon={<Car size={20} color={T.textDim} />} title="No cars added" body="" /> :
+          {myCars.length === 0 ? <EmptyState icon={<Car size={20} color={T.textDim} />} title={tr("No cars added")} body="" /> :
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{myCars.map((c) => <CarCard key={c.id} car={c} onOpen={openCar} showPrivate={isMe} />)}</div>}
         </div>
       )}
-      {tab === "spotted" && (
-        spottedCars.length === 0 && unmatchedSightings.length === 0 ? <EmptyState icon={<MapPin size={20} color={T.textDim} />} title="No spots logged" body="" /> :
+      {view === "spotted" && (
+        spottedCars.length === 0 && unmatchedSightings.length === 0 ? <EmptyState icon={<MapPin size={20} color={T.textDim} />} title={tr("No spots logged")} body="" /> :
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           {spottedCars.map((c) => <CarCard key={c.id} car={c} onOpen={openCar} />)}
           {unmatchedSightings.map((s) => <SightingCard key={s.id} sighting={s} />)}
@@ -116,9 +134,9 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
       )}
 
       </>}
-      <BottomSheet open={showBadges} onClose={() => setShowBadges(false)} title="Badges">
+      <BottomSheet open={showBadges} onClose={() => setShowBadges(false)} title={tr("Badges")}>
         {badges.length === 0 ? (
-          <EmptyState icon={<Award size={20} color={T.textDim} />} title="No badges yet" body="Spot cars to start earning them." />
+          <EmptyState icon={<Award size={20} color={T.textDim} />} title={tr("No badges yet")} body={tr("Spot cars to start earning them.")} />
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
             {badges.map((b) => (
@@ -131,7 +149,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
         )}
         {isMe && nextBadge && (
           <div style={{ fontSize: 12.5, color: T.textDim, marginTop: 20, paddingTop: 16, borderTop: `1px solid ${T.lineDark}` }}>
-            {nextBadge.needed} more {nextBadge.needed === 1 ? "spot" : "spots"} to unlock <span style={{ color: T.text, fontWeight: 600 }}>{nextBadge.name}</span>
+            {tr("{0} more {1} to unlock", nextBadge.needed, nextBadge.needed === 1 ? tr("spot") : tr("spots"))} <span style={{ color: T.text, fontWeight: 600 }}>{nextBadge.name}</span>
           </div>
         )}
       </BottomSheet>

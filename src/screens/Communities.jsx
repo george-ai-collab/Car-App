@@ -1,21 +1,35 @@
 import { useState } from "react";
-import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2, Pencil, Layers } from "lucide-react";
+import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2, Pencil, Layers, Clock, UserPlus, UserMinus, X, MoreHorizontal } from "lucide-react";
 import { T } from "../theme";
 import { hueForId, timeAgo } from "../lib/utils";
 import { useSwipe } from "../lib/useSwipe";
 import { MoreMenu, ReportSheet, useSafety } from "../components/Safety";
 import { Avatar, EmptyState, Field, TextInput, TextArea, SectionLabel, Segmented, ConfirmDialog, BottomSheet } from "../components/ui";
+import { MAX_LINES } from "../lib/text";
+import { RichText } from "../components/RichText";
+import { tr , AT } from "../lib/i18n";
+import { CrewChat } from "./CrewChat";
+import { roleIn, isGroupAdmin } from "../lib/chat";
+
+// "Join" / "Joined", or for groups that approve members: "Ask to join" / "Requested".
+export function joinState(c, me) {
+  if (c.members.includes(me)) return "joined";
+  if ((c.requests || []).includes(me)) return "requested";
+  return c.kind === "custom" && c.joinMode === "approval" ? "ask" : "join";
+}
+const JOIN_LABEL = { joined: "Joined", requested: "Requested", ask: "Ask to join", join: "Join" };
 
 export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
-  const joined = community.members.includes(me);
+  const state = joinState(community, me);
+  const joined = state === "joined" || state === "requested";
   if (compact) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0" }}>
-        <button onClick={() => onOpen(community.id)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, background: "none", border: "none", padding: 0, textAlign: "left" }}>
+        <button onClick={() => onOpen(community.id)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, background: "none", border: "none", padding: 0, textAlign: "start" }}>
           <Avatar username={community.name} size={38} />
           <div style={{ flex: 1 }}>
             <div style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{community.name}</div>
-            <div style={{ color: T.textDim, fontSize: 12 }}>{community.members.length} {community.members.length === 1 ? "member" : "members"}</div>
+            <div style={{ color: T.textDim, fontSize: 12 }}>{community.members.length} {community.members.length === 1 ? tr("member") : tr("members")}</div>
           </div>
         </button>
         <button onClick={() => onToggle(community.id)} className="press" style={{
@@ -23,7 +37,7 @@ export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
           background: joined ? "transparent" : T.accent, color: joined ? T.text : "#fff", fontSize: 12.5, fontWeight: 600,
           display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
         }}>
-          {joined && <Check size={12} />} {joined ? "Joined" : "Join"}
+          {state === "joined" && <Check size={12} />}{state === "requested" && <Clock size={12} />} {tr(JOIN_LABEL[state])}
         </button>
       </div>
     );
@@ -33,12 +47,12 @@ export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
       display: "flex", alignItems: "center", gap: 12, padding: 14, marginBottom: 10,
       background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 20, boxShadow: T.shadowCard,
     }}>
-      <button onClick={() => onOpen(community.id)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, background: "none", border: "none", padding: 0, textAlign: "left" }}>
+      <button onClick={() => onOpen(community.id)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, background: "none", border: "none", padding: 0, textAlign: "start" }}>
         <Avatar username={community.name} size={40} />
         <div style={{ flex: 1 }}>
           <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>{community.name}</div>
           <div style={{ color: T.textDim, fontSize: 12, marginTop: 1 }}>
-            {community.members.length} {community.members.length === 1 ? "member" : "members"}
+            {community.members.length} {community.members.length === 1 ? tr("member") : tr("members")}
             {community.description ? ` · ${community.description}` : ""}
           </div>
         </div>
@@ -48,7 +62,7 @@ export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
         background: joined ? "transparent" : T.accent, color: joined ? T.text : "#fff", fontSize: 12.5, fontWeight: 600,
         display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", boxShadow: joined ? "none" : T.shadowAccent,
       }}>
-        {joined && <Check size={12} />} {joined ? "Joined" : "Join"}
+        {state === "joined" && <Check size={12} />}{state === "requested" && <Clock size={12} />} {tr(JOIN_LABEL[state])}
       </button>
     </div>
   );
@@ -59,7 +73,7 @@ export function CommunityPostRow({ post, car, onOpenPost, onOpenCar, onOpenProfi
   return (
     <button onClick={() => onOpenPost(post.id)} style={{
       display: "flex", gap: 10, width: "100%", background: T.surface, border: `1px solid ${T.lineDark}`,
-      borderRadius: 16, padding: 10, marginBottom: 10, textAlign: "left", boxShadow: T.shadowCard,
+      borderRadius: 16, padding: 10, marginBottom: 10, textAlign: "start", boxShadow: T.shadowCard,
     }}>
       <div style={{
         width: 56, height: 56, borderRadius: 12, flexShrink: 0, overflow: "hidden",
@@ -84,21 +98,23 @@ export function CommunityPostRow({ post, car, onOpenPost, onOpenCar, onOpenProfi
 // Engagement decides tile size in the Posts mosaic (likes + comments count double).
 const score = (p) => p.likes.length + 2 * p.comments.length;
 
-export function CommunityPage({ community, me, users, cars, posts, discussions, onToggle, openPost, openProfile, openThread, onNewThread, onNewPost, tab = "posts", setTab, onEdit, onDelete }) {
-  const joined = community.members.includes(me);
+export function CommunityPage({ community, me, users, cars, posts, discussions, onToggle, openPost, openProfile, openThread, onNewThread, onNewPost, tab = "posts", setTab, onEdit, onDelete,
+  isAppAdmin, myId, meets, openMeet, onPin, onAnswer, onSetRole, onRemove, flash }) {
+  const state = joinState(community, me);
+  const joined = state === "joined" || state === "requested";
   const safety = useSafety();
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const isOwner = community.kind === "custom" && community.createdBy === me;
   const hidden = safety?.prefs.hidden || [], blocked = safety?.prefs.blocked || [];
-  const order = ["posts", "discuss", "people"];
+  if (tab === "discuss") tab = "chat"; // old links
+  const order = ["posts", "chat", "people"];
+  const groupAdmin = isGroupAdmin(community, me, isAppAdmin);
   const sw = useSwipe({
     onLeft: () => setTab(order[Math.min(order.length - 1, order.indexOf(tab) + 1)]),
     onRight: () => setTab(order[Math.max(0, order.indexOf(tab) - 1)]),
   });
   const cPosts = Object.values(posts).filter((p) => p.communityId === community.id && !p.archived && !hidden.includes(p.id) && !blocked.includes(p.authorUsername)).sort((a, b) => new Date(b.date) - new Date(a.date));
-  const threads = Object.values(discussions || {}).filter((t) => t.communityId === community.id && !blocked.includes(t.author))
-    .sort((a, b) => new Date(b.replies.at(-1)?.date || b.date) - new Date(a.replies.at(-1)?.date || a.date));
 
   return (
     <div {...sw.bind} style={{ ...sw.bind.style, paddingBottom: 10, minHeight: "75vh" }}>
@@ -106,7 +122,7 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
         <Avatar username={community.name} size={60} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div className="display" style={{ fontSize: 21, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{community.name}</div>
-          <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 2 }}>{community.members.length} {community.members.length === 1 ? "member" : "members"}{community.kind === "brand" ? " · brand" : ""}</div>
+          <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 2 }}>{community.members.length} {community.members.length === 1 ? tr("member") : tr("members")}{community.kind === "brand" ? tr(" · brand") : ""}</div>
         </div>
         <button onClick={() => onToggle(community.id)} className="press" style={{
           padding: "8px 16px", borderRadius: 999, border: `1px solid ${joined ? T.lineDark : T.accent}`,
@@ -114,44 +130,39 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
           fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
           boxShadow: joined ? "none" : T.shadowAccent,
         }}>
-          {joined && <Check size={12} />} {joined ? "Joined" : "Join"}
+          {state === "joined" && <Check size={12} />}{state === "requested" && <Clock size={12} />} {tr(JOIN_LABEL[state])}
         </button>
         {safety && (
-          <MoreMenu label="Community options" testid="community-menu" flash={safety.flash}
-            share={{ title: community.name, text: `Join ${community.name} on Carfooly` }}
+          <MoreMenu label={tr("Community options")} testid="community-menu" flash={safety.flash}
+            share={{ title: community.name, text: tr("Join {0} on Carfooly", community.name) }}
             items={isOwner ? [
-              { label: "Edit community", icon: <Pencil size={17} />, onClick: () => setEditing(true) },
-              { label: "Delete community", icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },
+              { label: tr("Edit community"), icon: <Pencil size={17} />, onClick: () => setEditing(true) },
+              { label: tr("Delete community"), icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },
             ] : []}
             report={isOwner ? null : { what: "community", onSend: (reason, note) => safety.actions.report({ kind: "community", id: community.id, reason, note }) }} />
         )}
       </div>
-      {community.description && <div style={{ color: T.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }}>{community.description}</div>}
+      {community.description && <RichText text={community.description} maxLines={MAX_LINES.description} style={{ color: T.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }} />}
       {isOwner && <EditCommunitySheet open={editing} onClose={() => setEditing(false)} community={community} onSave={onEdit} />}
-      <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title={`Delete ${community.name}?`}
-        body="Its discussions are removed. Posts stay on people's profiles and the feed, just without this community." onConfirm={() => onDelete(community.id)} />
+      <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title={tr("Delete {0}?", community.name)}
+        body={tr("Its chat is removed. Posts stay on people's profiles and the feed, just without this community.")} onConfirm={() => onDelete(community.id)} />
 
-      <Segmented testid="community-tabs" value={tab} onChange={setTab} options={[["posts", "Posts"], ["discuss", "Discuss"], ["people", "People"]]} />
+      <Segmented testid="community-tabs" value={tab} onChange={setTab} options={[["posts", tr("Posts")], ["chat", tr("Chat")], ["people", (community.requests || []).length && groupAdmin ? tr("People ({0})", community.requests.length) : tr("People")]]} />
 
       {tab === "posts" && (
         <>
-          <button onClick={onNewPost} className="press" style={dashedBtn}><Plus size={14} /> Post to {community.name}</button>
+          <button onClick={onNewPost} className="press" style={dashedBtn}><Plus size={14} /> {tr("Post to")} {community.name}</button>
           {cPosts.length === 0
-            ? <EmptyState icon={<ImageIcon size={20} color={T.textDim} />} title="No posts yet" body="Post a photo of your car here and it shows up for everyone in the community." />
+            ? <EmptyState icon={<ImageIcon size={20} color={T.textDim} />} title={tr("No posts yet")} body={tr("Post a photo of your car here and it shows up for everyone in the community.")} />
             : <Mosaic posts={cPosts} openPost={openPost} />}
         </>
       )}
 
-      {tab === "discuss" && (
-        <>
-          <button onClick={onNewThread} className="press" style={dashedBtn}><Plus size={14} /> Start a discussion</button>
-          {threads.length === 0
-            ? <EmptyState icon={<MessagesSquare size={20} color={T.textDim} />} title="No discussions yet" body="Ask about a mod, share an opinion, plan a drive." />
-            : threads.map((t) => <ThreadCard key={t.id} thread={t} me={me} onOpen={openThread} />)}
-        </>
-      )}
+      {tab === "chat" && <CrewChat community={community} me={me} users={users} meets={meets} isAppAdmin={isAppAdmin} myId={myId}
+        openProfile={openProfile} openMeet={openMeet} onPin={onPin} flash={flash} />}
 
-      {tab === "people" && <People community={community} users={users} posts={cPosts} threads={threads} openProfile={openProfile} />}
+      {tab === "people" && <People community={community} me={me} isAppAdmin={isAppAdmin} users={users} posts={cPosts} openProfile={openProfile}
+        onAnswer={onAnswer} onSetRole={onSetRole} onRemove={onRemove} />}
     </div>
   );
 }
@@ -161,15 +172,54 @@ const dashedBtn = {
   background: T.surface, color: T.text, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
 };
 
+const AUTO_LIMITS = [25, 50, 100, 250];
 function EditCommunitySheet({ open, onClose, community, onSave }) {
   const [name, setName] = useState(community.name);
   const [description, setDescription] = useState(community.description || "");
+  const [joinMode, setJoinMode] = useState(community.joinMode || "open");
+  const [chatMode, setChatMode] = useState(community.chatMode || "everyone");
+  const [limit, setLimit] = useState(community.chatAutoLimit || 50);
   return (
-    <BottomSheet open={open} onClose={onClose} title="Edit community" maxHeight="80vh">
-      <Field label="Name"><TextInput value={name} onChange={setName} maxLength={40} /></Field>
-      <Field label="Description"><TextArea value={description} onChange={setDescription} maxLength={150} rows={3} /></Field>
-      <button disabled={!name.trim()} onClick={async () => { if (await onSave(community.id, { name, description })) onClose(); }} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>Save</button>
+    <BottomSheet open={open} onClose={onClose} title={tr("Edit community")} maxHeight="88vh">
+      <Field label={tr("Name")}><TextInput value={name} onChange={setName} maxLength={40} /></Field>
+      <Field label={tr("Description")}><TextArea value={description} onChange={setDescription} maxLength={150} rows={3} maxLines={MAX_LINES.description} /></Field>
+      <Field label={tr("Who can join")}>
+        <Choice testid="join-mode" value={joinMode} onChange={setJoinMode} options={[["open", tr("Anyone"), tr("People join straight away")], ["approval", tr("Approved only"), tr("People ask; you or an admin let them in")]]} />
+      </Field>
+      <Field label={tr("Who can send messages")}>
+        <Choice testid="chat-mode" value={chatMode} onChange={setChatMode} options={[
+          ["everyone", tr("Everyone"), tr("Every member can write in the chat")],
+          ["admins", tr("Admins only"), tr("Like an announcement group: members read, admins write")],
+          ["auto", tr("Everyone, until it gets big"), tr("Switches to admins only after {0} members", limit)],
+        ]} />
+        {chatMode === "auto" && (
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            {AUTO_LIMITS.map((n) => (
+              <button key={n} data-testid={`auto-limit-${n}`} onClick={() => setLimit(n)} className="press" style={{ flex: 1, padding: "8px 0", borderRadius: 12, border: `1px solid ${limit === n ? T.accent : T.lineDark}`, background: limit === n ? "rgba(230,56,70,0.14)" : T.surface, color: T.text, fontWeight: 700, fontSize: 13 }}>{n}</button>
+            ))}
+          </div>
+        )}
+      </Field>
+      <button disabled={!name.trim()} onClick={async () => { if (await onSave(community.id, { name, description, joinMode, chatMode, chatAutoLimit: limit })) onClose(); }} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>{tr("Save")}</button>
     </BottomSheet>
+  );
+}
+
+function Choice({ value, onChange, options, testid }) {
+  return (
+    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {options.map(([v, label, hint]) => (
+        <button key={v} data-testid={`${testid}-${v}`} onClick={() => onChange(v)} className="press" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 14, textAlign: "start", border: `1px solid ${value === v ? T.accent : T.lineDark}`, background: value === v ? "rgba(230,56,70,0.10)" : T.surface }}>
+          <span style={{ width: 16, height: 16, borderRadius: 999, border: `2px solid ${value === v ? T.accent : T.textDim}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {value === v && <span style={{ width: 7, height: 7, borderRadius: 999, background: T.accent }} />}
+          </span>
+          <span style={{ flex: 1 }}>
+            <span style={{ display: "block", color: T.text, fontSize: 14, fontWeight: 600 }}>{label}</span>
+            <span style={{ display: "block", color: T.textDim, fontSize: 11.5, marginTop: 1 }}>{hint}</span>
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -191,7 +241,7 @@ function Mosaic({ posts, openPost }) {
             position: "relative", borderRadius: 14, overflow: "hidden", border: "none", padding: 0,
             background: p.photoUrl ? `url(${p.photoUrl}) center/cover` : `linear-gradient(135deg, hsl(${hue},45%,24%), hsl(${hue},35%,12%))`,
           }}>
-            {!p.photoUrl && <span style={{ position: "absolute", inset: 8, color: "#fff", fontSize: isBig ? 15 : 11.5, fontWeight: 600, textAlign: "left", overflow: "hidden", lineHeight: 1.35 }}>{p.caption || ""}</span>}
+            {!p.photoUrl && <span style={{ position: "absolute", inset: 8, color: "#fff", fontSize: isBig ? 15 : 11.5, fontWeight: 600, textAlign: "start", overflow: "hidden", lineHeight: 1.35 }}>{p.caption || ""}</span>}
             {(p.photos || []).length > 1 && <Layers size={14} color="#fff" style={{ position: "absolute", top: 7, right: 7, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }} />}
             {isBig && (
               <span style={{ position: "absolute", left: 8, bottom: 8, display: "flex", gap: 8, color: "#fff", fontSize: 12, fontWeight: 700, textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}>
@@ -209,7 +259,7 @@ function Mosaic({ posts, openPost }) {
 function ThreadCard({ thread, me, onOpen }) {
   return (
     <button data-testid="thread-card" onClick={() => onOpen(thread.id)} className="press" style={{
-      width: "100%", textAlign: "left", padding: 14, marginBottom: 10, borderRadius: 20,
+      width: "100%", textAlign: "start", padding: 14, marginBottom: 10, borderRadius: 20,
       background: T.surface, border: `1px solid ${T.lineDark}`, boxShadow: T.shadowCard,
     }}>
       <div style={{ color: T.text, fontSize: 15, fontWeight: 700, lineHeight: 1.3 }}>{thread.title}</div>
@@ -226,40 +276,86 @@ function ThreadCard({ thread, me, onOpen }) {
   );
 }
 
-// Moderators + most active members.
-function People({ community, users, posts, threads, openProfile }) {
-  const mods = community.kind === "custom" ? [community.createdBy].filter(Boolean) : community.members.slice(0, 1);
+// Join requests (for admins), the owner and admins, top posters, and everyone else.
+function People({ community: c, me, isAppAdmin, users, posts, openProfile, onAnswer, onSetRole, onRemove }) {
+  const [menu, setMenu] = useState(null);
+  const myRole = roleIn(c, me, isAppAdmin);
+  const admin = myRole === "owner" || myRole === "admin";
+  const roleOf = (u) => roleIn(c, u, !!users[u]?.isAdmin);
   const counts = {};
-  const bump = (u, k) => { counts[u] = counts[u] || { posts: 0, talk: 0 }; counts[u][k]++; };
-  posts.forEach((p) => bump(p.authorUsername, "posts"));
-  threads.forEach((t) => { bump(t.author, "talk"); t.replies.forEach((r) => bump(r.author, "talk")); });
-  const top = Object.entries(counts).sort((a, b) => (b[1].posts + b[1].talk) - (a[1].posts + a[1].talk)).slice(0, 5);
+  posts.forEach((p) => { counts[p.authorUsername] = (counts[p.authorUsername] || 0) + 1; });
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const leaders = c.members.filter((u) => ["owner", "admin"].includes(roleOf(u))).sort((a, b) => (roleOf(a) === "owner" ? -1 : roleOf(b) === "owner" ? 1 : 0));
+  if (c.createdBy && !leaders.includes(c.createdBy)) leaders.unshift(c.createdBy);
+  const others = c.members.filter((u) => !leaders.includes(u));
+  // What the person looking can do to this member.
+  const canManage = (u) => u !== me && admin && roleOf(u) !== "owner" && (roleOf(u) !== "admin" || myRole === "owner");
+  const tag = (u) => {
+    const r = roleOf(u);
+    if (r === "owner") return <span style={pill(T.accentWarm)}><Crown size={11} /> {tr("Owner")}</span>;
+    if (r === "admin") return <span style={pill(T.accent2)}><Shield size={11} /> {tr("Admin")}</span>;
+    return null;
+  };
   const row = (u, right) => (
-    <button key={u} onClick={() => openProfile(u)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: "8px 0", textAlign: "left" }}>
-      <Avatar username={u} size={36} />
-      <div style={{ flex: 1 }}>
-        <div style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{users[u]?.name || u}</div>
-        <div className="plate" style={{ color: T.textDim, fontSize: 10.5 }}>@{u}</div>
-      </div>
+    <div key={u} data-testid="member-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+      <button onClick={() => openProfile(u)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: 0, textAlign: "start", minWidth: 0 }}>
+        <Avatar username={u} size={36} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{users[u]?.name || u}</div>
+          <div className="plate handle" style={{ color: T.textDim, fontSize: 10.5 }}>{AT}{u}</div>
+        </div>
+      </button>
       {right}
-    </button>
+    </div>
   );
+  const manageBtn = (u) => canManage(u) && (
+    <button aria-label={tr("Manage {0}", u)} data-testid="member-manage" onClick={() => setMenu(u)} style={{ background: "none", border: "none", padding: 6 }}><MoreHorizontal size={18} color={T.textDim} /></button>
+  );
+  const requests = c.requests || [];
   return (
     <div data-testid="people">
-      <SectionLabel>{community.kind === "custom" ? "Moderators" : "Founding member"}</SectionLabel>
-      {mods.length ? mods.map((u) => row(u, <span style={{ display: "flex", alignItems: "center", gap: 4, color: T.accent, fontSize: 11.5, fontWeight: 700 }}><Shield size={12} /> Mod</span>)) : <div style={{ color: T.textDim, fontSize: 13 }}>None yet.</div>}
+      {admin && requests.length > 0 && (
+        <>
+          <SectionLabel>{tr("Asking to join ·")} {requests.length}</SectionLabel>
+          {requests.map((u) => row(u, (
+            <div style={{ display: "flex", gap: 6 }}>
+              <button data-testid="request-accept" onClick={() => onAnswer(c.id, u, true)} className="press" style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 12px", borderRadius: 999, border: "none", background: T.accent, color: "#fff", fontSize: 12, fontWeight: 700 }}><Check size={13} /> {tr("Accept")}</button>
+              <button data-testid="request-decline" aria-label={tr("Decline")} onClick={() => onAnswer(c.id, u, false)} className="press" style={{ display: "flex", padding: 7, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: "none" }}><X size={14} color={T.textDim} /></button>
+            </div>
+          )))}
+          <div style={{ height: 14 }} />
+        </>
+      )}
+      <SectionLabel>{c.kind === "custom" ? tr("Owner and admins") : tr("Run by Carfooly")}</SectionLabel>
+      {leaders.length ? leaders.map((u) => row(u, <div style={{ display: "flex", alignItems: "center", gap: 4 }}>{tag(u)}{manageBtn(u)}</div>)) : <div style={{ color: T.textDim, fontSize: 13 }}>{tr("Carfooly's team keeps this one tidy.")}</div>}
       <div style={{ height: 14 }} />
-      <SectionLabel>Top contributors</SectionLabel>
-      {top.length === 0 ? <div style={{ color: T.textDim, fontSize: 13 }}>Nobody has posted yet.</div> : top.map(([u, c], i) => row(u,
-        <span style={{ color: T.textDim, fontSize: 11.5, textAlign: "right" }}>{i === 0 && <Crown size={12} color={T.accentWarm} style={{ marginRight: 4, verticalAlign: "-2px" }} />}{c.posts} posts · {c.talk} in discuss</span>))}
-      <div style={{ height: 14 }} />
-      <SectionLabel>Members · {community.members.length}</SectionLabel>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {community.members.slice(0, 40).map((u) => (
-          <button key={u} onClick={() => openProfile(u)} aria-label={u} style={{ background: "none", border: "none", padding: 0 }}><Avatar username={u} size={34} /></button>
-        ))}
-      </div>
+      {top.length > 0 && (
+        <>
+          <SectionLabel>{tr("Top posters")}</SectionLabel>
+          {top.map(([u, n], i) => row(u, <span style={{ color: T.textDim, fontSize: 11.5 }}>{i === 0 && <Crown size={12} color={T.accentWarm} style={{ marginInlineEnd: 4, verticalAlign: "-2px" }} />}{n === 1 ? tr("1 post") : tr("{0} posts", n)}</span>))}
+          <div style={{ height: 14 }} />
+        </>
+      )}
+      <SectionLabel>{tr("Members ·")} {c.members.length}</SectionLabel>
+      {others.length === 0 ? <div style={{ color: T.textDim, fontSize: 13 }}>{tr("No other members yet.")}</div> : others.slice(0, 200).map((u) => row(u, manageBtn(u)))}
+
+      <BottomSheet open={!!menu} onClose={() => setMenu(null)} title={menu ? `${AT}${menu}` : ""}>
+        {menu && (
+          <div data-testid="member-menu">
+            {myRole === "owner" && (roleOf(menu) === "admin"
+              ? <MenuRow icon={<Shield size={17} />} label={tr("Remove as admin")} onClick={() => { onSetRole(c.id, menu, "member"); setMenu(null); }} />
+              : <MenuRow icon={<Shield size={17} />} label={tr("Make admin")} onClick={() => { onSetRole(c.id, menu, "admin"); setMenu(null); }} />)}
+            <MenuRow danger icon={<UserMinus size={17} />} label={tr("Remove from group")} onClick={() => { onRemove(c.id, menu); setMenu(null); }} />
+          </div>
+        )}
+      </BottomSheet>
     </div>
+  );
+}
+const pill = (color) => ({ display: "inline-flex", alignItems: "center", gap: 4, color, fontSize: 11.5, fontWeight: 700 });
+function MenuRow({ icon, label, onClick, danger }) {
+  return (
+    <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 2px", background: "none", border: "none", borderBottom: `1px solid ${T.lineDark}`, color: danger ? T.accent : T.text, fontSize: 15, fontWeight: 600, textAlign: "start" }}>{icon} {label}</button>
   );
 }
 
@@ -276,32 +372,32 @@ export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, o
   const liked = thread.likes.includes(me);
   return (
     <div style={{ paddingBottom: 10 }}>
-      {community && <div className="plate" style={{ color: T.accent, fontSize: 10.5, marginBottom: 8 }}>{community.name} · Discuss</div>}
+      {community && <div className="plate" style={{ color: T.accent, fontSize: 10.5, marginBottom: 8 }}>{community.name} {tr("· Discuss")}</div>}
       <div className="display" style={{ fontSize: 22, color: T.text, lineHeight: 1.2 }}>{thread.title}</div>
       <button onClick={() => openProfile(thread.author)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, marginTop: 10 }}>
         <Avatar username={thread.author} size={26} />
         <span style={{ color: T.text, fontSize: 13, fontWeight: 600 }}>{thread.author}</span>
         <span style={{ color: T.textDim, fontSize: 12 }}>· {timeAgo(thread.date)}</span>
       </button>
-      {thread.body && <div style={{ color: T.text, fontSize: 14.5, lineHeight: 1.55, marginTop: 14, whiteSpace: "pre-wrap" }}>{thread.body}</div>}
+      {thread.body && <RichText text={thread.body} maxLines={MAX_LINES.body} style={{ color: T.text, fontSize: 14.5, lineHeight: 1.55, marginTop: 14 }} />}
       <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 0", margin: "14px 0", borderTop: `1px solid ${T.lineDark}`, borderBottom: `1px solid ${T.lineDark}` }}>
-        <button onClick={() => onLike(thread.id)} aria-label="Like discussion" style={{ background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", gap: 6, color: T.textDim, fontSize: 13 }}>
+        <button onClick={() => onLike(thread.id)} aria-label={tr("Like discussion")} style={{ background: "none", border: "none", padding: 0, display: "flex", alignItems: "center", gap: 6, color: T.textDim, fontSize: 13 }}>
           <Heart size={18} color={liked ? T.accent : T.textDim} fill={liked ? T.accent : "none"} /> {thread.likes.length}
         </button>
         <span style={{ display: "flex", alignItems: "center", gap: 6, color: T.textDim, fontSize: 13 }}><MessageCircle size={18} /> {thread.replies.length}</span>
         <span style={{ flex: 1 }} />
         {safety && (
-          <MoreMenu label="Discussion options" testid="thread-menu" flash={safety.flash}
-            share={{ title: thread.title, text: `"${thread.title}" in ${community?.name || "a community"} on Carfooly` }}
+          <MoreMenu label={tr("Discussion options")} testid="thread-menu" flash={safety.flash}
+            share={{ title: thread.title, text: tr("\"{0}\" in {1} on Carfooly", thread.title, community?.name || "a community") }}
             items={thread.author === me ? [
-              { label: "Edit discussion", icon: <Pencil size={17} />, onClick: () => { setTitle(thread.title); setBody(thread.body || ""); setEditing(true); } },
-              { label: "Delete discussion", icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },
+              { label: tr("Edit discussion"), icon: <Pencil size={17} />, onClick: () => { setTitle(thread.title); setBody(thread.body || ""); setEditing(true); } },
+              { label: tr("Delete discussion"), icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },
             ] : []}
             report={thread.author === me ? null : { what: "discussion", onSend: (reason, note) => safety.actions.report({ kind: "thread", id: thread.id, reason, note }) }}
             block={thread.author === me ? null : { handle: thread.author, blocked: blocked.includes(thread.author), onToggle: () => safety.actions.toggleBlock(thread.author) }} />
         )}
       </div>
-      {thread.replies.length === 0 && <div style={{ color: T.textDim, fontSize: 13, marginBottom: 14 }}>No replies yet. Start it off.</div>}
+      {thread.replies.length === 0 && <div style={{ color: T.textDim, fontSize: 13, marginBottom: 14 }}>{tr("No replies yet. Start it off.")}</div>}
       {thread.replies.filter((r) => !blocked.includes(r.author)).map((r) => (
         <div key={r.id} data-testid="thread-reply" style={{ display: "flex", gap: 10, marginBottom: 14 }}>
           <button onClick={() => openProfile(r.author)} style={{ background: "none", border: "none", padding: 0 }}><Avatar username={r.author} size={30} /></button>
@@ -310,27 +406,27 @@ export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, o
               <span style={{ color: T.text, fontWeight: 700 }}>{r.author}</span> <span style={{ color: T.textDim }}>· {timeAgo(r.date)}</span>
               <span style={{ flex: 1 }} />
               {r.author === me
-                ? <button onClick={() => onDeleteReply(thread.id, r.id)} style={{ background: "none", border: "none", padding: 0, color: T.textDim, fontSize: 11, fontWeight: 600 }}>Delete</button>
-                : <button onClick={() => setReportReply(r.id)} style={{ background: "none", border: "none", padding: 0, color: T.textDim, fontSize: 11, fontWeight: 600 }}>Report</button>}
+                ? <button onClick={() => onDeleteReply(thread.id, r.id)} style={{ background: "none", border: "none", padding: 0, color: T.textDim, fontSize: 11, fontWeight: 600 }}>{tr("Delete")}</button>
+                : <button onClick={() => setReportReply(r.id)} style={{ background: "none", border: "none", padding: 0, color: T.textDim, fontSize: 11, fontWeight: 600 }}>{tr("Report")}</button>}
             </div>
-            <div style={{ color: T.text, fontSize: 14, lineHeight: 1.45, marginTop: 2, whiteSpace: "pre-wrap" }}>{r.text}</div>
+            <RichText text={r.text} maxLines={8} style={{ color: T.text, fontSize: 14, lineHeight: 1.45, marginTop: 2 }} />
           </div>
         </div>
       ))}
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        <div style={{ flex: 1 }}><TextInput value={text} onChange={setText} placeholder="Add to the discussion…" maxLength={500} /></div>
-        <button disabled={!text.trim()} onClick={() => { onReply(thread.id, text); setText(""); }} className="press"
+        <div style={{ flex: 1 }}><TextInput value={text} onChange={setText} placeholder={tr("Add to the discussion…")} maxLength={500} /></div>
+        <button disabled={!text.trim()} onClick={async () => { const t = text; setText(""); const r = await onReply(thread.id, t); if (r === false) setText(t); }} className="press"
           style={{ padding: "0 16px", borderRadius: 16, border: "none", background: text.trim() ? T.accent : T.surface2, color: text.trim() ? "#fff" : T.textDim, fontWeight: 600 }}>
-          Reply
+          {tr("Reply")}
         </button>
       </div>
-      {safety && <ReportSheet open={!!reportReply} onClose={() => setReportReply(null)} what="reply" onSend={(reason, note) => safety.actions.report({ kind: "threadReply", id: reportReply, reason, note })} />}
-      <BottomSheet open={editing} onClose={() => setEditing(false)} title="Edit discussion" maxHeight="85vh">
-        <Field label="Title"><TextInput value={title} onChange={setTitle} maxLength={100} /></Field>
-        <Field label="Details"><TextArea value={body} onChange={setBody} maxLength={1000} rows={5} /></Field>
-        <button disabled={!title.trim()} onClick={async () => { await onEdit(thread.id, { title, body }); setEditing(false); }} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>Save</button>
+      {safety && <ReportSheet open={!!reportReply} onClose={() => setReportReply(null)} what={tr("reply")} onSend={(reason, note) => safety.actions.report({ kind: "threadReply", id: reportReply, reason, note })} />}
+      <BottomSheet open={editing} onClose={() => setEditing(false)} title={tr("Edit discussion")} maxHeight="85vh">
+        <Field label={tr("Title")}><TextInput value={title} onChange={setTitle} maxLength={100} /></Field>
+        <Field label={tr("Details")}><TextArea value={body} onChange={setBody} maxLength={1000} rows={5} maxLines={MAX_LINES.body} /></Field>
+        <button disabled={!title.trim()} onClick={async () => { await onEdit(thread.id, { title, body }); setEditing(false); }} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>{tr("Save")}</button>
       </BottomSheet>
-      <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title="Delete this discussion?" body="The discussion and all its replies will be removed." onConfirm={async () => { await onDelete(thread.id); onGone(); }} />
+      <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title={tr("Delete this discussion?")} body={tr("The discussion and all its replies will be removed.")} onConfirm={async () => { await onDelete(thread.id); onGone(); }} />
     </div>
   );
 }
@@ -341,13 +437,13 @@ export function NewThreadForm({ community, onSubmit }) {
   const [busy, setBusy] = useState(false);
   return (
     <div style={{ paddingBottom: 10 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>Start a discussion</div>
-      <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 20 }}>In {community.name}. New mods, opinions, questions, plans.</div>
-      <Field label="Title"><TextInput value={title} onChange={setTitle} placeholder="e.g. Best coilovers for daily + track?" maxLength={100} /></Field>
-      <Field label="Details (optional)"><TextArea value={body} onChange={setBody} placeholder="Add context, your setup, what you've tried…" maxLength={1000} rows={6} /></Field>
+      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>{tr("Start a discussion")}</div>
+      <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 20 }}>{tr("In {0}. New mods, opinions, questions, plans.", community.name)}</div>
+      <Field label={tr("Title")}><TextInput value={title} onChange={setTitle} placeholder={tr("e.g. Best coilovers for daily + track?")} maxLength={100} /></Field>
+      <Field label={tr("Details (optional)")}><TextArea value={body} onChange={setBody} placeholder={tr("Add context, your setup, what you've tried…")} maxLength={1000} rows={6} maxLines={MAX_LINES.body} /></Field>
       <button disabled={!title.trim() || busy} className="press" onClick={async () => { setBusy(true); await onSubmit({ title, body }); setBusy(false); }}
         style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", marginTop: 8, background: title.trim() ? T.accent : T.surface2, color: title.trim() ? "#fff" : T.textDim, fontWeight: 600, fontSize: 15 }}>
-        {busy ? "Posting…" : "Post discussion"}
+        {busy ? tr("Posting…") : tr("Post discussion")}
       </button>
     </div>
   );
@@ -358,14 +454,14 @@ export function CreateCommunityForm({ onSubmit }) {
   const valid = name.trim();
   return (
     <div style={{ paddingBottom: 10 }}>
-      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>Start a community</div>
-      <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 20 }}>A model, a scene, a local meet crowd — whatever people can gather around.</div>
-      <Field label="Name"><TextInput value={name} onChange={setName} placeholder="e.g. R34 GT-R, JDM, Cars & Coffee QA" maxLength={40} /></Field>
-      <Field label="Description (optional)"><TextInput value={description} onChange={setDescription} placeholder="What's it about?" maxLength={150} /></Field>
+      <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 4 }}>{tr("Start a community")}</div>
+      <div style={{ fontSize: 13.5, color: T.textDim, marginBottom: 20 }}>{tr("A model, a scene, a local meet crowd — whatever people can gather around.")}</div>
+      <Field label={tr("Name")}><TextInput value={name} onChange={setName} placeholder={tr("e.g. R34 GT-R, JDM, Cars & Coffee QA")} maxLength={40} /></Field>
+      <Field label={tr("Description (optional)")}><TextInput value={description} onChange={setDescription} placeholder={tr("What's it about?")} maxLength={150} /></Field>
       <button disabled={!valid || busy}
         onClick={async () => { setBusy(true); await onSubmit({ name, description }); setBusy(false); }}
         style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", marginTop: 8, background: valid ? T.accent : T.surface2, color: valid ? "#fff" : T.textDim, fontWeight: 600, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
-        {busy ? "Creating…" : "Create"}
+        {busy ? tr("Creating…") : tr("Create")}
       </button>
     </div>
   );

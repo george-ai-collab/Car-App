@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { Car, Plus, Compass, User } from "lucide-react";
 import { T } from "../theme";
+import { tr, isRTL } from "../lib/i18n";
 
 const ITEMS = [
-  { id: "feed", label: "Feed", icon: Car },
-  { id: "discover", label: "Discover", icon: Compass },
-  { id: "add", label: "Add", icon: Plus },
-  { id: "profile", label: "Profile", icon: User },
+  { id: "feed", label: tr("Feed"), icon: Car },
+  { id: "discover", label: tr("Discover"), icon: Compass },
+  { id: "add", label: tr("Add"), icon: Plus },
+  { id: "profile", label: tr("Profile"), icon: User },
 ];
 // Sliding across the bar moves between every tab, including + (the Create page).
 const SWIPE_STOPS = ["feed", "discover", "add", "profile"];
@@ -19,7 +20,8 @@ export function BottomNav({ active, onTab, hidden, raised }) {
 
   const slotAt = (clientX) => {
     const r = bar.current.getBoundingClientRect();
-    const i = Math.max(0, Math.min(ITEMS.length - 1, Math.floor(((clientX - r.left) / r.width) * ITEMS.length)));
+    let i = Math.max(0, Math.min(ITEMS.length - 1, Math.floor(((clientX - r.left) / r.width) * ITEMS.length)));
+    if (isRTL) i = ITEMS.length - 1 - i; // tabs run right to left
     return ITEMS[i].id;
   };
   const down = (e) => { drag.current = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId }; };
@@ -50,7 +52,7 @@ export function BottomNav({ active, onTab, hidden, raised }) {
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={() => { drag.current = null; setPreview(null); }}
       onClickCapture={(e) => { if (swallow.current) { swallow.current = false; e.stopPropagation(); e.preventDefault(); } }}
       style={{
-        position: "fixed", bottom: "calc(14px + env(safe-area-inset-bottom))", left: "50%", transform: "translateX(-50%)",
+        position: "fixed", bottom: "calc(14px + var(--inset-bottom))", left: "50%", transform: "translateX(-50%)",
         width: "calc(100% - 32px)", maxWidth: 360, display: "flex", borderRadius: 999,
         padding: "5px 8px", zIndex: raised ? 45 : 20, gap: 2, touchAction: "none",
         opacity: hidden ? 0 : 1, pointerEvents: hidden ? "none" : "auto", transition: "opacity 0.2s ease",

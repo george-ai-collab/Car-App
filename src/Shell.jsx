@@ -1,23 +1,31 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { T } from "./theme";
 import { useNav } from "./nav/useNav";
 import { useKeyboardOffset } from "./lib/keyboard";
-import { SheetContext } from "./components/ui";
+import { SheetContext, isDriver } from "./components/ui";
 import { SafetyContext, PermissionNotice } from "./components/Safety";
 import { BottomNav } from "./components/BottomNav";
 import { Feed } from "./screens/Feed";
 import { InboxView } from "./screens/Inbox";
 import { PostDetail } from "./screens/PostDetail";
-import { DiscoverView, SearchScreen, CommunitiesScreen, NewsScreen } from "./screens/Discover";
+import { DiscoverView, SearchScreen, CommunitiesScreen, NewsScreen, TracksScreen } from "./screens/Discover";
 import { CommunityPage, CreateCommunityForm, ThreadPage, NewThreadForm } from "./screens/Communities";
 import { AddCarForm, CarPage } from "./screens/Cars";
 import { Profile } from "./screens/Profile";
 import { AddMeetForm, MeetsScreen, MeetDetail } from "./screens/Meets";
+import { MeetInsights } from "./screens/MeetInsights";
 import { SpotForm } from "./screens/Add";
 import { ComposerFlow } from "./components/photo/Composer";
 import { AddPage } from "./components/AddMenu";
 import { Tour } from "./components/Tour";
 import { SettingsScreen, EditProfile, ManageCars, ArchivedPosts } from "./screens/Settings";
+import { ShareTagSheet } from "./components/ShareTag";
+import { Welcome } from "./components/Welcome";
+import { parseTag } from "./lib/tag";
+import { scanTag } from "./lib/scan";
+import { LinkNotice } from "./components/RichText";
+import { AdminReports } from "./screens/Admin";
+import { tr } from "./lib/i18n";
 
 const ADD_VIEWS = ["addChoice", "compose", "quickSpot", "addCar", "addMeet"];
 
@@ -27,12 +35,29 @@ export function Shell({ store, toast }) {
   const { current: cur, stack, go, back, tab, replace, reset, patch } = nav;
   const p = cur.params || {};
   const [sheets, setSheets] = useState(0);
-  // First time on this phone for this account: show the short intro.
+  // Only brand-new accounts see the intro: first the short "make it yours" setup, then the tour.
+  // Logging back in to an existing account never shows it (it's in Settings → How Carfooly works).
   const [tour, setTour] = useState(false);
+  const [setup, setSetup] = useState(false);
   useEffect(() => {
-    window.storage.get(`carfooly-tour:${me}`, false).then((r) => { if (!r) setTour(true); }).catch(() => {});
+    window.storage.get(`carfooly-setup:${me}`, false).then((r) => {
+      if (r?.value !== "pending") return;
+      if (window.__skipWelcome) { window.storage.set(`carfooly-setup:${me}`, "done", false).catch(() => {}); setTour(true); } // tests
+      else setSetup(true);
+    }).catch(() => {});
   }, [me]);
-  const endTour = () => { setTour(false); window.storage.set(`carfooly-tour:${me}`, "seen", false).catch(() => {}); };
+  const finishSetup = async (data, addCar) => {
+    if ((await a.updateProfile(data, true)) === false) return; // e.g. a word we don't allow: stay on the setup
+    window.storage.set(`carfooly-setup:${me}`, "done", false).catch(() => {});
+    setSetup(false);
+    setTour(true);
+    if (addCar) { addCarAfterTour.current = true; return; }
+  };
+  const addCarAfterTour = useRef(false);
+  const endTour = () => {
+    if (addCarAfterTour.current) { addCarAfterTour.current = false; go("addCar"); }
+    setTour(false);
+  };
   const pickAdd = (kind) => {
     if (kind === "post") go("compose", { fromAdd: true });
     else if (kind === "spot") go("quickSpot", { fromAdd: true });
@@ -70,13 +95,46 @@ export function Shell({ store, toast }) {
   // Cars without a public page can only be opened by their owner.
   const openCar = (id) => {
     const car = cars[id];
-    if (car && car.hasPage === false && car.ownerUsername !== me) { store.flash("This car doesn't have a public page"); return; }
+    if (car && car.hasPage === false && car.ownerUsername !== me) { store.flash(tr("This car doesn't have a public page")); return; }
     go("car", { id });
   };
   const openPost = (id) => go("postDetail", { id });
-  const openCommunity = (id) => go("communityPage", { id });
-  const openMeet = (id) => go("meet", { id });
+  const openCommunity = (id, tab) => go("communityPage", { id, ...(tab ? { tab } : {}) });
+  // source: where the meet was opened from (organizers see this in Insights)
+  const openMeet = (id, source = "other") => go("meet", { id, source });
   const openThread = (id) => go("thread", { id });
+
+  // ---------- share tags (QR) ----------
+  const [tagFor, setTagFor] = useState(null); // { kind, id, title, subtitle }
+  const openFromTag = (text, source = "tag") => {
+    const t = parseTag(text);
+    if (!t) { store.flash(tr("That's not a Carfooly tag")); return; }
+    if (t.kind === "meet") {
+      if (!meets[t.id]) { store.flash(tr("That meet isn't on Carfooly anymore")); return; }
+      setTagFor(null); go("meet", { id: t.id, source });
+    } else if (t.kind === "user") {
+      if (!users[t.id]) { store.flash(tr("No one on Carfooly has that tag")); return; }
+      setTagFor(null); openProfile(t.id);
+    } else {
+      const car = cars[t.id];
+      if (!car || (car.hasPage === false && car.ownerUsername !== me)) { store.flash(tr("This car's page isn't available")); return; }
+      setTagFor(null); go("car", { id: t.id });
+    }
+  };
+  const scan = async () => {
+    const r = await scanTag();
+    if (r.error) store.flash(r.error);
+    else if (r.text) openFromTag(r.text);
+  };
+  // Tags opened from outside the app (a link, or the scanner coming back after Android paused the app).
+  const fromTagRef = useRef(openFromTag);
+  fromTagRef.current = openFromTag;
+  useEffect(() => {
+    const on = (e) => fromTagRef.current(e.detail, "link"); // opened from outside the app
+    window.addEventListener("carfooly-open-tag", on);
+    if (window.__pendingTag) { const t = window.__pendingTag; window.__pendingTag = null; setTimeout(() => fromTagRef.current(t, "link"), 0); }
+    return () => window.removeEventListener("carfooly-open-tag", on);
+  }, []);
 
   const unread = (notifications[me] || []).filter((n) => !n.read).length;
 
@@ -87,16 +145,26 @@ export function Shell({ store, toast }) {
         openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
         openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
       break;
+    case "reports":
+      page = store.isAdmin && <AdminReports me={me} reports={store.reports} data={{ posts, users, discussions, meets, communities, cars }}
+        onResolve={a.adminResolve} openProfile={openProfile} />;
+      break;
+    case "userPosts":
+      page = <Feed me={me} cars={cars} posts={posts} users={users} onlyUser={p.username} startId={p.id}
+        openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
+        actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
+      break;
     case "inbox":
       page = <InboxView me={me} notifications={notifications[me] || []} posts={posts} cars={cars} discussions={discussions}
-        onMount={a.markNotificationsRead} openPost={openPost} openCar={openCar} openProfile={openProfile} openThread={openThread} />;
+        onMount={a.markNotificationsRead} openPost={openPost} openCar={openCar} openProfile={openProfile} openThread={openThread} meets={meets} openMeet={(id) => openMeet(id, "notification")}
+        communities={communities} openCommunity={openCommunity} />;
       break;
     case "discover":
-      page = <DiscoverView me={me} cars={cars} users={users} news={news} meets={meets} communities={communities}
+      page = <DiscoverView onScan={scan} me={me} cars={cars} users={users} news={news} meets={meets} communities={communities}
         openCar={openCar} openProfile={openProfile} openCommunity={openCommunity}
         onLikeNews={a.toggleNewsLike} onToggleGoing={a.toggleGoing} onToggleCommunity={a.toggleCommunityMembership}
         onOpenSearch={() => go("search")} onOpenCommunities={() => go("communityList")}
-        onOpenMeets={() => go("meetList")} onOpenNews={() => go("newsList")} />;
+        onOpenMeets={() => go("meetList")} onOpenNews={() => go("newsList")} onOpenTracks={() => go("tracks")} />;
       break;
     case "search":
       page = <SearchScreen me={me} cars={cars} users={users} communities={communities}
@@ -111,7 +179,9 @@ export function Shell({ store, toast }) {
         onToggle={a.toggleCommunityMembership} openPost={openPost} openProfile={openProfile} openThread={openThread}
         onNewThread={() => go("newThread", { communityId: p.id })} onNewPost={() => go("compose", { communityId: p.id })}
         tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })}
-        onEdit={a.editCommunity} onDelete={async (id) => { await a.deleteCommunity(id); back(); }} />;
+        onEdit={a.editCommunity} onDelete={async (id) => { await a.deleteCommunity(id); back(); }}
+        isAppAdmin={store.isAdmin} myId={users[me]?.id} meets={meets} openMeet={(id) => openMeet(id, "chat")} onPin={a.pinMessage}
+        onAnswer={a.answerJoinRequest} onSetRole={a.setMemberRole} onRemove={a.removeMember} flash={store.flash} />;
       break;
     case "thread": {
       const t = discussions[p.id];
@@ -124,26 +194,33 @@ export function Shell({ store, toast }) {
         onSubmit={async (data) => { const id = await a.createThread({ communityId: p.communityId, ...data }); if (id) replace("thread", { id }); }} />;
       break;
     case "meetList":
-      page = <MeetsScreen meets={meets} onOpen={openMeet} onPost={() => go("addMeet")}
+      page = <MeetsScreen meets={meets} onOpen={(id) => openMeet(id, "meets")} onPost={() => go("addMeet")}
         scope={p.scope || "local"} setScope={(sc) => patch({ scope: sc })} />;
       break;
     case "meet":
       page = meets[p.id] && <MeetDetail meet={meets[p.id]} me={me} users={users} onToggleGoing={a.toggleGoing}
         onEdit={(id) => go("addMeet", { id })} onDelete={async (id) => { await a.deleteMeet(id); back(); }} openProfile={openProfile}
-        onSetRole={a.setMeetRole} onSetCaps={a.setMeetCaps} />;
+        onSetRole={a.setMeetRole} onSetCaps={a.setMeetCaps} source={p.source}
+        onInsights={(id) => go("meetInsights", { id })} onRepeat={(id) => go("addMeet", { copyFrom: id })} />;
+      break;
+    case "meetInsights":
+      page = meets[p.id] && <MeetInsights meet={meets[p.id]} meets={meets} cars={cars} openProfile={openProfile} />;
       break;
     case "newsList":
-      page = <NewsScreen me={me} news={news} onLike={a.toggleNewsLike} />;
+      page = <NewsScreen me={me} news={news} onLike={a.toggleNewsLike} onRefresh={a.reload} />;
+      break;
+    case "tracks":
+      page = <TracksScreen />;
       break;
     case "addMeet":
-      page = <AddMeetForm key={p.id || "new"} editing={p.id ? meets[p.id] : null}
+      page = <AddMeetForm key={p.id || p.copyFrom || "new"} editing={p.id ? meets[p.id] : null} copyFrom={p.copyFrom ? meets[p.copyFrom] : null}
         onSubmit={async (data) => { const id = await a.submitMeet(data, p.id); if (!id) return; if (p.id) back(); else if (p.fromAdd) { reset(); go("meet", { id }); } else replace("meet", { id }); }} />;
       break;
     case "createCommunity":
       page = <CreateCommunityForm onSubmit={async (data) => { const id = await a.createCommunity(data); if (id) replace("communityPage", { id }); }} />;
       break;
     case "addCar":
-      page = <AddCarForm onSubmit={async (data) => {
+      page = <AddCarForm flash={store.flash} onSubmit={async (data) => {
         const id = await a.addCar(data);
         if (!id) return;
         // Came from the + menu: land on the car, with back going home. From the profile: back returns to the profile.
@@ -152,17 +229,17 @@ export function Shell({ store, toast }) {
       }} />;
       break;
     case "editCar":
-      page = cars[p.id] && <AddCarForm initial={cars[p.id]} onSubmit={async (data) => { await a.editCar(p.id, data); back(); }} />;
+      page = cars[p.id] && <AddCarForm flash={store.flash} initial={cars[p.id]} onSubmit={async (data) => { await a.editCar(p.id, data); back(); }} />;
       break;
     case "addChoice":
-      page = <AddPage onPick={pickAdd} />;
+      page = <AddPage onPick={pickAdd} driver={isDriver(users[me])} />;
       break;
     case "compose":
       page = <ComposerFlow me={me} cars={cars} communities={communities} users={users} initialCommunityId={p.communityId} onCancel={back}
         onSubmit={async (data) => { const id = await a.createPost(data); if (!id) return; if (p.communityId) back(); else reset(); }} />;
       break;
     case "quickSpot":
-      page = <SpotForm onSubmit={async (data) => { await a.logSighting(data); reset(); }} />;
+      page = <SpotForm flash={store.flash} onSubmit={async (data) => { await a.logSighting(data); reset(); }} />;
       break;
     case "car":
       page = cars[p.id] && <CarPage car={cars[p.id]} me={me} users={users} posts={posts} sightings={sightings}
@@ -174,7 +251,7 @@ export function Shell({ store, toast }) {
     case "profile":
       page = p.username && <Profile username={p.username} me={me} cars={cars} posts={posts} users={users} sightings={sightings}
         tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })}
-        onToggleFollow={() => a.toggleFollow(p.username)} openCar={openCar} openPost={openPost}
+        onToggleFollow={() => a.toggleFollow(p.username)} openCar={openCar} openPost={(id) => go("userPosts", { username: p.username, id })}
         onAddCar={() => go("addCar")} onOpenSettings={() => go("settings")} />;
       break;
     case "postDetail": {
@@ -186,10 +263,10 @@ export function Shell({ store, toast }) {
       break;
     }
     case "settings":
-      page = <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={go} actions={a} onTour={() => setTour(true)} />;
+      page = <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={go} actions={a} onTour={() => setTour(true)} isAdmin={store.isAdmin} openReports={store.reports.length} />;
       break;
     case "editProfile":
-      page = <EditProfile me={me} users={users} onSave={async (data) => { await a.updateProfile(data); back(); }} />;
+      page = <EditProfile me={me} users={users} onSave={async (data) => { if ((await a.updateProfile(data)) !== false) back(); }} />;
       break;
     case "manageCars":
       page = <ManageCars me={me} cars={cars} posts={posts} onOpen={openCar} onEdit={(id) => go("editCar", { id })} onDelete={a.deleteCar} />;
@@ -205,30 +282,37 @@ export function Shell({ store, toast }) {
   if (!page) {
     page = (
       <div style={{ paddingTop: 60, textAlign: "center", color: T.textDim, fontSize: 14 }}>
-        This isn't available anymore.
+        {tr("This isn't available anymore.")}
       </div>
     );
   }
 
+  const fullBleed = cur.view === "feed" || cur.view === "userPosts";
   return (
-    <SafetyContext.Provider value={{ me, prefs: store.prefs, actions: a, flash: store.flash }}>
+    <SafetyContext.Provider value={{ me, prefs: store.prefs, actions: a, flash: store.flash, openTag: setTagFor, scanTag: scan, openProfile, openCar, cars, users }}>
     <SheetContext.Provider value={sheetDelta}>
-      <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", position: "relative", paddingBottom: 96 + kb, overflowX: "clip" }}>
+      <div style={{ maxWidth: 480, margin: "0 auto", minHeight: "100vh", position: "relative", paddingBottom: fullBleed ? 0 : `calc(${96 + kb}px + var(--inset-bottom))`, overflowX: "clip" }}>
         {/* No on-screen back arrow: the phone's back gesture/button goes back (see main.jsx). */}
         <div key={cur.key} className="fade-in" data-view={cur.view} style={
-          cur.view === "feed" ? { padding: 0 } : cur.view === "car" ? { padding: "0 16px" } : { padding: "18px 16px 0" }}>
+          // The feed fills the whole screen, under the status bar and the nav (like TikTok/Instagram).
+          fullBleed ? { padding: 0 } : cur.view === "car" ? { padding: "var(--inset-top) 16px 0" } : { padding: "calc(18px + var(--inset-top)) 16px 0" }}>
           {page}
         </div>
 
+        {/* Pages scroll under the status bar: keep a solid strip behind its icons (the feed shows through). */}
+        {!fullBleed && <div aria-hidden style={{ position: "fixed", top: 0, left: 0, right: 0, height: "var(--inset-top)", background: T.bg, zIndex: 35 }} />}
         {toast && (
-          <div style={{ position: "fixed", bottom: 86, left: "50%", transform: "translateX(-50%)", background: T.text, color: T.ink, padding: "10px 18px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, zIndex: 60, boxShadow: "0 6px 20px rgba(0,0,0,0.3)", whiteSpace: "nowrap" }}>
+          <div style={{ position: "fixed", bottom: "calc(86px + var(--inset-bottom))", left: "50%", transform: "translateX(-50%)", background: T.text, color: T.ink, padding: "10px 18px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, zIndex: 60, boxShadow: "0 6px 20px rgba(0,0,0,0.3)", whiteSpace: "nowrap" }}>
             {toast}
           </div>
         )}
 
-        {tour && <Tour onDone={endTour} />}
+        {setup && <Welcome me={me} user={users[me]} onDone={finishSetup} />}
+        {tour && !setup && <Tour onDone={endTour} />}
         <PermissionNotice />
-        <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0} />
+        <LinkNotice />
+        <ShareTagSheet open={!!tagFor} onClose={() => setTagFor(null)} {...(tagFor || {})} flash={store.flash} onScan={() => { setTagFor(null); scan(); }} />
+        <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0 || setup} />
       </div>
     </SheetContext.Provider>
     </SafetyContext.Provider>
