@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2, Pencil, Layers } from "lucide-react";
+import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2, Pencil, Layers, Clock, UserPlus, UserMinus, X, MoreHorizontal } from "lucide-react";
 import { T } from "../theme";
 import { hueForId, timeAgo } from "../lib/utils";
 import { useSwipe } from "../lib/useSwipe";
@@ -8,9 +8,20 @@ import { Avatar, EmptyState, Field, TextInput, TextArea, SectionLabel, Segmented
 import { MAX_LINES } from "../lib/text";
 import { RichText } from "../components/RichText";
 import { tr , AT } from "../lib/i18n";
+import { CrewChat } from "./CrewChat";
+import { roleIn, isGroupAdmin } from "../lib/chat";
+
+// "Join" / "Joined", or for groups that approve members: "Ask to join" / "Requested".
+export function joinState(c, me) {
+  if (c.members.includes(me)) return "joined";
+  if ((c.requests || []).includes(me)) return "requested";
+  return c.kind === "custom" && c.joinMode === "approval" ? "ask" : "join";
+}
+const JOIN_LABEL = { joined: "Joined", requested: "Requested", ask: "Ask to join", join: "Join" };
 
 export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
-  const joined = community.members.includes(me);
+  const state = joinState(community, me);
+  const joined = state === "joined" || state === "requested";
   if (compact) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0" }}>
@@ -26,7 +37,7 @@ export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
           background: joined ? "transparent" : T.accent, color: joined ? T.text : "#fff", fontSize: 12.5, fontWeight: 600,
           display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
         }}>
-          {joined && <Check size={12} />} {joined ? tr("Joined") : tr("Join")}
+          {state === "joined" && <Check size={12} />}{state === "requested" && <Clock size={12} />} {tr(JOIN_LABEL[state])}
         </button>
       </div>
     );
@@ -51,7 +62,7 @@ export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
         background: joined ? "transparent" : T.accent, color: joined ? T.text : "#fff", fontSize: 12.5, fontWeight: 600,
         display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", boxShadow: joined ? "none" : T.shadowAccent,
       }}>
-        {joined && <Check size={12} />} {joined ? tr("Joined") : tr("Join")}
+        {state === "joined" && <Check size={12} />}{state === "requested" && <Clock size={12} />} {tr(JOIN_LABEL[state])}
       </button>
     </div>
   );
@@ -87,21 +98,23 @@ export function CommunityPostRow({ post, car, onOpenPost, onOpenCar, onOpenProfi
 // Engagement decides tile size in the Posts mosaic (likes + comments count double).
 const score = (p) => p.likes.length + 2 * p.comments.length;
 
-export function CommunityPage({ community, me, users, cars, posts, discussions, onToggle, openPost, openProfile, openThread, onNewThread, onNewPost, tab = "posts", setTab, onEdit, onDelete }) {
-  const joined = community.members.includes(me);
+export function CommunityPage({ community, me, users, cars, posts, discussions, onToggle, openPost, openProfile, openThread, onNewThread, onNewPost, tab = "posts", setTab, onEdit, onDelete,
+  isAppAdmin, myId, meets, openMeet, onPin, onAnswer, onSetRole, onRemove, flash }) {
+  const state = joinState(community, me);
+  const joined = state === "joined" || state === "requested";
   const safety = useSafety();
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const isOwner = community.kind === "custom" && community.createdBy === me;
   const hidden = safety?.prefs.hidden || [], blocked = safety?.prefs.blocked || [];
-  const order = ["posts", "discuss", "people"];
+  if (tab === "discuss") tab = "chat"; // old links
+  const order = ["posts", "chat", "people"];
+  const groupAdmin = isGroupAdmin(community, me, isAppAdmin);
   const sw = useSwipe({
     onLeft: () => setTab(order[Math.min(order.length - 1, order.indexOf(tab) + 1)]),
     onRight: () => setTab(order[Math.max(0, order.indexOf(tab) - 1)]),
   });
   const cPosts = Object.values(posts).filter((p) => p.communityId === community.id && !p.archived && !hidden.includes(p.id) && !blocked.includes(p.authorUsername)).sort((a, b) => new Date(b.date) - new Date(a.date));
-  const threads = Object.values(discussions || {}).filter((t) => t.communityId === community.id && !blocked.includes(t.author))
-    .sort((a, b) => new Date(b.replies.at(-1)?.date || b.date) - new Date(a.replies.at(-1)?.date || a.date));
 
   return (
     <div {...sw.bind} style={{ ...sw.bind.style, paddingBottom: 10, minHeight: "75vh" }}>
@@ -117,7 +130,7 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
           fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
           boxShadow: joined ? "none" : T.shadowAccent,
         }}>
-          {joined && <Check size={12} />} {joined ? tr("Joined") : tr("Join")}
+          {state === "joined" && <Check size={12} />}{state === "requested" && <Clock size={12} />} {tr(JOIN_LABEL[state])}
         </button>
         {safety && (
           <MoreMenu label={tr("Community options")} testid="community-menu" flash={safety.flash}
@@ -132,9 +145,9 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
       {community.description && <RichText text={community.description} maxLines={MAX_LINES.description} style={{ color: T.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }} />}
       {isOwner && <EditCommunitySheet open={editing} onClose={() => setEditing(false)} community={community} onSave={onEdit} />}
       <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title={tr("Delete {0}?", community.name)}
-        body={tr("Its discussions are removed. Posts stay on people's profiles and the feed, just without this community.")} onConfirm={() => onDelete(community.id)} />
+        body={tr("Its chat is removed. Posts stay on people's profiles and the feed, just without this community.")} onConfirm={() => onDelete(community.id)} />
 
-      <Segmented testid="community-tabs" value={tab} onChange={setTab} options={[["posts", tr("Posts")], ["discuss", tr("Discuss")], ["people", tr("People")]]} />
+      <Segmented testid="community-tabs" value={tab} onChange={setTab} options={[["posts", tr("Posts")], ["chat", tr("Chat")], ["people", (community.requests || []).length && groupAdmin ? tr("People ({0})", community.requests.length) : tr("People")]]} />
 
       {tab === "posts" && (
         <>
@@ -145,16 +158,11 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
         </>
       )}
 
-      {tab === "discuss" && (
-        <>
-          <button onClick={onNewThread} className="press" style={dashedBtn}><Plus size={14} /> {tr("Start a discussion")}</button>
-          {threads.length === 0
-            ? <EmptyState icon={<MessagesSquare size={20} color={T.textDim} />} title={tr("No discussions yet")} body={tr("Ask about a mod, share an opinion, plan a drive.")} />
-            : threads.map((t) => <ThreadCard key={t.id} thread={t} me={me} onOpen={openThread} />)}
-        </>
-      )}
+      {tab === "chat" && <CrewChat community={community} me={me} users={users} meets={meets} isAppAdmin={isAppAdmin} myId={myId}
+        openProfile={openProfile} openMeet={openMeet} onPin={onPin} flash={flash} />}
 
-      {tab === "people" && <People community={community} users={users} posts={cPosts} threads={threads} openProfile={openProfile} />}
+      {tab === "people" && <People community={community} me={me} isAppAdmin={isAppAdmin} users={users} posts={cPosts} openProfile={openProfile}
+        onAnswer={onAnswer} onSetRole={onSetRole} onRemove={onRemove} />}
     </div>
   );
 }
@@ -164,15 +172,54 @@ const dashedBtn = {
   background: T.surface, color: T.text, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
 };
 
+const AUTO_LIMITS = [25, 50, 100, 250];
 function EditCommunitySheet({ open, onClose, community, onSave }) {
   const [name, setName] = useState(community.name);
   const [description, setDescription] = useState(community.description || "");
+  const [joinMode, setJoinMode] = useState(community.joinMode || "open");
+  const [chatMode, setChatMode] = useState(community.chatMode || "everyone");
+  const [limit, setLimit] = useState(community.chatAutoLimit || 50);
   return (
-    <BottomSheet open={open} onClose={onClose} title={tr("Edit community")} maxHeight="80vh">
+    <BottomSheet open={open} onClose={onClose} title={tr("Edit community")} maxHeight="88vh">
       <Field label={tr("Name")}><TextInput value={name} onChange={setName} maxLength={40} /></Field>
       <Field label={tr("Description")}><TextArea value={description} onChange={setDescription} maxLength={150} rows={3} maxLines={MAX_LINES.description} /></Field>
-      <button disabled={!name.trim()} onClick={async () => { if (await onSave(community.id, { name, description })) onClose(); }} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>{tr("Save")}</button>
+      <Field label={tr("Who can join")}>
+        <Choice testid="join-mode" value={joinMode} onChange={setJoinMode} options={[["open", tr("Anyone"), tr("People join straight away")], ["approval", tr("Approved only"), tr("People ask; you or an admin let them in")]]} />
+      </Field>
+      <Field label={tr("Who can send messages")}>
+        <Choice testid="chat-mode" value={chatMode} onChange={setChatMode} options={[
+          ["everyone", tr("Everyone"), tr("Every member can write in the chat")],
+          ["admins", tr("Admins only"), tr("Like an announcement group: members read, admins write")],
+          ["auto", tr("Everyone, until it gets big"), tr("Switches to admins only after {0} members", limit)],
+        ]} />
+        {chatMode === "auto" && (
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            {AUTO_LIMITS.map((n) => (
+              <button key={n} data-testid={`auto-limit-${n}`} onClick={() => setLimit(n)} className="press" style={{ flex: 1, padding: "8px 0", borderRadius: 12, border: `1px solid ${limit === n ? T.accent : T.lineDark}`, background: limit === n ? "rgba(230,56,70,0.14)" : T.surface, color: T.text, fontWeight: 700, fontSize: 13 }}>{n}</button>
+            ))}
+          </div>
+        )}
+      </Field>
+      <button disabled={!name.trim()} onClick={async () => { if (await onSave(community.id, { name, description, joinMode, chatMode, chatAutoLimit: limit })) onClose(); }} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>{tr("Save")}</button>
     </BottomSheet>
+  );
+}
+
+function Choice({ value, onChange, options, testid }) {
+  return (
+    <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {options.map(([v, label, hint]) => (
+        <button key={v} data-testid={`${testid}-${v}`} onClick={() => onChange(v)} className="press" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 14, textAlign: "start", border: `1px solid ${value === v ? T.accent : T.lineDark}`, background: value === v ? "rgba(230,56,70,0.10)" : T.surface }}>
+          <span style={{ width: 16, height: 16, borderRadius: 999, border: `2px solid ${value === v ? T.accent : T.textDim}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {value === v && <span style={{ width: 7, height: 7, borderRadius: 999, background: T.accent }} />}
+          </span>
+          <span style={{ flex: 1 }}>
+            <span style={{ display: "block", color: T.text, fontSize: 14, fontWeight: 600 }}>{label}</span>
+            <span style={{ display: "block", color: T.textDim, fontSize: 11.5, marginTop: 1 }}>{hint}</span>
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -229,40 +276,86 @@ function ThreadCard({ thread, me, onOpen }) {
   );
 }
 
-// Moderators + most active members.
-function People({ community, users, posts, threads, openProfile }) {
-  const mods = community.kind === "custom" ? [community.createdBy].filter(Boolean) : community.members.slice(0, 1);
+// Join requests (for admins), the owner and admins, top posters, and everyone else.
+function People({ community: c, me, isAppAdmin, users, posts, openProfile, onAnswer, onSetRole, onRemove }) {
+  const [menu, setMenu] = useState(null);
+  const myRole = roleIn(c, me, isAppAdmin);
+  const admin = myRole === "owner" || myRole === "admin";
+  const roleOf = (u) => roleIn(c, u, !!users[u]?.isAdmin);
   const counts = {};
-  const bump = (u, k) => { counts[u] = counts[u] || { posts: 0, talk: 0 }; counts[u][k]++; };
-  posts.forEach((p) => bump(p.authorUsername, "posts"));
-  threads.forEach((t) => { bump(t.author, "talk"); t.replies.forEach((r) => bump(r.author, "talk")); });
-  const top = Object.entries(counts).sort((a, b) => (b[1].posts + b[1].talk) - (a[1].posts + a[1].talk)).slice(0, 5);
+  posts.forEach((p) => { counts[p.authorUsername] = (counts[p.authorUsername] || 0) + 1; });
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const leaders = c.members.filter((u) => ["owner", "admin"].includes(roleOf(u))).sort((a, b) => (roleOf(a) === "owner" ? -1 : roleOf(b) === "owner" ? 1 : 0));
+  if (c.createdBy && !leaders.includes(c.createdBy)) leaders.unshift(c.createdBy);
+  const others = c.members.filter((u) => !leaders.includes(u));
+  // What the person looking can do to this member.
+  const canManage = (u) => u !== me && admin && roleOf(u) !== "owner" && (roleOf(u) !== "admin" || myRole === "owner");
+  const tag = (u) => {
+    const r = roleOf(u);
+    if (r === "owner") return <span style={pill(T.accentWarm)}><Crown size={11} /> {tr("Owner")}</span>;
+    if (r === "admin") return <span style={pill(T.accent2)}><Shield size={11} /> {tr("Admin")}</span>;
+    return null;
+  };
   const row = (u, right) => (
-    <button key={u} onClick={() => openProfile(u)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: "8px 0", textAlign: "start" }}>
-      <Avatar username={u} size={36} />
-      <div style={{ flex: 1 }}>
-        <div style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{users[u]?.name || u}</div>
-        <div className="plate handle" style={{ color: T.textDim, fontSize: 10.5 }}>{AT}{u}</div>
-      </div>
+    <div key={u} data-testid="member-row" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0" }}>
+      <button onClick={() => openProfile(u)} style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, background: "none", border: "none", padding: 0, textAlign: "start", minWidth: 0 }}>
+        <Avatar username={u} size={36} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{users[u]?.name || u}</div>
+          <div className="plate handle" style={{ color: T.textDim, fontSize: 10.5 }}>{AT}{u}</div>
+        </div>
+      </button>
       {right}
-    </button>
+    </div>
   );
+  const manageBtn = (u) => canManage(u) && (
+    <button aria-label={tr("Manage {0}", u)} data-testid="member-manage" onClick={() => setMenu(u)} style={{ background: "none", border: "none", padding: 6 }}><MoreHorizontal size={18} color={T.textDim} /></button>
+  );
+  const requests = c.requests || [];
   return (
     <div data-testid="people">
-      <SectionLabel>{community.kind === "custom" ? tr("Moderators") : tr("Founding member")}</SectionLabel>
-      {mods.length ? mods.map((u) => row(u, <span style={{ display: "flex", alignItems: "center", gap: 4, color: T.accent, fontSize: 11.5, fontWeight: 700 }}><Shield size={12} /> {tr("Mod")}</span>)) : <div style={{ color: T.textDim, fontSize: 13 }}>{tr("None yet.")}</div>}
+      {admin && requests.length > 0 && (
+        <>
+          <SectionLabel>{tr("Asking to join ·")} {requests.length}</SectionLabel>
+          {requests.map((u) => row(u, (
+            <div style={{ display: "flex", gap: 6 }}>
+              <button data-testid="request-accept" onClick={() => onAnswer(c.id, u, true)} className="press" style={{ display: "flex", alignItems: "center", gap: 4, padding: "7px 12px", borderRadius: 999, border: "none", background: T.accent, color: "#fff", fontSize: 12, fontWeight: 700 }}><Check size={13} /> {tr("Accept")}</button>
+              <button data-testid="request-decline" aria-label={tr("Decline")} onClick={() => onAnswer(c.id, u, false)} className="press" style={{ display: "flex", padding: 7, borderRadius: 999, border: `1px solid ${T.lineDark}`, background: "none" }}><X size={14} color={T.textDim} /></button>
+            </div>
+          )))}
+          <div style={{ height: 14 }} />
+        </>
+      )}
+      <SectionLabel>{c.kind === "custom" ? tr("Owner and admins") : tr("Run by Carfooly")}</SectionLabel>
+      {leaders.length ? leaders.map((u) => row(u, <div style={{ display: "flex", alignItems: "center", gap: 4 }}>{tag(u)}{manageBtn(u)}</div>)) : <div style={{ color: T.textDim, fontSize: 13 }}>{tr("Carfooly's team keeps this one tidy.")}</div>}
       <div style={{ height: 14 }} />
-      <SectionLabel>{tr("Top contributors")}</SectionLabel>
-      {top.length === 0 ? <div style={{ color: T.textDim, fontSize: 13 }}>{tr("Nobody has posted yet.")}</div> : top.map(([u, c], i) => row(u,
-        <span style={{ color: T.textDim, fontSize: 11.5, textAlign: "end" }}>{i === 0 && <Crown size={12} color={T.accentWarm} style={{ marginInlineEnd: 4, verticalAlign: "-2px" }} />}{tr("{0} posts · {1} in discuss", c.posts, c.talk)}</span>))}
-      <div style={{ height: 14 }} />
-      <SectionLabel>{tr("Members ·")} {community.members.length}</SectionLabel>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-        {community.members.slice(0, 40).map((u) => (
-          <button key={u} onClick={() => openProfile(u)} aria-label={u} style={{ background: "none", border: "none", padding: 0 }}><Avatar username={u} size={34} /></button>
-        ))}
-      </div>
+      {top.length > 0 && (
+        <>
+          <SectionLabel>{tr("Top posters")}</SectionLabel>
+          {top.map(([u, n], i) => row(u, <span style={{ color: T.textDim, fontSize: 11.5 }}>{i === 0 && <Crown size={12} color={T.accentWarm} style={{ marginInlineEnd: 4, verticalAlign: "-2px" }} />}{n === 1 ? tr("1 post") : tr("{0} posts", n)}</span>))}
+          <div style={{ height: 14 }} />
+        </>
+      )}
+      <SectionLabel>{tr("Members ·")} {c.members.length}</SectionLabel>
+      {others.length === 0 ? <div style={{ color: T.textDim, fontSize: 13 }}>{tr("No other members yet.")}</div> : others.slice(0, 200).map((u) => row(u, manageBtn(u)))}
+
+      <BottomSheet open={!!menu} onClose={() => setMenu(null)} title={menu ? `${AT}${menu}` : ""}>
+        {menu && (
+          <div data-testid="member-menu">
+            {myRole === "owner" && (roleOf(menu) === "admin"
+              ? <MenuRow icon={<Shield size={17} />} label={tr("Remove as admin")} onClick={() => { onSetRole(c.id, menu, "member"); setMenu(null); }} />
+              : <MenuRow icon={<Shield size={17} />} label={tr("Make admin")} onClick={() => { onSetRole(c.id, menu, "admin"); setMenu(null); }} />)}
+            <MenuRow danger icon={<UserMinus size={17} />} label={tr("Remove from group")} onClick={() => { onRemove(c.id, menu); setMenu(null); }} />
+          </div>
+        )}
+      </BottomSheet>
     </div>
+  );
+}
+const pill = (color) => ({ display: "inline-flex", alignItems: "center", gap: 4, color, fontSize: 11.5, fontWeight: 700 });
+function MenuRow({ icon, label, onClick, danger }) {
+  return (
+    <button onClick={onClick} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 2px", background: "none", border: "none", borderBottom: `1px solid ${T.lineDark}`, color: danger ? T.accent : T.text, fontSize: 15, fontWeight: 600, textAlign: "start" }}>{icon} {label}</button>
   );
 }
 

@@ -99,7 +99,7 @@ export function Shell({ store, toast }) {
     go("car", { id });
   };
   const openPost = (id) => go("postDetail", { id });
-  const openCommunity = (id) => go("communityPage", { id });
+  const openCommunity = (id, tab) => go("communityPage", { id, ...(tab ? { tab } : {}) });
   // source: where the meet was opened from (organizers see this in Insights)
   const openMeet = (id, source = "other") => go("meet", { id, source });
   const openThread = (id) => go("thread", { id });
@@ -156,7 +156,8 @@ export function Shell({ store, toast }) {
       break;
     case "inbox":
       page = <InboxView me={me} notifications={notifications[me] || []} posts={posts} cars={cars} discussions={discussions}
-        onMount={a.markNotificationsRead} openPost={openPost} openCar={openCar} openProfile={openProfile} openThread={openThread} meets={meets} openMeet={(id) => openMeet(id, "notification")} />;
+        onMount={a.markNotificationsRead} openPost={openPost} openCar={openCar} openProfile={openProfile} openThread={openThread} meets={meets} openMeet={(id) => openMeet(id, "notification")}
+        communities={communities} openCommunity={openCommunity} />;
       break;
     case "discover":
       page = <DiscoverView onScan={scan} me={me} cars={cars} users={users} news={news} meets={meets} communities={communities}
@@ -178,7 +179,9 @@ export function Shell({ store, toast }) {
         onToggle={a.toggleCommunityMembership} openPost={openPost} openProfile={openProfile} openThread={openThread}
         onNewThread={() => go("newThread", { communityId: p.id })} onNewPost={() => go("compose", { communityId: p.id })}
         tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })}
-        onEdit={a.editCommunity} onDelete={async (id) => { await a.deleteCommunity(id); back(); }} />;
+        onEdit={a.editCommunity} onDelete={async (id) => { await a.deleteCommunity(id); back(); }}
+        isAppAdmin={store.isAdmin} myId={users[me]?.id} meets={meets} openMeet={(id) => openMeet(id, "chat")} onPin={a.pinMessage}
+        onAnswer={a.answerJoinRequest} onSetRole={a.setMemberRole} onRemove={a.removeMember} flash={store.flash} />;
       break;
     case "thread": {
       const t = discussions[p.id];

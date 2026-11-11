@@ -68,6 +68,8 @@ export function notifText(n) {
   if (n.type === "tag") return tr("tagged you in a post");
   if (n.type === "threadReply") return tr("replied to your discussion: \"{0}\"", n.text);
   if (n.type === "meetUpdate") return tr("meet update: \"{0}\"", n.text);
+  if (n.type === "joinRequest") return tr("asked to join {0}", n.text || tr("your group"));
+  if (n.type === "joinAccepted") return tr("let you into {0}", n.text || tr("the group"));
   return "";
 }
 

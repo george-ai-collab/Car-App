@@ -4,7 +4,7 @@ import { occurrence } from "./meets";
 
 export const SOURCE_LABELS = {
   meets: "Meets list", notification: "Notifications", tag: "Scanned the meet's tag", link: "A shared link",
-  discover: "Discover", feed: "Feed", profile: "A profile", search: "Search", other: "Other",
+  discover: "Discover", feed: "Feed", profile: "A profile", search: "Search", chat: "A crew chat", other: "Other",
 };
 
 const dayKey = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;

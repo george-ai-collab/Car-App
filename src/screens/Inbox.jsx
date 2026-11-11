@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Car, User, MapPin, Heart, MessageCircle, Bell, Megaphone } from "lucide-react";
+import { Car, User, MapPin, Heart, MessageCircle, Bell, Megaphone, UserPlus, Users } from "lucide-react";
 import { T } from "../theme";
 import { timeAgo, notifText } from "../lib/utils";
 import { Avatar, EmptyState } from "../components/ui";
@@ -16,12 +16,16 @@ export function notifIcon(type) {
   if (type === "tag") return <User size={16} color={T.accent2} />;
   if (type === "threadReply") return <MessageCircle size={16} color={T.accent2} />;
   if (type === "meetUpdate") return <Megaphone size={16} color={T.accentWarm} />;
+  if (type === "joinRequest") return <UserPlus size={16} color={T.accent2} />;
+  if (type === "joinAccepted") return <Users size={16} color={T.accent} />;
   return null;
 }
 
-export function InboxView({ me, notifications, posts, cars, discussions = {}, meets = {}, onMount, openPost, openCar, openProfile, openThread, openMeet }) {
+export function InboxView({ me, notifications, posts, cars, discussions = {}, meets = {}, communities = {}, onMount, openPost, openCar, openProfile, openThread, openMeet, openCommunity }) {
   useEffect(() => { onMount(); }, []);
-  const list = [...notifications].sort((a, b) => new Date(b.date) - new Date(a.date));
+  // Group notifications show the group's name.
+  const list = [...notifications].sort((a, b) => new Date(b.date) - new Date(a.date))
+    .map((n) => (n.communityId ? { ...n, text: communities[n.communityId]?.name || "" } : n));
 
   const go = (n) => {
     if ((n.type === "like" || n.type === "comment" || n.type === "reply" || n.type === "tag" || n.type === "commentLike") && posts[n.postId]) openPost(n.postId);
@@ -29,6 +33,8 @@ export function InboxView({ me, notifications, posts, cars, discussions = {}, me
     else if (n.type === "follow") openProfile(n.from);
     else if (n.type === "threadReply" && discussions[n.threadId] && openThread) openThread(n.threadId);
     else if (n.type === "meetUpdate" && meets[n.meetId] && openMeet) openMeet(n.meetId);
+    else if (n.type === "joinRequest" && communities[n.communityId] && openCommunity) openCommunity(n.communityId, "people");
+    else if (n.type === "joinAccepted" && communities[n.communityId] && openCommunity) openCommunity(n.communityId, "chat");
   };
 
   return (

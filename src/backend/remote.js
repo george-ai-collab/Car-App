@@ -143,14 +143,14 @@ export async function load(userId) {
     profiles, follows, cars, carMods, carEvents, carFollows, carSpots, sightings,
     communities, members, threads, threadReplies, threadLikes,
     posts, postLikes, comments, commentLikes, meets, attendees, newsLikes, notifications, blocks, hidden, reports,
-    announcements, meetSpots, meetViews, newsItems,
+    announcements, meetSpots, meetViews, newsItems, joinRequests,
   ] = await Promise.all([
     t("profiles", "id,handle,name,bio,avatar_url,account_type,is_admin,banned,created_at"),
     t("follows", "follower_id,followee_id"),
     t("cars"), t("car_mods"), t("car_events"),
     t("car_follows", "car_id,user_id"), t("car_spots", "car_id,user_id"),
     t("sightings", "*", (q) => q.order("created_at", { ascending: false }).limit(500)),
-    t("communities"), t("community_members", "community_id,user_id"),
+    t("communities"), t("community_members", "community_id,user_id,role"),
     t("threads"), t("thread_replies"), t("thread_likes", "thread_id,user_id"),
     t("posts", "*", (q) => q.order("created_at", { ascending: false }).limit(500)),
     t("post_likes", "post_id,user_id"), t("comments"), t("comment_likes", "comment_id,user_id"),
@@ -162,6 +162,7 @@ export async function load(userId) {
     t("reports", "*", (q) => q.eq("status", "open").order("created_at", { ascending: false }).limit(300)), // admins only (others get none)
     t("meet_announcements"), t("meet_spots"), t("meet_views", "meet_id,user_id,source,created_at"), // views: organizers only
     t("news_items", "id,url,title,source,summary,image,category,lang,published_at", (q) => q.order("published_at", { ascending: false }).limit(180)).catch(() => []),
+    t("community_join_requests", "community_id,user_id").catch(() => []), // yours, plus the ones for groups you run
   ]);
 
   const H = {}; // user id -> handle
@@ -229,11 +230,16 @@ export async function load(userId) {
 
   // Communities and discussions
   const membersOf = group(members, "community_id");
+  const requestsOf = group(joinRequests, "community_id");
   const communitiesOut = {};
   communities.forEach((c) => {
     communitiesOut[c.id] = {
       id: c.id, name: c.name, description: c.description, kind: c.kind, createdBy: h(c.created_by),
       members: handles(membersOf[c.id] || [], "user_id"), createdAt: c.created_at,
+      admins: handles((membersOf[c.id] || []).filter((m) => m.role === "admin"), "user_id"),
+      requests: handles(requestsOf[c.id] || [], "user_id"),
+      joinMode: c.join_mode || "open", chatMode: c.chat_mode || "everyone", chatAutoLimit: c.chat_auto_limit || 50,
+      pinnedId: c.pinned_message_id || null,
     };
   });
   const repliesOf = group(threadReplies, "thread_id");
@@ -297,6 +303,7 @@ export async function load(userId) {
     ...(n.post_id ? { postId: n.post_id } : {}), ...(n.car_id ? { carId: n.car_id } : {}),
     ...(n.comment_id ? { commentId: n.comment_id } : {}), ...(n.thread_id ? { threadId: n.thread_id } : {}),
     ...(n.text ? { text: n.text } : {}), ...(n.meet_id ? { meetId: n.meet_id } : {}),
+    ...(n.community_id ? { communityId: n.community_id } : {}),
   })).filter((n) => n.from);
 
   return {
@@ -312,7 +319,7 @@ export async function load(userId) {
 
 // ---------- writes ----------
 // `me` is your user id. Other people are passed as their user ids.
-const VIEW_SOURCES = ["feed", "meets", "discover", "profile", "tag", "link", "notification", "search", "other"];
+const VIEW_SOURCES = ["feed", "meets", "discover", "profile", "tag", "link", "notification", "search", "chat", "other"];
 export const write = {
   profile: async (me, { name, bio, avatar, accountType }) => {
     const avatar_url = await uploadIfNeeded(me, avatar);
@@ -445,7 +452,17 @@ export const write = {
     await must(sb().from("communities").insert({ id: c.id, name: c.name, description: c.description, kind: "custom", created_by: me }));
     await insertOnce("community_members", { community_id: c.id, user_id: me });
   },
-  editCommunity: (me, id, name, description) => must(sb().from("communities").update({ name, description }).eq("id", id)),
+  editCommunity: (me, id, name, description, s = {}) => must(sb().from("communities").update({
+    name, description,
+    ...(s.joinMode ? { join_mode: s.joinMode } : {}), ...(s.chatMode ? { chat_mode: s.chatMode } : {}), ...(s.chatAutoLimit ? { chat_auto_limit: s.chatAutoLimit } : {}),
+  }).eq("id", id)),
+  joinRequest: (me, id, on) => on
+    ? insertOnce("community_join_requests", { community_id: id, user_id: me })
+    : must(sb().from("community_join_requests").delete().eq("community_id", id).eq("user_id", me)),
+  answerJoin: (me, id, userId, accept) => must(sb().rpc("answer_join_request", { p_community: id, p_user: userId, p_accept: accept })),
+  memberRole: (me, id, userId, role) => must(sb().rpc("set_member_role", { p_community: id, p_user: userId, p_role: role })),
+  removeMember: (me, id, userId) => must(sb().rpc("remove_member", { p_community: id, p_user: userId })),
+  pinMessage: (me, id, msgId) => must(sb().rpc("pin_message", { p_community: id, p_message: msgId })),
   deleteCommunity: (me, id) => must(sb().from("communities").delete().eq("id", id)),
   member: (me, id, on) => on
     ? insertOnce("community_members", { community_id: id, user_id: me })
@@ -469,6 +486,7 @@ export function writeMessage(error) {
   if (m.includes("unknown car model")) return tr("Pick the make and model from the list.");
   if (m.includes("not your car")) return tr("You can only bring your own car.");
   if (m.includes("drivers only")) return tr("That's for driver accounts.");
+  if (m.includes("admins only") || m.includes("owner only") || (m.includes("row-level security") && m.includes("community"))) return tr("Only the group's admins can do that.");
   if (m.includes("communities_name_unique") || (error?.code === "23505" && m.includes("communit"))) return tr("A community with that name already exists");
   if (m.includes("not allowed words")) return tr("That includes words we don't allow on Carfooly. Please keep it respectful.");
   if (m === "banned" || m.includes("banned")) return tr("Your account has been suspended, so you can't post right now.");

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { roleIn, isGroupAdmin, dropChat, removeMessageLocal } from "../lib/chat";
 import { uid } from "../lib/utils";
 import { SEED_NEWS } from "../lib/seedNews";
 import { REMOTE, REFRESH_MS } from "../backend/config";
@@ -802,14 +803,19 @@ export function useStore(flash) {
     return id;
   };
 
-  const editCommunity = async (id, { name, description }) => {
+  const editCommunity = async (id, { name, description, joinMode, chatMode, chatAutoLimit }) => {
     const c = get().communities[id];
     if (!c || c.createdBy !== me || !name.trim()) return false;
     if (refuse(name, description)) return false;
     if (nameTaken(name, id)) { flash(tr("A community with that name already exists")); return false; }
     const desc = cleanText(description, MAX_LINES.description).slice(0, 200);
-    await save("communities", { ...get().communities, [id]: { ...c, name: name.trim(), description: desc } });
-    sync((uid2) => remote.write.editCommunity(uid2, id, name.trim().slice(0, 40), desc));
+    const settings = {
+      joinMode: ["open", "approval"].includes(joinMode) ? joinMode : c.joinMode || "open",
+      chatMode: ["everyone", "admins", "auto"].includes(chatMode) ? chatMode : c.chatMode || "everyone",
+      chatAutoLimit: Math.min(5000, Math.max(5, +chatAutoLimit || c.chatAutoLimit || 50)),
+    };
+    await save("communities", { ...get().communities, [id]: { ...c, name: name.trim(), description: desc, ...settings } });
+    sync((uid2) => remote.write.editCommunity(uid2, id, name.trim().slice(0, 40), desc, settings));
     flash(tr("Community updated"));
     return true;
   };
@@ -825,6 +831,7 @@ export function useStore(flash) {
     const discussions = {};
     Object.values(d.discussions).forEach((t) => { if (t.communityId !== id) discussions[t.id] = t; });
     await save("communities", communities); await save("posts", posts); await save("discussions", discussions);
+    await dropChat(id);
     sync((uid2) => remote.write.deleteCommunity(uid2, id));
     flash(tr("Community deleted"));
   };
@@ -833,8 +840,59 @@ export function useStore(flash) {
     const c = get().communities[id];
     if (!c) return;
     const inIt = c.members.includes(me);
-    await save("communities", { ...get().communities, [id]: { ...c, members: inIt ? c.members.filter((u) => u !== me) : [...c.members, me] } });
+    // Groups that approve members: ask to join (or take the request back).
+    if (!inIt && c.kind === "custom" && c.joinMode === "approval" && c.createdBy !== me) {
+      const asked = (c.requests || []).includes(me);
+      await save("communities", { ...get().communities, [id]: { ...c, requests: asked ? c.requests.filter((u) => u !== me) : [...(c.requests || []), me] } });
+      sync((uid2) => remote.write.joinRequest(uid2, id, !asked));
+      if (!asked) { flash(tr("Request sent. An admin will let you in.")); if (c.createdBy) await pushNotif(c.createdBy, { type: "joinRequest", from: me, communityId: id }); }
+      return;
+    }
+    await save("communities", { ...get().communities, [id]: {
+      ...c, members: inIt ? c.members.filter((u) => u !== me) : [...c.members, me],
+      admins: inIt ? (c.admins || []).filter((u) => u !== me) : c.admins || [],
+    } });
     sync((uid2) => remote.write.member(uid2, id, !inIt));
+  };
+
+  // ---------- running a group (owner / admins) ----------
+  const groupRole = (c, who) => roleIn(c, who, !!get().users[who]?.isAdmin);
+  const answerJoinRequest = async (id, handle, accept) => {
+    const c = get().communities[id];
+    if (!c || !isGroupAdmin(c, me, !!get().users[me]?.isAdmin)) return;
+    await save("communities", { ...get().communities, [id]: {
+      ...c, requests: (c.requests || []).filter((u) => u !== handle),
+      members: accept && !c.members.includes(handle) ? [...c.members, handle] : c.members,
+    } });
+    const uid3 = idOf(handle);
+    sync((uid2) => remote.write.answerJoin(uid2, id, uid3, accept));
+    if (accept) await pushNotif(handle, { type: "joinAccepted", from: me, communityId: id });
+  };
+  const setMemberRole = async (id, handle, role) => {
+    const c = get().communities[id];
+    if (!c || c.createdBy !== me || !c.members.includes(handle)) return;
+    const admins = (c.admins || []).filter((u) => u !== handle);
+    await save("communities", { ...get().communities, [id]: { ...c, admins: role === "admin" ? [...admins, handle] : admins } });
+    const uid3 = idOf(handle);
+    sync((uid2) => remote.write.memberRole(uid2, id, uid3, role));
+    flash(role === "admin" ? tr("{0} is now an admin", handle) : tr("{0} is no longer an admin", handle));
+  };
+  const removeMember = async (id, handle) => {
+    const c = get().communities[id];
+    if (!c) return;
+    const mine = groupRole(c, me), theirs = groupRole(c, handle);
+    if (!["owner", "admin"].includes(mine) || theirs === "owner" || (theirs === "admin" && mine !== "owner")) return;
+    await save("communities", { ...get().communities, [id]: { ...c, members: c.members.filter((u) => u !== handle), admins: (c.admins || []).filter((u) => u !== handle) } });
+    const uid3 = idOf(handle);
+    sync((uid2) => remote.write.removeMember(uid2, id, uid3));
+    flash(tr("Removed {0} from the group", handle));
+  };
+  const pinMessage = async (id, msgId) => {
+    const c = get().communities[id];
+    if (!c || !isGroupAdmin(c, me, !!get().users[me]?.isAdmin)) return;
+    await save("communities", { ...get().communities, [id]: { ...c, pinnedId: msgId || null } });
+    sync((uid2) => remote.write.pinMessage(uid2, id, msgId || null));
+    flash(msgId ? tr("Pinned") : tr("Unpinned"));
   };
 
   // ---------- community discussions ----------
@@ -993,6 +1051,7 @@ export function useStore(flash) {
       if (kind === "meet") { const { [id]: _x, ...rest } = d.meets; await save("meets", rest); }
       if (kind === "community") { const { [id]: _x, ...rest } = d.communities; await save("communities", rest); }
       if (kind === "car") { const { [id]: _x, ...rest } = d.cars; await save("cars", rest); }
+      if (kind === "message") await removeMessageLocal(id);
     }
     if ((action === "ban" || (action === "remove" && kind === "user")) && author && author !== me) {
       const u = get().users;
@@ -1064,6 +1123,7 @@ export function useStore(flash) {
       setMeetRole, setMeetCaps, editCommunity, deleteCommunity,
       setMeetCar, approveDriver, checkIn, announce, spotAtMeet, viewMeet,
       report, hidePost, undoHide, toggleBlock, adminResolve, reload: refresh,
+      answerJoinRequest, setMemberRole, removeMember, pinMessage, refuseText: (t) => refuse(t),
     },
   };
 }
