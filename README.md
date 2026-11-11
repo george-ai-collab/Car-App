@@ -1,18 +1,18 @@
-# Carfooly — Android app
+# Lacerta — Android app
 
-Carfooly is a car-culture social app: every car gets its own permanent page,
+Lacerta is a car-culture social app: every car gets its own permanent page,
 plus a feed, spotting, communities, meets and news. It's a React app wrapped
 as a native Android app with [Capacitor](https://capacitorjs.com).
 
 ## Get the APK (no Android setup needed)
 
-1. Create a free GitHub account and a new **private** repository named `carfooly`.
+1. Create a free GitHub account and a new **private** repository named `Lacerta`.
 2. Upload everything in this folder to it (the "uploading an existing file"
    link on the empty repo page accepts the whole folder, including `.github`).
 3. Open the repo's **Actions** tab. The "Build Android APK" run starts on its own;
    it takes about 5–8 minutes.
-4. When it shows a green tick, open the run and download **carfooly-apk** at the
-   bottom. Unzip it to get `carfooly-debug.apk`.
+4. When it shows a green tick, open the run and download **Lacerta-apk** at the
+   bottom. Unzip it to get `Lacerta-debug.apk`.
 5. Send the APK to your phone, open it, and allow "install unknown apps" when asked.
 
 Every later push to `main` builds a fresh APK. You can also rerun it by hand
