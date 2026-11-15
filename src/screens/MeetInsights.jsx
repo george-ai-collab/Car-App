@@ -1,5 +1,6 @@
 import { BarChart3, Eye, Users, ScanLine, Car, Clock, Repeat, Share2, TrendingUp, MapPin } from "lucide-react";
 import { T } from "../theme";
+import { ThreadChart } from "../components/ThreadChart";
 import { Avatar, SectionLabel } from "../components/ui";
 import { meetInsights, SOURCE_LABELS } from "../lib/meetInsights";
 import { shareText } from "../lib/share";
@@ -55,8 +56,15 @@ function Columns({ cols, testid, color = T.accent2 }) {
 }
 
 // Organizers only: everything about how the meet is doing, in one page.
+// Total people going by each day (a rising thread reads better than daily bars).
+const cumulative = (days) => { let t = 0; return days.map((d) => (t += d.n)); };
+
 export function MeetInsights({ meet, meets, cars, openProfile }) {
   const s = meetInsights(meet, { meets, cars });
+  // The last time this organizer ran a meet with the same name: shown as a grey thread to compare.
+  const prevRun = Object.values(meets || {}).filter((m) => m.id !== meet.id && m.submittedBy === meet.submittedBy
+    && (m.title || "").trim().toLowerCase() === (meet.title || "").trim().toLowerCase() && new Date(m.when) < new Date(meet.when))
+    .sort((a, b) => new Date(b.when) - new Date(a.when))[0] || null;
   const summary = () => shareText({
     title: tr("{0}: insights", meet.title),
     text: [
@@ -94,8 +102,9 @@ export function MeetInsights({ meet, meets, cars, openProfile }) {
       </div>
 
       <div style={card}>
-        <SectionLabel><TrendingUp size={12} /> {tr("New RSVPs, last 10 days")}</SectionLabel>
-        <Columns testid="ins-rsvps" cols={s.rsvpDays.map((d) => ({ n: d.n, label: fmtDay(d.date) }))} />
+        <SectionLabel><TrendingUp size={12} /> {tr("People going, last 10 days")}</SectionLabel>
+        <ThreadChart testid="ins-rsvps" values={cumulative(s.rsvpDays)} previous={prevRun ? cumulative(meetInsights(prevRun, { meets, cars }).rsvpDays) : null}
+          labels={s.rsvpDays.map((d) => fmtDay(d.date))} legend={[tr("This meet"), tr("Last time")]} />
       </div>
 
       <div style={card}>

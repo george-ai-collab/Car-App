@@ -35,7 +35,7 @@ function LocalOnboarding({ onSubmit, users }) {
 
   return (
     <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "center", padding: "calc(40px + var(--inset-top)) 22px calc(40px + var(--inset-bottom))" }}>
-      <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(90% 55% at 50% 0%, rgba(230,56,70,0.28), rgba(10,10,11,0) 70%), radial-gradient(60% 40% at 100% 100%, rgba(69,123,144,0.18), rgba(10,10,11,0) 70%)" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, background: "radial-gradient(90% 55% at 50% 0%, rgba(212,67,77,0.28), rgba(12,13,16,0) 70%), radial-gradient(60% 40% at 100% 100%, rgba(138,155,170,0.18), rgba(12,13,16,0) 70%)" }} />
       <div style={{ position: "relative", maxWidth: 400, width: "100%", margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 28 }}>
           <LogoTile size={76} />
@@ -107,7 +107,7 @@ function Frame({ children, note }) {
   const kb = useKeyboardOffset(); // (the box you type in is moved above the keyboard by lib/keyboard)
   return (
     <div data-testid="auth-page" style={{ minHeight: "100vh", position: "relative", overflowX: "clip", display: "flex", flexDirection: "column", justifyContent: kb ? "flex-start" : "center", padding: `calc(${kb ? 24 : 40}px + var(--inset-top)) 22px calc(${kb + 40}px + var(--inset-bottom))` }}>
-      <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(90% 55% at 50% 0%, rgba(230,56,70,0.28), rgba(10,10,11,0) 70%), radial-gradient(60% 40% at 100% 100%, rgba(69,123,144,0.18), rgba(10,10,11,0) 70%)" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(90% 55% at 50% 0%, rgba(212,67,77,0.28), rgba(12,13,16,0) 70%), radial-gradient(60% 40% at 100% 100%, rgba(138,155,170,0.18), rgba(12,13,16,0) 70%)" }} />
       <div style={{ position: "relative", maxWidth: 400, width: "100%", margin: "0 auto" }}>
         {!kb && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 28 }}>
@@ -242,7 +242,7 @@ function OnlineOnboarding({ actions }) {
       )}
 
       {error && <div data-testid="auth-error" style={{ color: T.accent, fontSize: 13, margin: "0 2px 12px", lineHeight: 1.4 }}>{error}</div>}
-      {info && <div data-testid="auth-info" style={{ color: "#7BD389", fontSize: 13, margin: "0 2px 12px", lineHeight: 1.4 }}>{info}</div>}
+      {info && <div data-testid="auth-info" style={{ color: "#8FBF9A", fontSize: 13, margin: "0 2px 12px", lineHeight: 1.4 }}>{info}</div>}
 
       {mode === "reset" ? (
         <>
@@ -279,10 +279,10 @@ function Input({ icon, value, onChange, placeholder, label, maxLength, status, t
         <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: T.textDim, display: "flex" }}>{icon}</div>
         <input data-testid={testid} type={type} inputMode={inputMode} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} maxLength={maxLength} autoCapitalize="none" autoCorrect="off"
           autoComplete={type === "password" || (testid === "password") ? "current-password" : type === "email" ? "email" : "off"}
-          style={{ width: "100%", padding: trailing ? "13px 44px 13px 40px" : "13px 14px 13px 40px", borderRadius: 16, border: `1px solid ${status ? (status.bad ? "rgba(230,56,70,0.6)" : "rgba(123,211,137,0.5)") : T.lineDark}`, background: "rgba(0,0,0,0.25)", color: T.text, fontSize: 15, outline: "none" }} />
+          style={{ width: "100%", padding: trailing ? "13px 44px 13px 40px" : "13px 14px 13px 40px", borderRadius: 16, border: `1px solid ${status ? (status.bad ? "rgba(212,67,77,0.6)" : "rgba(123,211,137,0.5)") : T.lineDark}`, background: "rgba(0,0,0,0.25)", color: T.text, fontSize: 15, outline: "none" }} />
         {trailing && <div style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", display: "flex" }}>{trailing}</div>}
       </div>
-      {status && <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, marginTop: 5, color: status.bad ? T.accent : "#7BD389" }}>{!status.bad && <Check size={12} />}{status.text}</div>}
+      {status && <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11.5, marginTop: 5, color: status.bad ? T.accent : "#8FBF9A" }}>{!status.bad && <Check size={12} />}{status.text}</div>}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { T } from "./theme";
 import { useNav } from "./nav/useNav";
 import { useKeyboardOffset } from "./lib/keyboard";
-import { SheetContext, isDriver } from "./components/ui";
+import { SheetContext, isDriver, SideDrawer } from "./components/ui";
 import { SafetyContext, PermissionNotice } from "./components/Safety";
 import { BottomNav } from "./components/BottomNav";
 import { Feed } from "./screens/Feed";
@@ -35,6 +35,7 @@ export function Shell({ store, toast }) {
   const { current: cur, stack, go, back, tab, replace, reset, patch } = nav;
   const p = cur.params || {};
   const [sheets, setSheets] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false); // Settings slides in from the side over your profile
   // Only brand-new accounts see the intro: first the short "make it yours" setup, then the tour.
   // Logging back in to an existing account never shows it (it's in Settings → How Carfooly works).
   const [tour, setTour] = useState(false);
@@ -143,7 +144,8 @@ export function Shell({ store, toast }) {
     case "feed":
       page = <Feed me={me} cars={cars} posts={posts} users={users} tab={p.feedTab || "foryou"} setTab={(t) => patch({ feedTab: t })}
         openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
-        openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
+        openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs}
+        meets={meets} news={news} openMeet={(id) => openMeet(id, "feed")} openNews={() => go("newsList")} />;
       break;
     case "reports":
       page = store.isAdmin && <AdminReports me={me} reports={store.reports} data={{ posts, users, discussions, meets, communities, cars }}
@@ -252,7 +254,7 @@ export function Shell({ store, toast }) {
       page = p.username && <Profile username={p.username} me={me} cars={cars} posts={posts} users={users} sightings={sightings}
         tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })}
         onToggleFollow={() => a.toggleFollow(p.username)} openCar={openCar} openPost={(id) => go("userPosts", { username: p.username, id })}
-        onAddCar={() => go("addCar")} onOpenSettings={() => go("settings")} />;
+        onAddCar={() => go("addCar")} onOpenSettings={() => setSettingsOpen(true)} />;
       break;
     case "postDetail": {
       const post = posts[p.id];
@@ -300,7 +302,7 @@ export function Shell({ store, toast }) {
         </div>
 
         {/* Pages scroll under the status bar: keep a solid strip behind its icons (the feed shows through). */}
-        {!fullBleed && <div aria-hidden style={{ position: "fixed", top: 0, left: 0, right: 0, height: "var(--inset-top)", background: T.bg, zIndex: 35 }} />}
+        {!fullBleed && <div aria-hidden style={{ position: "fixed", top: 0, left: 0, right: 0, height: "var(--inset-top)", background: "#0E1013", zIndex: 35 }} />}
         {toast && (
           <div style={{ position: "fixed", bottom: "calc(86px + var(--inset-bottom))", left: "50%", transform: "translateX(-50%)", background: T.text, color: T.ink, padding: "10px 18px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, zIndex: 60, boxShadow: "0 6px 20px rgba(0,0,0,0.3)", whiteSpace: "nowrap" }}>
             {toast}
@@ -312,7 +314,11 @@ export function Shell({ store, toast }) {
         <PermissionNotice />
         <LinkNotice />
         <ShareTagSheet open={!!tagFor} onClose={() => setTagFor(null)} {...(tagFor || {})} flash={store.flash} onScan={() => { setTagFor(null); scan(); }} />
-        <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0 || setup} />
+        <SideDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} testid="settings-drawer">
+          <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={(...x) => { setSettingsOpen(false); go(...x); }} actions={a}
+            onTour={() => { setSettingsOpen(false); setTour(true); }} isAdmin={store.isAdmin} openReports={store.reports.length} />
+        </SideDrawer>
+        <BottomNav active={activeTab} onTab={onTab} onCreate={pickAdd} driver={isDriver(users[me])} hidden={sheets > 0 || kb > 0 || setup} />
       </div>
     </SheetContext.Provider>
     </SafetyContext.Provider>

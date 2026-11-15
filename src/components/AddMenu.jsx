@@ -5,7 +5,7 @@ import { tr } from "../lib/i18n";
 const OPTIONS = [
   { id: "post", label: tr("Post"), sub: tr("Photos or a video of a car"), icon: ImageIcon, color: T.accent },
   { id: "spot", label: tr("Spot"), sub: tr("A car you see right now"), icon: MapPin, color: T.accent2 },
-  { id: "meet", label: tr("Meet"), sub: tr("Plan an event"), icon: Calendar, color: "#BFE0EC" },
+  { id: "meet", label: tr("Meet"), sub: tr("Plan an event"), icon: Calendar, color: "#C9D3DB" },
 ];
 
 // The "Add" page: a big Post tile, then Spot and Meet. Clubs and businesses get Post and Meet

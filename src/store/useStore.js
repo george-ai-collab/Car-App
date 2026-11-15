@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { localTicket, normalizeCode } from "../lib/ticket";
 import { roleIn, isGroupAdmin, dropChat, removeMessageLocal } from "../lib/chat";
 import { uid } from "../lib/utils";
 import { SEED_NEWS } from "../lib/seedNews";
@@ -44,7 +45,7 @@ export function useStore(flash) {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({
-    cars: {}, posts: {}, users: {}, news: {}, meets: {}, communities: {}, notifications: {}, sightings: {}, discussions: {}, reports: [],
+    cars: {}, posts: {}, users: {}, news: {}, meets: {}, communities: {}, notifications: {}, sightings: {}, discussions: {}, reports: [], tickets: {},
   });
   // Private to the signed-in person: posts they hid ("not interested") and people they blocked.
   const [prefs, setPrefs] = useState({ hidden: [], blocked: [] });
@@ -751,6 +752,32 @@ export function useStore(flash) {
     if (themId) sync((id) => remote.write.checkIn(id, meetId, themId, on));
     return "ok";
   };
+  // Your ticket code for a meet (null if you're not going).
+  const ticketFor = (meetId) => {
+    const m = get().meets[meetId];
+    if (!m || !(m.attendees || []).some((x) => x.username === me)) return null;
+    return REMOTE ? (get().tickets || {})[meetId] || null : localTicket(meetId, me);
+  };
+  // Organizers: check someone in by their ticket code. Returns { status, handle }.
+  const checkInTicket = async (meetId, code) => {
+    const m = get().meets[meetId];
+    if (!m || !isOrganizer(m, me)) return { status: "unknown" };
+    const c = normalizeCode(code);
+    if (!REMOTE) {
+      const a = m.attendees.find((x) => localTicket(meetId, x.username) === c);
+      if (!a) return { status: "unknown" };
+      if (a.role === "driver" && a.approved === false) return { status: "waiting", handle: a.username };
+      const r = await checkIn(meetId, a.username);
+      return { status: r === "already" ? "already" : "ok", handle: a.username };
+    }
+    try {
+      const res = await remote.write.checkInTicket(null, meetId, c);
+      if (res?.status === "ok" && res.handle) {
+        await patchMeet(meetId, (x) => ({ ...x, attendees: x.attendees.map((y) => (y.username === res.handle ? { ...y, checkedIn: true, checkedInAt: now() } : y)) }));
+      }
+      return res || { status: "unknown" };
+    } catch { flash(tr("Couldn't check that ticket. Try again.")); return { status: "error" }; }
+  };
   // audience: "all" (everyone going) or "drivers" (drivers and organizers)
   const announce = async (meetId, text, audience = "all") => {
     const m = get().meets[meetId];
@@ -1121,7 +1148,7 @@ export function useStore(flash) {
       toggleCommentLike,
       createThread, replyThread, toggleThreadLike, deleteThread, editThread, deleteThreadReply, deleteComment,
       setMeetRole, setMeetCaps, editCommunity, deleteCommunity,
-      setMeetCar, approveDriver, checkIn, announce, spotAtMeet, viewMeet,
+      setMeetCar, approveDriver, checkIn, checkInTicket, ticketFor, announce, spotAtMeet, viewMeet,
       report, hidePost, undoHide, toggleBlock, adminResolve, reload: refresh,
       answerJoinRequest, setMemberRole, removeMember, pinMessage, refuseText: (t) => refuse(t),
     },

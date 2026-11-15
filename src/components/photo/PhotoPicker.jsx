@@ -28,7 +28,7 @@ export function PhotoPicker({ onPick, aspect = 4 / 5, title = tr("Add a photo"),
   return (
     <div data-testid={testid} style={{
       position: "relative", width: `min(100%, calc(56vh * ${aspect}))`, margin: "0 auto", aspectRatio: String(aspect), borderRadius: 24, overflow: "hidden",
-      background: "radial-gradient(120% 90% at 50% 20%, rgba(230,56,70,0.16), rgba(24,24,27,1) 70%)", border: `1.5px dashed ${T.lineDark}`,
+      background: "radial-gradient(120% 90% at 50% 20%, rgba(212,67,77,0.16), rgba(24,24,27,1) 70%)", border: `1.5px dashed ${T.lineDark}`,
       display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", padding: 16,
     }}>
       {children}

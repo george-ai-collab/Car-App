@@ -157,7 +157,7 @@ if (existsSync("branding/icons") && existsSync(res)) {
 // plain app-black (no logo), so the app just opens. (Android 12+ always shows a system launch
 // screen; with a transparent icon it's only the dark background.)
 if (existsSync(res)) {
-  const blank = `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#0A0A0B"/></shape>\n`;
+  const blank = `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#0C0D10"/></shape>\n`;
   for (const dir of readdirSync(res)) {
     if (!dir.startsWith("drawable")) continue;
     for (const f of readdirSync(`${res}/${dir}`)) {
@@ -169,7 +169,7 @@ if (existsSync(res)) {
   if (existsSync(stylesPath)) {
     let st = readFileSync(stylesPath, "utf8");
     st = st.replace(/<style name="AppTheme\.NoActionBarLaunch"[\s\S]*?<\/style>/, `<style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#0A0A0B</item>
+        <item name="windowSplashScreenBackground">#0C0D10</item>
         <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
         <item name="android:background">@drawable/splash</item>

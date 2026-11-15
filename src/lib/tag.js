@@ -7,11 +7,16 @@ export const TAG_SCHEME = "carfooly";
 
 export const tagLink = (kind, id) => `${TAG_SCHEME}://${kind === "car" ? "car" : kind === "meet" ? "m" : "u"}/${encodeURIComponent(id)}`;
 
+// A meet ticket: the meet and the ticket's own code (organizers scan it to check people in).
+export const ticketLink = (meetId, code) => `${TAG_SCHEME}://t/${encodeURIComponent(meetId)}/${encodeURIComponent(code)}`;
+
 // Reads a scanned code. Accepts our app links now, and web links (…/c/<id>, …/u/<handle>)
 // for when the app has its own website.
 export function parseTag(text) {
   if (!text || typeof text !== "string") return null;
   const t = text.trim();
+  const tk = t.match(/^carfooly:\/\/t\/([^/?#\s]+)\/([^/?#\s]+)/i);
+  if (tk) { try { return { kind: "ticket", meetId: decodeURIComponent(tk[1]), code: decodeURIComponent(tk[2]).toUpperCase() }; } catch { return null; } }
   let m = t.match(/^carfooly:\/\/(car|u|m)\/([^/?#\s]+)/i);
   if (!m) m = t.match(/^https?:\/\/[^/]+\/(c|car|u|m)\/([^/?#\s]+)/i);
   if (!m) return null;

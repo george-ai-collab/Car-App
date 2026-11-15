@@ -358,7 +358,7 @@ function Frame({ e, ratio, update, tool, selText, setSelText }) {
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: "linear-gradient(rgba(255,255,255,0.22) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.22) 1px, transparent 1px)", backgroundSize: "33.33% 33.33%" }} />
       )}
       {e.stickers.map((s) => (
-        <div key={s.id} data-testid="plate-cover" onPointerDown={(ev) => down(ev, "sticker", s.id)} style={{ position: "absolute", left: `${s.x}%`, top: `${s.y}%`, width: `${s.w}%`, height: `${s.h}%`, background: "rgba(10,10,11,0.94)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "grab" }}>
+        <div key={s.id} data-testid="plate-cover" onPointerDown={(ev) => down(ev, "sticker", s.id)} style={{ position: "absolute", left: `${s.x}%`, top: `${s.y}%`, width: `${s.w}%`, height: `${s.h}%`, background: "rgba(12,13,16,0.94)", borderRadius: 6, border: "1px solid rgba(255,255,255,0.25)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "grab" }}>
           <span className="plate" style={{ fontSize: 9, color: "rgba(255,255,255,0.45)" }}>{tr("PLATE")}</span>
           <button aria-label={tr("Remove plate cover")} onPointerDown={(ev) => ev.stopPropagation()} onClick={() => update((x) => ({ stickers: x.stickers.filter((k) => k.id !== s.id) }))} style={{ position: "absolute", top: -8, right: -8, width: 18, height: 18, borderRadius: 999, background: T.accent, border: "none", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><X size={11} color="#fff" /></button>
           <div onPointerDown={(ev) => down(ev, "resize", s.id)} style={{ position: "absolute", right: -5, bottom: -5, width: 16, height: 16, borderRadius: 999, background: "#fff", border: `2px solid ${T.accent}` }} />
@@ -542,6 +542,6 @@ function Slider({ label, min, max, step, value, onChange, center, testid }) {
 }
 const chip = (on) => ({
   flex: 1, padding: "7px 10px", borderRadius: 999, border: `1px solid ${on ? T.accent : T.lineDark}`,
-  background: on ? "rgba(230,56,70,0.14)" : T.surface2, color: on ? T.accent : T.textDim, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+  background: on ? "rgba(212,67,77,0.14)" : T.surface2, color: on ? T.accent : T.textDim, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
 });
 const nextBtn = { padding: "9px 18px", borderRadius: 999, border: "none", background: T.accent, color: "#fff", fontWeight: 700, fontSize: 14, boxShadow: T.shadowAccent, minWidth: 74, display: "flex", justifyContent: "center" };

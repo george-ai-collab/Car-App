@@ -13,7 +13,7 @@ import { LocationPicker, LeafletMap, directionsUrl } from "../components/Locatio
 import { MAX_LINES } from "../lib/text";
 import { RichText } from "../components/RichText";
 import { meetStatus, occurrence, groupMeets, toLocal, hoursBetween } from "../lib/meets";
-import { OrganizerTools, DriverCard, Announcements, CarsAtMeet } from "./MeetDay";
+import { OrganizerTools, DriverCard, Announcements, CarsAtMeet, MyTicket } from "./MeetDay";
 import { nextWeekSlot } from "../lib/meetInsights";
 import { tr, locale } from "../lib/i18n";
 
@@ -38,20 +38,20 @@ export function MeetCard({ meet, onOpen }) {
     }}>
       <div style={{
         width: 64, height: 64, borderRadius: 14, flexShrink: 0,
-        background: meet.cover ? `url(${meet.cover}) center/cover` : "linear-gradient(135deg, rgba(69,123,144,0.5), rgba(69,123,144,0.15))",
+        background: meet.cover ? `url(${meet.cover}) center/cover` : "linear-gradient(135deg, rgba(138,155,170,0.5), rgba(138,155,170,0.15))",
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
-        {!meet.cover && <Calendar size={22} color="#BFE0EC" />}
+        {!meet.cover && <Calendar size={22} color="#C9D3DB" />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ color: T.text, fontSize: 15, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{meet.title}</span>
         </div>
-        <div style={{ fontSize: 12, color: status === "live" ? "#7BD389" : past ? T.textDim : T.accent2, display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
-          {status === "live" ? <><span data-testid="live-dot" style={{ width: 7, height: 7, borderRadius: 99, background: "#7BD389" }} /> {tr("Happening now · until")} {end ? fmtTime(end) : ""}</>
+        <div style={{ fontSize: 12, color: status === "live" ? "#8FBF9A" : past ? T.textDim : T.accent2, display: "flex", alignItems: "center", gap: 5, marginTop: 3 }}>
+          {status === "live" ? <><span data-testid="live-dot" style={{ width: 7, height: 7, borderRadius: 99, background: "#8FBF9A" }} /> {tr("Happening now · until")} {end ? fmtTime(end) : ""}</>
             : <><Clock size={11} /> {start ? fmtWhen(toLocal(start)) : fmtWhen(meet.when)}{meet.recurring === "weekly" ? tr(" · weekly") : ""}{past ? tr(" · Ended") : ""}</>}
         </div>
-        {meet.featured && !past && <div style={{ fontSize: 10.5, color: "#F2C76A", fontWeight: 700, marginTop: 2 }}>{tr("FEATURED")}</div>}
+        {meet.featured && !past && <div style={{ fontSize: 10.5, color: "#D9BE8A", fontWeight: 700, marginTop: 2 }}>{tr("FEATURED")}</div>}
         <div style={{ fontSize: 12, color: T.textDim, display: "flex", alignItems: "center", gap: 5, marginTop: 2, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
           <MapPin size={11} style={{ flexShrink: 0 }} /> {meet.city ? `${meet.city}${meet.country ? `, ${meet.country}` : ""}` : meet.location}
         </div>
@@ -233,10 +233,10 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
       )}
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <span className="plate" data-testid="meet-status" style={{ color: status === "live" ? "#7BD389" : past ? T.textDim : T.accent2, fontSize: 11 }}>
+        <span className="plate" data-testid="meet-status" style={{ color: status === "live" ? "#8FBF9A" : past ? T.textDim : T.accent2, fontSize: 11 }}>
           {status === "live" ? tr("Happening now · ") : past ? tr("Ended · ") : ""}{meet.city || tr("Meet")}{meet.country ? ` · ${meet.country}` : ""}
         </span>
-        {users[meet.submittedBy]?.verified && <span style={{ color: "#8EC3D6", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 3 }}><BadgeCheck size={12} /> {tr("Verified club")}</span>}
+        {users[meet.submittedBy]?.verified && <span style={{ color: "#AEBBC6", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 3 }}><BadgeCheck size={12} /> {tr("Verified club")}</span>}
       </div>
       <div className="display" data-testid="meet-title" style={{ fontSize: 30, color: T.text, lineHeight: 1.1 }}>{meet.title}</div>
       <div data-testid="meet-when" style={{ color: T.text, fontSize: 14.5, marginTop: 12, display: "flex", alignItems: "center", gap: 8 }}>
@@ -263,7 +263,7 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
               if (meet.rules && !myRole && r.id !== "organizer") setAgreeFor(r.id); else onToggleGoing(meet.id, r.id);
             }} className="press" style={{
               flex: 1, padding: "10px 6px", borderRadius: 16, border: `1px solid ${on ? T.accent : T.lineDark}`,
-              background: on ? "rgba(230,56,70,0.16)" : T.surface, color: on ? T.accent : T.textDim, opacity: full || locked ? 0.55 : 1,
+              background: on ? "rgba(212,67,77,0.16)" : T.surface, color: on ? T.accent : T.textDim, opacity: full || locked ? 0.55 : 1,
               fontSize: 12, fontWeight: 600, display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
             }}>
               <span>{r.label}</span>
@@ -277,11 +277,12 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
       {!isDriver(users[me]) && <div data-testid="no-driving-note" style={{ color: T.textDim, fontSize: 12, margin: "-10px 0 12px" }}>{tr("Clubs and businesses can attend or organize. Driving is for driver accounts with a car.")}</div>}
       {meet.rules && (
         <div data-testid="meet-rules" style={{ marginTop: 4, marginBottom: 4, padding: "12px 14px", borderRadius: 16, background: "rgba(123,211,137,0.08)", border: "1px solid rgba(123,211,137,0.25)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#7BD389", fontSize: 12.5, fontWeight: 800, marginBottom: 4 }}><ShieldCheck size={14} /> {tr("Meet rules")}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#8FBF9A", fontSize: 12.5, fontWeight: 800, marginBottom: 4 }}><ShieldCheck size={14} /> {tr("Meet rules")}</div>
           <div style={{ color: T.text, fontSize: 13.5, lineHeight: 1.5, whiteSpace: "pre-wrap" }} dir="auto">{meet.rules}</div>
         </div>
       )}
       {canManage && <OrganizerTools meet={meet} users={users} onManage={() => setManaging(true)} onInsights={() => onInsights?.(meet.id)} onRepeat={isCreator && onRepeat ? () => onRepeat(meet.id) : null} />}
+      <MyTicket meet={meet} me={me} users={users} />
       <DriverCard meet={meet} me={me} users={users} />
       {canManage && meet.driverNote && !attendees.some((x) => x.username === me && x.role === "driver") && (
         <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 10 }}>{tr("For drivers (only drivers and organizers see this):")} {meet.driverNote}</div>
@@ -300,7 +301,7 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
           <div data-noswipe><LeafletMap pin={{ lat: meet.lat, lng: meet.lng }} height={180} interactive={false} /></div>
           <a href={directionsUrl(meet.lat, meet.lng)} target="_blank" rel="noopener noreferrer" className="press" style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginTop: 10, padding: "11px", borderRadius: 14,
-            background: "rgba(69,123,144,0.2)", color: "#8EC3D6", fontSize: 13.5, fontWeight: 700, textDecoration: "none",
+            background: "rgba(138,155,170,0.2)", color: "#AEBBC6", fontSize: 13.5, fontWeight: 700, textDecoration: "none",
           }}>
             <Navigation size={14} /> {tr("Directions")}
           </a>
@@ -312,7 +313,7 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
           <SectionLabel>{tr("Sponsors")}</SectionLabel>
           <div data-testid="sponsors" style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {meet.sponsors.map((sp) => (
-              <span key={sp} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, background: "rgba(242,184,75,0.14)", color: "#F2C76A", fontSize: 12.5, fontWeight: 600 }}>
+              <span key={sp} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 999, background: "rgba(242,184,75,0.14)", color: "#D9BE8A", fontSize: 12.5, fontWeight: 600 }}>
                 <Award size={12} /> {sp}
               </span>
             ))}
@@ -402,7 +403,7 @@ function ManagePeople({ open, onClose, meet, users, onSetRole, onSetCaps }) {
               {MEET_ROLES.filter((r) => r.id !== "driver" || isDriver(users[a.username])).map((r) => (
                 <button key={r.id} data-testid={`set-${r.id}-${a.username}`} onClick={() => onSetRole(meet.id, a.username, r.id)} className="press" style={{
                   flex: 1, padding: "7px 4px", borderRadius: 999, fontSize: 11.5, fontWeight: 600,
-                  border: `1px solid ${a.role === r.id ? T.accent : T.lineDark}`, background: a.role === r.id ? "rgba(230,56,70,0.14)" : "transparent", color: a.role === r.id ? T.accent : T.textDim,
+                  border: `1px solid ${a.role === r.id ? T.accent : T.lineDark}`, background: a.role === r.id ? "rgba(212,67,77,0.14)" : "transparent", color: a.role === r.id ? T.accent : T.textDim,
                 }}>{r.label}</button>
               ))}
             </div>
@@ -482,7 +483,7 @@ export function AddMeetForm({ onSubmit, editing: editingMeet, copyFrom }) {
           {[1, 2, 3, 4, 6, 8, 12].map((h) => (
             <button key={h} onClick={() => setHours(h)} className="press" style={{
               padding: "7px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 700,
-              border: `1px solid ${hours === h ? T.accent : T.lineDark}`, background: hours === h ? "rgba(230,56,70,0.14)" : "transparent", color: hours === h ? T.accent : T.text,
+              border: `1px solid ${hours === h ? T.accent : T.lineDark}`, background: hours === h ? "rgba(212,67,77,0.14)" : "transparent", color: hours === h ? T.accent : T.text,
             }}>{h}h</button>
           ))}
         </div>
@@ -493,7 +494,7 @@ export function AddMeetForm({ onSubmit, editing: editingMeet, copyFrom }) {
         <TextArea value={note} onChange={setNote} placeholder={tr("What's the plan? Route, entry, rules, food…")} maxLength={500} rows={5} maxLines={MAX_LINES.note} />
       </Section>
 
-      <Section title={tr("Meet rules")} icon={<ShieldCheck size={16} color="#7BD389" />} hint={tr("Optional. People agree to these when they say they're going.")}>
+      <Section title={tr("Meet rules")} icon={<ShieldCheck size={16} color="#8FBF9A" />} hint={tr("Optional. People agree to these when they say they're going.")}>
         <div data-testid="meet-rules-input"><TextArea value={rules} onChange={setRules} placeholder={tr("e.g. No burnouts or revving. Respect the venue. Leave no trash.")} maxLength={500} rows={3} maxLines={10} /></div>
       </Section>
 
@@ -504,11 +505,11 @@ export function AddMeetForm({ onSubmit, editing: editingMeet, copyFrom }) {
         </div>
       </Section>
 
-      <Section title={tr("For drivers")} icon={<Info size={16} color="#8EC3D6" />} hint={tr("Only drivers and organizers see this (entry time, parking, route…).")}>
+      <Section title={tr("For drivers")} icon={<Info size={16} color="#AEBBC6" />} hint={tr("Only drivers and organizers see this (entry time, parking, route…).")}>
         <TextArea value={driverNote} onChange={setDriverNote} placeholder={tr("e.g. Drivers enter from gate 3 at 7:30pm")} maxLength={300} rows={2} maxLines={6} />
       </Section>
 
-      <Section title={tr("Extras")} icon={<Repeat size={16} color="#F2C76A" />} hint={tr("Optional. Pro tools, free during beta.")}>
+      <Section title={tr("Extras")} icon={<Repeat size={16} color="#D9BE8A" />} hint={tr("Optional. Pro tools, free during beta.")}>
         {toggle(recurring, setRecurring, tr("Repeats every week"), "opt-weekly", tr("Same day and time, every week"))}
         {toggle(approveDrivers, setApproveDrivers, tr("Approve drivers"), "opt-approve", tr("You confirm each driver and their car"))}
       </Section>
@@ -526,9 +527,9 @@ export function AddMeetForm({ onSubmit, editing: editingMeet, copyFrom }) {
         {sponsors.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
             {sponsors.map((sp) => (
-              <span key={sp} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 8px 6px 12px", borderRadius: 999, background: "rgba(242,184,75,0.16)", color: "#F2C76A", fontSize: 12.5, fontWeight: 600 }}>
+              <span key={sp} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 8px 6px 12px", borderRadius: 999, background: "rgba(242,184,75,0.16)", color: "#D9BE8A", fontSize: 12.5, fontWeight: 600 }}>
                 {sp}
-                <button aria-label={tr("Remove {0}", sp)} onClick={() => setSponsors(sponsors.filter((x) => x !== sp))} style={{ background: "none", border: "none", padding: 0, display: "flex" }}><X size={13} color="#F2C76A" /></button>
+                <button aria-label={tr("Remove {0}", sp)} onClick={() => setSponsors(sponsors.filter((x) => x !== sp))} style={{ background: "none", border: "none", padding: 0, display: "flex" }}><X size={13} color="#D9BE8A" /></button>
               </span>
             ))}
           </div>

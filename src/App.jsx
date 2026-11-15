@@ -27,7 +27,9 @@ export default function App() {
 
   return (
     <UsersContext.Provider value={store.users}>
-      <div style={{ fontFamily: BODY_STACK, background: T.bg, minHeight: "100vh" }}>
+      <div style={{ fontFamily: BODY_STACK, background: T.bg, minHeight: "100vh", position: "relative", isolation: "isolate" }}>
+        {/* The soft background light, fixed behind every page. */}
+        <div aria-hidden style={{ position: "fixed", inset: 0, backgroundImage: T.bgGradient, zIndex: -1, pointerEvents: "none" }} />
         <GlobalStyle />
         {!hasChosenLanguage() && !window.__skipLanguage ? (
           // first open: pick a language (the app restarts in it)

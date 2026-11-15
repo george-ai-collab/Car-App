@@ -197,7 +197,7 @@ function EditCommunitySheet({ open, onClose, community, onSave }) {
         {chatMode === "auto" && (
           <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
             {AUTO_LIMITS.map((n) => (
-              <button key={n} data-testid={`auto-limit-${n}`} onClick={() => setLimit(n)} className="press" style={{ flex: 1, padding: "8px 0", borderRadius: 12, border: `1px solid ${limit === n ? T.accent : T.lineDark}`, background: limit === n ? "rgba(230,56,70,0.14)" : T.surface, color: T.text, fontWeight: 700, fontSize: 13 }}>{n}</button>
+              <button key={n} data-testid={`auto-limit-${n}`} onClick={() => setLimit(n)} className="press" style={{ flex: 1, padding: "8px 0", borderRadius: 12, border: `1px solid ${limit === n ? T.accent : T.lineDark}`, background: limit === n ? "rgba(212,67,77,0.14)" : T.surface, color: T.text, fontWeight: 700, fontSize: 13 }}>{n}</button>
             ))}
           </div>
         )}
@@ -211,7 +211,7 @@ function Choice({ value, onChange, options, testid }) {
   return (
     <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {options.map(([v, label, hint]) => (
-        <button key={v} data-testid={`${testid}-${v}`} onClick={() => onChange(v)} className="press" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 14, textAlign: "start", border: `1px solid ${value === v ? T.accent : T.lineDark}`, background: value === v ? "rgba(230,56,70,0.10)" : T.surface }}>
+        <button key={v} data-testid={`${testid}-${v}`} onClick={() => onChange(v)} className="press" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 14, textAlign: "start", border: `1px solid ${value === v ? T.accent : T.lineDark}`, background: value === v ? "rgba(212,67,77,0.10)" : T.surface }}>
           <span style={{ width: 16, height: 16, borderRadius: 999, border: `2px solid ${value === v ? T.accent : T.textDim}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             {value === v && <span style={{ width: 7, height: 7, borderRadius: 999, background: T.accent }} />}
           </span>

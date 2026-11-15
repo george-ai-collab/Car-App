@@ -1,5 +1,5 @@
-import { useState, useRef, useLayoutEffect } from "react";
-import { Car, Compass, Heart, MessageCircle, Search, Bell, MapPin, Share2, Maximize2 } from "lucide-react";
+import { useState, useRef, useLayoutEffect, useEffect } from "react";
+import { Car, Compass, Heart, MessageCircle, Search, Bell, MapPin, Share2, Maximize2, ChevronUp, ChevronDown } from "lucide-react";
 import { T } from "../theme";
 import { LogoIntro } from "../components/Logo";
 import { hueForId, timeAgo } from "../lib/utils";
@@ -12,7 +12,7 @@ import { shareText } from "../lib/share";
 import { ActionMenu } from "../components/ui";
 import { MAX_LINES } from "../lib/text";
 import { RichText } from "../components/RichText";
-import { tr , AT } from "../lib/i18n";
+import { locale, tr , AT } from "../lib/i18n";
 
 // Remembers how far down the feed you were, so coming back lands on the same post.
 const feedScroll = new Map();
@@ -23,7 +23,7 @@ const railCount = { color: "#fff", fontSize: 12, fontWeight: 600, textShadow: "0
 const topIcon = { width: 46, height: 46, border: "none", borderRadius: 999, pointerEvents: "auto", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 };
 
 // onlyUser: one person's posts (opened from their profile), starting at startId; scroll down for the next.
-export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile, openPost, toggleLike, addComment, addReply, openSearch, openInbox, unreadCount, actions, scrollKey, onFollow, prefs, onlyUser, startId }) {
+export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile, openPost, toggleLike, addComment, addReply, openSearch, openInbox, unreadCount, actions, scrollKey, onFollow, prefs, onlyUser, startId, meets = {}, news = {}, openMeet, openNews }) {
   const following = (users[me]?.following) || [];
   const hidden = prefs?.hidden || [], blocked = prefs?.blocked || [];
   let list = Object.values(posts).filter((p) => !p.archived && !hidden.includes(p.id) && !blocked.includes(p.authorUsername)).sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -74,17 +74,11 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
             </button>
           ))}
         </div>
-        <button onClick={openInbox} aria-label={tr("Notifications")} className="glass-light press" style={{ ...topIcon, position: "relative" }}>
-          <Bell size={21} color="#fff" />
-          {unreadCount > 0 && (
-            <span style={{
-              position: "absolute", top: 9, right: 10, width: 9, height: 9, borderRadius: 99,
-              background: T.accent, border: `1.5px solid rgba(0,0,0,0.3)`,
-            }} />
-          )}
-        </button>
+        <NotifBell count={unreadCount} onClick={openInbox} style={topIcon} />
         </>}
       </div>
+
+      {!onlyUser && tab !== "following" && <LiveBar meets={meets} news={news} openMeet={openMeet} openNews={openNews} />}
 
       {list.length === 0 ? (
         <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -221,7 +215,7 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
             {post.authorUsername}
           </button>
           <AccountLabel username={post.authorUsername} onDark />
-          {post.hidden && <span data-testid="hidden-mark" style={{ color: "#fff", fontSize: 10.5, fontWeight: 700, background: "rgba(230,56,70,0.85)", borderRadius: 5, padding: "2px 6px" }}>{tr("HIDDEN · REPORTED")}</span>}
+          {post.hidden && <span data-testid="hidden-mark" style={{ color: "#fff", fontSize: 10.5, fontWeight: 700, background: "rgba(212,67,77,0.85)", borderRadius: 5, padding: "2px 6px" }}>{tr("HIDDEN · REPORTED")}</span>}
           {post.editedAt && <span data-testid="edited" style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>{tr("edited")}</span>}
         </div>
         {(post.location || (post.tags || []).length > 0) && (
@@ -233,7 +227,7 @@ export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, ope
         {car && (
           <button onClick={() => openCar(car.id)} style={{
             cursor: car.hasPage === false ? "default" : "pointer",
-            background: "rgba(230,56,70,0.9)", border: "none", borderRadius: 999, padding: "4px 10px",
+            background: "rgba(212,67,77,0.9)", border: "none", borderRadius: 999, padding: "4px 10px",
             color: "#fff", fontSize: 11.5, fontWeight: 700, marginBottom: 8,
           }}>
             {car.make} {car.model} '{car.year}
@@ -265,5 +259,80 @@ function QuickActions({ post, me, car, onClose, onLike, onComment, onOpen }) {
       { label: tr("Share"), icon: <Share2 size={17} />, onClick: () => shareText({ title: tr("Carfooly"), text: tr("{0}{1} on Carfooly{2}", post.authorUsername, carName ? `'s ${carName}` : "", post.caption ? `: "${post.caption}"` : "") }) },
       { label: tr("Open post"), icon: <Maximize2 size={17} />, onClick: onOpen },
     ]} />
+  );
+}
+
+// The bell: no counter bubble. When something new arrives it rings and glows for a second;
+// while there's anything unread it keeps a thin red ring.
+export function NotifBell({ count, onClick, style }) {
+  const [ping, setPing] = useState(0);
+  const last = useRef(0);
+  useEffect(() => {
+    if (count > last.current) setPing((p) => p + 1);
+    last.current = count;
+  }, [count]);
+  return (
+    <button onClick={onClick} aria-label={tr("Notifications")} title={count ? tr("{0} new", count) : undefined} data-testid="notif-bell" data-unread={count > 0 || undefined}
+      className="glass-light press" style={{ ...style, position: "relative", boxShadow: count ? `inset 0 0 0 1.5px ${T.accent}` : style?.boxShadow,
+        animation: ping ? "glowBlink 1.1s ease 1" : "none" }} key={ping}>
+      <Bell size={21} color={count ? "#FFE3E5" : "#fff"} style={{ animation: ping ? "bellRing 0.9s ease 1" : "none", transformOrigin: "50% 10%" }} />
+    </button>
+  );
+}
+
+// Like a sports app's live scores: a strip of what's coming up (meets) and what's new (news),
+// across the top of the feed. Can be folded away.
+const LIVE_KEY = "carfooly-livebar";
+function LiveBar({ meets, news, openMeet, openNews }) {
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem(LIVE_KEY) !== "closed"; } catch { return true; } });
+  const toggle = () => { const n = !open; setOpen(n); try { localStorage.setItem(LIVE_KEY, n ? "open" : "closed"); } catch { /* fine */ } };
+  const now = Date.now();
+  const soon = Object.values(meets)
+    .filter((m) => m.when && new Date(m.when).getTime() > now - 4 * 3600e3)
+    .sort((a, b) => new Date(a.when) - new Date(b.when)).slice(0, 4);
+  const fresh = Object.values(news).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 4);
+  const items = [];
+  for (let i = 0; i < 4; i++) { if (soon[i]) items.push({ kind: "meet", m: soon[i] }); if (fresh[i]) items.push({ kind: "news", n: fresh[i] }); }
+  if (!items.length) return null;
+  const when = (iso) => {
+    const t = new Date(iso).getTime();
+    if (t <= now) return { live: true, label: tr("Live now") };
+    const d = new Date(iso), today = new Date();
+    const tm = d.toLocaleTimeString(locale(), { hour: "numeric", minute: "2-digit" });
+    if (d.toDateString() === today.toDateString()) return { label: tr("Today · {0}", tm) };
+    const tmr = new Date(); tmr.setDate(today.getDate() + 1);
+    if (d.toDateString() === tmr.toDateString()) return { label: tr("Tomorrow · {0}", tm) };
+    return { label: d.toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short" }) };
+  };
+  return (
+    <div data-testid="live-bar" style={{ position: "absolute", top: "calc(66px + var(--inset-top))", left: 0, right: 0, zIndex: 8, display: "flex", alignItems: "center", gap: 6, pointerEvents: "none" }}>
+      <div data-noswipe style={{ flex: 1, display: open ? "flex" : "none", gap: 8, overflowX: "auto", padding: "2px 0 2px 14px", pointerEvents: "auto", scrollSnapType: "x proximity" }}>
+        {items.map((it) => {
+          const meet = it.kind === "meet";
+          const w = meet ? when(it.m.when) : null;
+          return (
+            <button key={(meet ? "m" : "n") + (meet ? it.m.id : it.n.id)} data-testid={meet ? "live-meet" : "live-news"}
+              onClick={() => (meet ? openMeet?.(it.m.id) : openNews?.())} className="glass-light press"
+              style={{ flex: "0 0 auto", width: 214, height: 54, borderRadius: 16, border: "none", padding: "7px 12px 7px 10px", display: "flex", alignItems: "center", gap: 9, textAlign: "start", scrollSnapAlign: "start", position: "relative", overflow: "hidden" }}>
+              <span style={{ width: 3, alignSelf: "stretch", borderRadius: 3, background: meet ? T.accent : T.accentWarm, flexShrink: 0 }} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span className="plate" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9.5, color: meet ? (w.live ? "#FFB3B8" : "rgba(255,255,255,0.7)") : T.accentWarm }}>
+                  {meet && w.live && <span style={{ width: 6, height: 6, borderRadius: 9, background: T.accent, animation: "logoPulse 1.2s ease-in-out infinite" }} />}
+                  {meet ? `${tr("Meet")} · ${w.label}` : `${tr("News")} · ${it.n.source || ""}`}
+                </span>
+                <span dir="auto" style={{ display: "block", color: "#fff", fontSize: 12.5, fontWeight: 700, lineHeight: 1.25, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {meet ? it.m.title : it.n.title}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+        <span style={{ flex: "0 0 4px" }} />
+      </div>
+      <button data-testid="live-toggle" onClick={toggle} aria-label={open ? tr("Hide what's on") : tr("Show what's on")} className="glass-light press"
+        style={{ pointerEvents: "auto", flexShrink: 0, marginInlineEnd: 14, marginInlineStart: open ? 0 : "auto", height: 30, borderRadius: 999, border: "none", padding: open ? "0 9px" : "0 12px", color: "#fff", fontSize: 11.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>
+        {open ? <ChevronUp size={15} color="#fff" /> : <>{tr("What's on")} <ChevronDown size={14} color="#fff" /></>}
+      </button>
+    </div>
   );
 }

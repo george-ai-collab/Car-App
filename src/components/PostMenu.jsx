@@ -48,7 +48,7 @@ export function PostMenu({ post, me, actions, onDeleted, overlay, carName }) {
               {[{ id: null, label: tr("No car") }, ...myCars.map((c) => ({ id: c.id, label: c.nickname || `${c.make} ${c.model}` }))].map((c) => (
                 <button key={c.id || "none"} onClick={() => setCarId(c.id)} className="press" style={{
                   padding: "7px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 700,
-                  border: `1px solid ${carId === c.id ? T.accent : T.lineDark}`, background: carId === c.id ? "rgba(230,56,70,0.14)" : "transparent", color: carId === c.id ? T.accent : T.text,
+                  border: `1px solid ${carId === c.id ? T.accent : T.lineDark}`, background: carId === c.id ? "rgba(212,67,77,0.14)" : "transparent", color: carId === c.id ? T.accent : T.text,
                 }}>{c.label}</button>
               ))}
             </div>

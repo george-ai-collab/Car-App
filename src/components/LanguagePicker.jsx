@@ -11,7 +11,7 @@ export function LanguageScreen() {
   const say = (en) => (pick === "ar" ? AR[en] || en : en);
   return (
     <div data-testid="language-screen" dir={LANGS.find((l) => l.code === pick)?.dir} style={{ minHeight: "100vh", display: "flex", flexDirection: "column", justifyContent: "center", padding: "calc(32px + var(--inset-top)) 22px calc(32px + var(--inset-bottom))", maxWidth: 460, margin: "0 auto", color: T.text }}>
-      <div style={{ width: 52, height: 52, borderRadius: 18, background: "rgba(230,56,70,0.14)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
+      <div style={{ width: 52, height: 52, borderRadius: 18, background: "rgba(212,67,77,0.14)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
         <Globe size={24} color={T.accent} />
       </div>
       <div className="display" style={{ fontSize: 28, lineHeight: 1.15 }}>Choose your language</div>
@@ -33,7 +33,7 @@ export function LanguageList({ value, onChange }) {
         return (
           <button key={l.code} data-testid={`lang-${l.code}`} onClick={() => onChange(l.code)} className="press" style={{
             display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", borderRadius: 16, textAlign: "start",
-            border: `1.5px solid ${on ? T.accent : T.lineDark}`, background: on ? "rgba(230,56,70,0.12)" : T.surface, color: T.text,
+            border: `1.5px solid ${on ? T.accent : T.lineDark}`, background: on ? "rgba(212,67,77,0.12)" : T.surface, color: T.text,
           }}>
             <div style={{ flex: 1 }} dir={l.dir}>
               <div style={{ fontSize: 16, fontWeight: 700 }}>{l.native}</div>

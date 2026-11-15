@@ -30,6 +30,16 @@ export function GlobalStyle() {
       @keyframes tabInStart { from { opacity: 0; transform: translateX(calc(var(--slide-from, 44px) * -1)); } to { opacity: 1; transform: none; } }
       [dir=rtl] { --slide-from: -44px; }
       @keyframes lizardIntro { 0% { opacity: 0; transform: scale(0.55) rotate(-200deg); } 55% { opacity: 1; transform: scale(1.04) rotate(12deg); } 75% { transform: scale(1) rotate(0deg); } 100% { opacity: 1; transform: scale(1) rotate(0deg); } }
+      @keyframes fadeOut { to { opacity: 0; } }
+      @keyframes drawerInR { from { transform: translateX(100%); } }
+      @keyframes drawerOutR { to { transform: translateX(100%); } }
+      @keyframes drawerInL { from { transform: translateX(-100%); } }
+      @keyframes drawerOutL { to { transform: translateX(-100%); } }
+      @keyframes threadDraw { to { stroke-dashoffset: 0; } }
+      @keyframes createPop { from { opacity: 0; transform: translateY(40px) scale(0.4); } }
+      @keyframes orbit { 0% { transform: translate(0, 0); } 25% { transform: translate(2.5px, -2.5px); } 50% { transform: translate(0, -4px); } 75% { transform: translate(-2.5px, -2.5px); } 100% { transform: translate(0, 0); } }
+      @keyframes bellRing { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(16deg); } 30% { transform: rotate(-13deg); } 45% { transform: rotate(9deg); } 60% { transform: rotate(-5deg); } 75% { transform: rotate(2deg); } }
+      @keyframes glowBlink { 0%, 100% { box-shadow: 0 0 0 0 rgba(212,67,77,0); } 40% { box-shadow: 0 0 0 6px rgba(212,67,77,0.35), 0 0 18px 4px rgba(212,67,77,0.35); } }
       @keyframes introOut { 0%, 78% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
       @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
       .fade-in { animation: fadeIn 0.25s ease both; }
@@ -125,8 +135,8 @@ export function IconTab({ active, onClick, icon, label }) {
 }
 
 export function IconBadge({ children, tone = "accent", size = 40 }) {
-  const bg = tone === "accent" ? "rgba(230,56,70,0.16)"
-    : tone === "teal" || tone === "accent2" ? "rgba(69,123,144,0.18)"
+  const bg = tone === "accent" ? "rgba(212,67,77,0.16)"
+    : tone === "teal" || tone === "accent2" ? "rgba(138,155,170,0.18)"
     : tone === "warm" ? "rgba(242,184,75,0.18)"
     : "rgba(245,244,242,0.07)";
   return (
@@ -479,7 +489,7 @@ export function ChipPicker({ value, onChange, options, testid }) {
         return (
           <button key={o.id} type="button" onClick={() => onChange(o.id)} className="press" style={{
             flexShrink: 0, padding: o.sub ? "8px 14px" : "9px 14px", borderRadius: 16, textAlign: "start",
-            border: `1px solid ${on ? T.accent : T.lineDark}`, background: on ? "rgba(230,56,70,0.14)" : T.surface2, color: on ? T.text : T.textDim,
+            border: `1px solid ${on ? T.accent : T.lineDark}`, background: on ? "rgba(212,67,77,0.14)" : T.surface2, color: on ? T.text : T.textDim,
           }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: on ? T.text : T.text, whiteSpace: "nowrap" }}>{o.label}</div>
             {o.sub && <div style={{ fontSize: 10.5, color: on ? T.accent : T.textDim, marginTop: 1, whiteSpace: "nowrap" }}>{o.sub}</div>}
@@ -501,5 +511,65 @@ export function AccountLabel({ username, onDark }) {
       fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", borderRadius: 5, padding: "2px 6px", marginInlineStart: 6, verticalAlign: "middle",
       color: T.ink, background: T.paper, boxShadow: onDark ? "0 1px 3px rgba(0,0,0,0.4)" : "none",
     }}>{t === "club" ? tr("CLUB") : tr("BUSINESS")}</span>
+  );
+}
+
+// A panel that slides in from the side (right; left in Arabic) over the page, which stays
+// visible and dimmed behind it. Tap outside, press back or drag it away to close.
+// (No transform while open, so sheets and dialogs opened from inside it still sit on the screen.)
+export function SideDrawer({ open, onClose, children, testid, width = "min(86vw, 380px)" }) {
+  const sheets = useContext(SheetContext);
+  const panel = useRef(null);
+  const back = useRef(null);
+  const [closing, setClosing] = useState(false);
+  const rtl = typeof document !== "undefined" && document.documentElement.dir === "rtl";
+  useEffect(() => {
+    if (!open || !sheets) return;
+    sheets(1);
+    return () => sheets(-1);
+  }, [open]);
+  useEffect(() => { if (open) setClosing(false); }, [open]);
+  const close = () => { setClosing(true); setTimeout(() => { setClosing(false); onClose(); }, 220); };
+
+  // Drag towards the edge to close.
+  useEffect(() => {
+    const el = panel.current;
+    if (!open || !el) return;
+    let x0 = 0, y0 = 0, dx = 0, on = false, dragging = false;
+    const sign = rtl ? -1 : 1;
+    const start = (e) => { if (e.target.closest?.("input, textarea, [data-noswipe]")) return; const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; dx = 0; on = true; dragging = false; };
+    const move = (e) => {
+      if (!on) return;
+      const t = e.touches[0]; dx = (t.clientX - x0) * sign;
+      if (!dragging) { if (Math.abs(t.clientY - y0) > 12 && Math.abs(t.clientY - y0) > Math.abs(dx)) { on = false; return; } if (dx > 8) dragging = true; }
+      if (dragging) { e.cancelable && e.preventDefault(); el.style.transition = "none"; el.style.transform = `translateX(${Math.max(0, dx) * sign}px)`; if (back.current) back.current.style.opacity = String(Math.max(0.2, 1 - dx / el.offsetWidth)); }
+    };
+    const end = () => {
+      if (!on) return; on = false;
+      if (!dragging) return;
+      if (dx > el.offsetWidth * 0.3) close();
+      else { el.style.transition = "transform .2s ease"; el.style.transform = ""; if (back.current) back.current.style.opacity = "1"; }
+    };
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end);
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); };
+  }, [open]);
+
+  if (!open) return null;
+  return (
+    <>
+      <div ref={back} data-sheet-backdrop onClick={close} style={{ position: "fixed", inset: 0, zIndex: 38, background: "rgba(6,7,9,0.5)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)",
+        animation: closing ? "fadeOut .22s ease forwards" : "fadeIn .22s ease" }} />
+      <div ref={panel} data-testid={testid} data-drawer style={{
+        position: "fixed", top: 0, bottom: 0, insetInlineEnd: 0, width, zIndex: 39, overflowY: "auto", overscrollBehavior: "contain",
+        background: `linear-gradient(180deg, #17191E, ${T.bg})`, borderInlineStart: `1px solid ${T.glassBorder}`, boxShadow: "-20px 0 50px rgba(0,0,0,0.5)",
+        borderStartStartRadius: 26, borderEndStartRadius: 26,
+        padding: "calc(8px + var(--inset-top)) 18px calc(24px + var(--inset-bottom))",
+        animation: closing ? `${rtl ? "drawerOutL" : "drawerOutR"} .22s ease forwards` : `${rtl ? "drawerInL" : "drawerInR"} .3s cubic-bezier(.2,.8,.2,1)`,
+      }}>
+        {children}
+      </div>
+    </>
   );
 }

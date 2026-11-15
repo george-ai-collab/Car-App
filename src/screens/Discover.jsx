@@ -15,9 +15,9 @@ import { handleLocationError } from "../lib/permissions";
 export function DiscoverView({ meets, communities, news, onOpenSearch, onOpenCommunities, onOpenMeets, onOpenNews, onOpenTracks, onScan }) {
   const upcoming = Object.values(meets).filter((m) => !m.when || new Date(m.when) >= new Date()).length;
   const tiles = [
-    { id: "meets", title: tr("Meets"), sub: tr("Find meets near you, or anywhere in the world"), count: tr("{0} upcoming", upcoming), icon: <Calendar size={24} color="#BFE0EC" />, tone: "accent2", onClick: onOpenMeets },
+    { id: "meets", title: tr("Meets"), sub: tr("Find meets near you, or anywhere in the world"), count: tr("{0} upcoming", upcoming), icon: <Calendar size={24} color="#C9D3DB" />, tone: "accent2", onClick: onOpenMeets },
     { id: "communities", title: tr("Communities"), sub: tr("Your make, your scene, your people"), count: tr("{0} communities", Object.keys(communities).length), icon: <Users size={24} color={T.accent} />, tone: "accent", onClick: onOpenCommunities },
-    { id: "tracks", title: tr("Tracks"), sub: tr("Race tracks, drag strips and karting near you"), count: tr("Track days and drag nights"), icon: <Flag size={24} color="#BFE0EC" />, tone: "accent2", onClick: onOpenTracks },
+    { id: "tracks", title: tr("Tracks"), sub: tr("Race tracks, drag strips and karting near you"), count: tr("Track days and drag nights"), icon: <Flag size={24} color="#C9D3DB" />, tone: "accent2", onClick: onOpenTracks },
     { id: "news", title: tr("News"), sub: tr("What's happening in cars and racing"), count: tr("{0} stories", Object.keys(news).length), icon: <Rss size={24} color={T.accentWarm} />, tone: "warm", onClick: onOpenNews },
   ];
   return (
@@ -238,7 +238,7 @@ export function TracksScreen() {
       {kinds.length > 2 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
           {kinds.map((k) => (
-            <button key={k} data-testid={`track-kind-${k}`} onClick={() => setKind(k)} className="press" style={{ padding: "7px 13px", borderRadius: 999, border: `1px solid ${kind === k ? T.accent : T.lineDark}`, background: kind === k ? "rgba(230,56,70,0.14)" : T.surface, color: T.text, fontSize: 12.5, fontWeight: 600 }}>
+            <button key={k} data-testid={`track-kind-${k}`} onClick={() => setKind(k)} className="press" style={{ padding: "7px 13px", borderRadius: 999, border: `1px solid ${kind === k ? T.accent : T.lineDark}`, background: kind === k ? "rgba(212,67,77,0.14)" : T.surface, color: T.text, fontSize: 12.5, fontWeight: 600 }}>
               {k === "all" ? tr("All") : tr(KIND_LABEL[k] || k)}
             </button>
           ))}

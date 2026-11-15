@@ -143,7 +143,7 @@ export async function load(userId) {
     profiles, follows, cars, carMods, carEvents, carFollows, carSpots, sightings,
     communities, members, threads, threadReplies, threadLikes,
     posts, postLikes, comments, commentLikes, meets, attendees, newsLikes, notifications, blocks, hidden, reports,
-    announcements, meetSpots, meetViews, newsItems, joinRequests,
+    announcements, meetSpots, meetViews, newsItems, joinRequests, myTickets,
   ] = await Promise.all([
     t("profiles", "id,handle,name,bio,avatar_url,account_type,is_admin,banned,created_at"),
     t("follows", "follower_id,followee_id"),
@@ -163,6 +163,7 @@ export async function load(userId) {
     t("meet_announcements"), t("meet_spots"), t("meet_views", "meet_id,user_id,source,created_at"), // views: organizers only
     t("news_items", "id,url,title,source,summary,image,category,lang,published_at", (q) => q.order("published_at", { ascending: false }).limit(180)).catch(() => []),
     t("community_join_requests", "community_id,user_id").catch(() => []), // yours, plus the ones for groups you run
+    t("meet_tickets", "meet_id,code").catch(() => []), // only your own tickets
   ]);
 
   const H = {}; // user id -> handle
@@ -311,6 +312,7 @@ export async function load(userId) {
     data: {
       cars: carsOut, posts: postsOut, users, news, meets: meetsOut, communities: communitiesOut,
       notifications: me ? { [me]: notifs } : {}, sightings: sightingsOut, discussions,
+      tickets: Object.fromEntries(myTickets.map((x) => [x.meet_id, x.code])),
       reports: reports.map((r) => ({ id: r.id, kind: r.kind, targetId: r.target_id, reason: r.reason, note: r.note, by: h(r.reporter_id), date: r.created_at, status: r.status })),
     },
     prefs: { hidden: hidden.map((x) => x.post_id), blocked: blocks.map((b) => h(b.blocked_id)).filter(Boolean) },
@@ -437,6 +439,11 @@ export const write = {
   approveDriver: (me, meetId, userId, ok) => (ok
     ? must(sb().from("meet_attendees").update({ approved: true }).eq("meet_id", meetId).eq("user_id", userId))
     : must(sb().from("meet_attendees").delete().eq("meet_id", meetId).eq("user_id", userId))),
+  checkInTicket: async (me, meetId, code) => {
+    const { data, error } = await sb().rpc("check_in_ticket", { p_meet: meetId, p_code: code });
+    if (error) throw error;
+    return data;
+  },
   checkIn: (me, meetId, userId, on) => must(sb().from("meet_attendees").update({ checked_in_at: on ? new Date().toISOString() : null }).eq("meet_id", meetId).eq("user_id", userId)),
   announce: (me, meetId, a) => must(sb().from("meet_announcements").insert({ id: a.id, meet_id: meetId, author_id: me, text: a.text, audience: a.audience || "all" })),
   meetSpot: async (me, meetId, carId, verified) => {

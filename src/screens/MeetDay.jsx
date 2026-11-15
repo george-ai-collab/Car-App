@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { ScanLine, Megaphone, SlidersHorizontal, BarChart3, Download, Check, X, Car, MapPin, BadgeCheck, QrCode, Info, Repeat } from "lucide-react";
+import { ScanLine, Megaphone, SlidersHorizontal, BarChart3, Download, Check, X, Car, MapPin, BadgeCheck, QrCode, Info, Repeat, Ticket, Keyboard } from "lucide-react";
 import { T } from "../theme";
-import { Avatar, BottomSheet, TextArea, SectionLabel } from "../components/ui";
+import { Avatar, BottomSheet, TextArea, TextInput, SectionLabel } from "../components/ui";
+import { MeetTicketSheet } from "../components/MeetTicket";
 import { useSafety } from "../components/Safety";
 import { scanTag } from "../lib/scan";
 import { parseTag } from "../lib/tag";
@@ -12,7 +13,7 @@ import { tr , AT } from "../lib/i18n";
 const card = { background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 20, padding: 14, marginTop: 14 };
 const pill = (on) => ({
   padding: "7px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 700,
-  border: `1px solid ${on ? T.accent : T.lineDark}`, background: on ? "rgba(230,56,70,0.14)" : "transparent", color: on ? T.accent : T.text,
+  border: `1px solid ${on ? T.accent : T.lineDark}`, background: on ? "rgba(212,67,77,0.14)" : "transparent", color: on ? T.accent : T.text,
 });
 const tool = (locked) => ({
   flex: "1 1 45%", padding: "11px 10px", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -38,10 +39,25 @@ export function OrganizerTools({ meet, users, onManage, onInsights, onRepeat }) 
     if (r.error) { safety.flash(r.error); return; }
     if (!r.text) return;
     const t = parseTag(r.text);
-    if (!t || t.kind !== "user") { safety.flash(tr("Scan the person's profile tag")); return; }
+    if (t?.kind === "ticket") {
+      if (t.meetId !== meet.id) { safety.flash(tr("That ticket is for a different meet")); return; }
+      await byTicket(t.code);
+      return;
+    }
+    if (!t || t.kind !== "user") { safety.flash(tr("Scan the person's ticket")); return; }
     const res = await a.checkIn(meet.id, t.id);
     safety.flash(res === "ok" ? tr("@{0} checked in ✓", t.id) : res === "already" ? tr("@{0} is already checked in", t.id) : tr("@{0} isn't on the list", t.id));
   };
+  // A ticket's code (scanned, or typed when the QR won't scan).
+  const byTicket = async (code) => {
+    const res = await a.checkInTicket(meet.id, code);
+    const h = res.handle;
+    safety.flash(res.status === "ok" ? tr("@{0} checked in ✓", h) : res.status === "already" ? tr("@{0} is already checked in", h)
+      : res.status === "waiting" ? tr("@{0} is still waiting for your OK", h) : res.status === "error" ? tr("Couldn't check that ticket. Try again.") : tr("No ticket with that code for this meet"));
+    return res.status;
+  };
+  const [typing, setTyping] = useState(false);
+  const [typed, setTyped] = useState("");
   const exportList = () => {
     const rows = [["handle", "name", "role", "car", "said going", "checked in"], ...people.map((p) => {
       const car = p.carId && safety.cars?.[p.carId];
@@ -56,7 +72,7 @@ export function OrganizerTools({ meet, users, onManage, onInsights, onRepeat }) 
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <SlidersHorizontal size={15} color={T.accent} />
         <span style={{ color: T.text, fontWeight: 800, fontSize: 14.5, flex: 1 }}>{tr("Organizer tools")}</span>
-        <span data-testid="pro-free" style={{ color: "#F2C76A", fontSize: 11, fontWeight: 700 }}>{tr("Pro · free in beta")}</span>
+        <span data-testid="pro-free" style={{ color: "#D9BE8A", fontSize: 11, fontWeight: 700 }}>{tr("Pro · free in beta")}</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
         {[
@@ -72,6 +88,7 @@ export function OrganizerTools({ meet, users, onManage, onInsights, onRepeat }) 
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         <button data-testid="tool-checkin" onClick={doCheckIn} className="press" style={tool(false)}><ScanLine size={15} /> {tr("Check in")}</button>
+        <button data-testid="tool-type-code" onClick={() => setTyping(true)} className="press" style={tool(false)}><Keyboard size={15} /> {tr("Type a code")}</button>
         <button data-testid="tool-announce" onClick={() => setAnnouncing(true)} className="press" style={tool(false)}><Megaphone size={15} /> {tr("Announce")}</button>
         <button data-testid="tool-insights" onClick={onInsights} className="press" style={tool(false)}><BarChart3 size={15} /> {tr("Insights")}</button>
         <button data-testid="tool-manage" onClick={onManage} className="press" style={tool(false)}><SlidersHorizontal size={15} /> {tr("Manage people")}</button>
@@ -101,6 +118,15 @@ export function OrganizerTools({ meet, users, onManage, onInsights, onRepeat }) 
         </div>
       )}
 
+      <BottomSheet open={typing} onClose={() => setTyping(false)} title={tr("Check in by code")} maxHeight="60vh">
+        <div style={{ color: T.textDim, fontSize: 12.5, marginBottom: 10 }}>{tr("The code is under the QR on their ticket, like K7QM-2XAP.")}</div>
+        <TextInput value={typed} onChange={(v) => setTyped(v.toUpperCase())} placeholder="XXXX-XXXX" maxLength={12} autoFocus />
+        <button data-testid="check-code" disabled={typed.replace(/[^A-Za-z0-9]/g, "").length !== 8} onClick={async () => { const st = await byTicket(typed); if (st === "ok" || st === "already") { setTyped(""); setTyping(false); } }} className="press" style={{
+          width: "100%", marginTop: 10, padding: 13, borderRadius: 16, border: "none", fontWeight: 700, fontSize: 15,
+          background: typed.replace(/[^A-Za-z0-9]/g, "").length === 8 ? T.accent : T.surface2, color: typed.replace(/[^A-Za-z0-9]/g, "").length === 8 ? "#fff" : T.textDim,
+        }}>{tr("Check in")}</button>
+      </BottomSheet>
+
       <BottomSheet open={announcing} onClose={() => setAnnouncing(false)} title={tr("Announcement")} maxHeight="70vh">
         <div data-testid="announce-audience" style={{ display: "flex", gap: 6, marginBottom: 10 }}>
           {[["all", tr("Everyone going")], ["drivers", tr("Drivers only")]].map(([id, label]) => (
@@ -129,8 +155,8 @@ export function DriverCard({ meet, me, users }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
         <Car size={15} color={T.accent2} />
         <span style={{ color: T.text, fontWeight: 800, fontSize: 14.5, flex: 1 }}>{tr("You're driving")}</span>
-        {mine.approved === false && <span data-testid="driver-pending" style={{ color: "#F2C76A", fontSize: 11.5, fontWeight: 700 }}>{tr("Waiting for OK")}</span>}
-        {mine.checkedIn && <span style={{ color: "#7BD389", fontSize: 11.5, fontWeight: 700 }}>{tr("Checked in ✓")}</span>}
+        {mine.approved === false && <span data-testid="driver-pending" style={{ color: "#D9BE8A", fontSize: 11.5, fontWeight: 700 }}>{tr("Waiting for OK")}</span>}
+        {mine.checkedIn && <span style={{ color: "#8FBF9A", fontSize: 11.5, fontWeight: 700 }}>{tr("Checked in ✓")}</span>}
       </div>
       <div style={{ color: T.textDim, fontSize: 12.5, marginBottom: 8 }}>{tr("Which car are you bringing? It shows in \"Cars at this meet\".")}</div>
       {myCars.length === 0 ? <div style={{ color: T.textDim, fontSize: 12.5 }}>{tr("Add a car to your garage first.")}</div> : (
@@ -142,12 +168,9 @@ export function DriverCard({ meet, me, users }) {
           ))}
         </div>
       )}
-      <button data-testid="my-pass" onClick={() => safety.openTag({ kind: "user", id: me, title: users[me]?.name || me, subtitle: tr("Driver pass · {0}", meet.title) })} className="press" style={{ ...tool(false), width: "100%", marginTop: 12 }}>
-        <QrCode size={15} /> {tr("Show my pass (for check-in)")}
-      </button>
       {meet.driverNote && (
-        <div data-testid="driver-note" style={{ marginTop: 12, padding: "10px 12px", borderRadius: 14, background: "rgba(69,123,144,0.16)", color: T.text, fontSize: 13, lineHeight: 1.45, display: "flex", gap: 8 }}>
-          <Info size={15} color="#8EC3D6" style={{ flexShrink: 0, marginTop: 1 }} /><div><b>{tr("For drivers:")}</b> {meet.driverNote}</div>
+        <div data-testid="driver-note" style={{ marginTop: 12, padding: "10px 12px", borderRadius: 14, background: "rgba(138,155,170,0.16)", color: T.text, fontSize: 13, lineHeight: 1.45, display: "flex", gap: 8 }}>
+          <Info size={15} color="#AEBBC6" style={{ flexShrink: 0, marginTop: 1 }} /><div><b>{tr("For drivers:")}</b> {meet.driverNote}</div>
         </div>
       )}
     </div>
@@ -163,7 +186,7 @@ export function Announcements({ meet, me }) {
   return (
     <div data-testid="announcements" style={card}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <Megaphone size={15} color="#F2C76A" /><span style={{ color: T.text, fontWeight: 800, fontSize: 14.5 }}>{tr("Updates")}</span>
+        <Megaphone size={15} color="#D9BE8A" /><span style={{ color: T.text, fontWeight: 800, fontSize: 14.5 }}>{tr("Updates")}</span>
       </div>
       {list.map((x) => (
         <div key={x.id} style={{ padding: "8px 0", borderTop: `1px solid ${T.lineDark}` }}>
@@ -205,7 +228,7 @@ export function CarsAtMeet({ meet, me, openCar }) {
             const mine = mineSpotted(c.id);
             return (
               <div key={c.id} data-testid="meet-car" style={{ borderRadius: 16, overflow: "hidden", background: T.surface, border: `1px solid ${T.lineDark}` }}>
-                <button onClick={() => openCar(c.id)} style={{ display: "block", width: "100%", aspectRatio: "4 / 3", border: "none", padding: 0, background: c.photoUrl ? `url(${c.photoUrl}) center/cover` : "linear-gradient(135deg, rgba(230,56,70,0.3), rgba(20,20,22,1))" }}>
+                <button onClick={() => openCar(c.id)} style={{ display: "block", width: "100%", aspectRatio: "4 / 3", border: "none", padding: 0, background: c.photoUrl ? `url(${c.photoUrl}) center/cover` : "linear-gradient(135deg, rgba(212,67,77,0.3), rgba(20,20,22,1))" }}>
                   {!c.photoUrl && <Car size={28} color="rgba(245,244,242,0.4)" />}
                 </button>
                 <div style={{ padding: "8px 10px" }}>
@@ -223,5 +246,30 @@ export function CarsAtMeet({ meet, me, openCar }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------- your ticket (everyone going) ----------
+export function MyTicket({ meet, me, users }) {
+  const safety = useSafety();
+  const [open, setOpen] = useState(false);
+  const mine = (meet.attendees || []).find((p) => p.username === me);
+  if (!mine) return null;
+  const code = safety.actions.ticketFor(meet.id);
+  return (
+    <>
+      <button data-testid="my-ticket" onClick={() => setOpen(true)} className="press" style={{
+        width: "100%", marginTop: 14, display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 18, textAlign: "start",
+        border: "none", color: "#fff", background: `linear-gradient(120deg, ${T.accent}, ${T.accentDeep})`, boxShadow: T.shadowAccent,
+      }}>
+        <Ticket size={20} />
+        <span style={{ flex: 1 }}>
+          <span style={{ display: "block", fontWeight: 800, fontSize: 14.5 }}>{tr("Your ticket")}</span>
+          <span style={{ display: "block", fontSize: 11.5, opacity: 0.85 }}>{mine.checkedIn ? tr("Checked in ✓") : tr("Show it at the entrance to check in")}</span>
+        </span>
+        {code && <span className="plate" style={{ fontSize: 11, letterSpacing: "0.14em", opacity: 0.9 }}>{code}</span>}
+      </button>
+      <MeetTicketSheet open={open} onClose={() => setOpen(false)} meet={meet} me={me} users={users} cars={safety.cars} code={code} onNeedCode={() => safety.actions.reload?.()} />
+    </>
   );
 }

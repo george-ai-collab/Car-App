@@ -2,9 +2,9 @@
   "appId": "com.carfooly.app",
   "appName": "Carfooly",
   "webDir": "dist",
-  "backgroundColor": "#0A0A0B",
+  "backgroundColor": "#0C0D10",
   "android": {
-    "backgroundColor": "#0A0A0B",
+    "backgroundColor": "#0C0D10",
     "adjustMarginsForEdgeToEdge": "disable"
   }
 }

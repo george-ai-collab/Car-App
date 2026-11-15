@@ -120,43 +120,80 @@ export function postPhotos(post) {
 export function PhotoCarousel({ photos, mode = "feed" }) {
   const [i, setI] = useState(0);
   const many = photos.length > 1;
+  const inner = useRef([]);
+  const frame = useRef(0);
+  // A deck of photos: while you swipe, the top photo slides away with your finger and the next one,
+  // waiting underneath, grows into place (and the other way when you swipe back).
+  const paint = (el) => {
+    const w = Math.max(1, el.clientWidth);
+    const pos = Math.abs(el.scrollLeft) / w; // abs: scrollLeft is negative right-to-left
+    const rtl = el.scrollLeft < 0 || getComputedStyle(el).direction === "rtl";
+    inner.current.forEach((node, k) => {
+      if (!node) return;
+      const d = k - pos; // >0: still waiting underneath
+      if (d > 0 && d < 1.5) {
+        const t = Math.min(1, d);
+        const shift = (rtl ? 1 : -1) * t * w * 0.82; // stays (mostly) under the top photo
+        node.style.transform = `translateX(${shift}px) scale(${1 - 0.1 * t})`;
+        node.style.filter = `brightness(${1 - 0.45 * t})`;
+      } else { node.style.transform = ""; node.style.filter = ""; }
+    });
+  };
   const onScroll = (e) => {
     const el = e.currentTarget;
-    setI(Math.round(Math.abs(el.scrollLeft) / Math.max(1, el.clientWidth))); // abs: scrollLeft is negative right-to-left
+    setI(Math.round(Math.abs(el.scrollLeft) / Math.max(1, el.clientWidth)));
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => paint(el));
   };
+  const scrollerRef = useRef(null);
+  useEffect(() => { if (many && scrollerRef.current) paint(scrollerRef.current); }, [many, photos.length]);
   const box = mode === "feed"
     ? { position: "absolute", inset: 0 }
     : { position: "relative", width: "100%", aspectRatio: photos[0]?.aspect ? String(photos[0].aspect) : "1", maxHeight: "75vh", borderRadius: 18, overflow: "hidden", background: "#000" };
 
-  return (
+  const deck = (
     <div style={box}>
-      <div data-testid="carousel" {...(many ? { "data-noswipe": true } : {})} onScroll={onScroll} style={{
+      <div ref={scrollerRef} data-testid="carousel" {...(many ? { "data-noswipe": true } : {})} onScroll={onScroll} style={{
         // Sideways swipes stay here (next photo); up/down swipes must reach the feed, from anywhere
         // on the photo. (Containing both directions made only the caption area scroll the feed.)
         position: "absolute", inset: 0, display: "flex", overflowX: many ? "auto" : "hidden", overflowY: "hidden",
         scrollSnapType: "x mandatory", overscrollBehaviorX: "contain", overscrollBehaviorY: "auto", touchAction: "pan-x pan-y",
       }}>
         {photos.map((p, k) => (
-          <div key={k} style={{ position: "relative", flex: "0 0 100%", height: "100%", scrollSnapAlign: "center", overflow: "hidden" }}>
-            {p.type === "video" ? <PostVideo item={p} mode={mode} /> : (
-              <>
-                {mode === "feed" && <div aria-hidden style={{ position: "absolute", inset: -40, background: `url(${p.url}) center/cover`, filter: "blur(28px) brightness(0.55)" }} />}
-                <img src={p.url} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
-              </>
-            )}
+          <div key={k} style={{ position: "relative", flex: "0 0 100%", height: "100%", scrollSnapAlign: "center", zIndex: photos.length - k }}>
+            <div ref={(n) => { inner.current[k] = n; }} style={{ position: "absolute", inset: 0, overflow: "hidden", willChange: many ? "transform" : undefined, borderRadius: mode === "feed" ? 0 : 18 }}>
+              {p.type === "video" ? <PostVideo item={p} mode={mode} /> : (
+                <>
+                  {mode === "feed" && <div aria-hidden style={{ position: "absolute", inset: -40, background: `url(${p.url}) center/cover`, filter: "blur(28px) brightness(0.55)" }} />}
+                  <img src={p.url} alt="" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "contain" }} />
+                </>
+              )}
+            </div>
           </div>
         ))}
       </div>
       {many && (
         <>
-          <div data-testid="photo-count" style={{ position: "absolute", top: mode === "feed" ? "calc(72px + var(--inset-top))" : 10, right: 12, background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 11.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999, pointerEvents: "none" }}>
+          <div data-testid="photo-count" style={{ position: "absolute", top: mode === "feed" ? "calc(72px + var(--inset-top))" : 10, right: 12, zIndex: 50, background: "rgba(0,0,0,0.5)", color: "#fff", fontSize: 11.5, fontWeight: 700, padding: "3px 8px", borderRadius: 999, pointerEvents: "none" }}>
             {i + 1}/{photos.length}
           </div>
-          <div style={{ position: "absolute", left: 0, right: 0, bottom: mode === "feed" ? "calc(76px + var(--inset-bottom))" : 10, display: "flex", justifyContent: "center", gap: 5, pointerEvents: "none" }}>
+          <div style={{ position: "absolute", left: 0, right: 0, bottom: mode === "feed" ? "calc(76px + var(--inset-bottom))" : 10, zIndex: 50, display: "flex", justifyContent: "center", gap: 5, pointerEvents: "none" }}>
             {photos.map((_, k) => <span key={k} style={{ width: k === i ? 16 : 6, height: 6, borderRadius: 99, background: k === i ? T.accent : "rgba(255,255,255,0.55)", transition: "width .2s ease" }} />)}
           </div>
         </>
       )}
+    </div>
+  );
+  if (mode === "feed" || !many) return deck;
+  // On a post's page the deck shows its edges: the next photos peek out above the top one.
+  const left = photos.length - 1 - i;
+  return (
+    <div data-testid="photo-stack" style={{ position: "relative", paddingTop: left > 0 ? Math.min(2, left) * 7 : 0, transition: "padding-top .25s ease" }}>
+      {[2, 1].filter((n) => n <= left).map((n) => (
+        <div key={n} aria-hidden style={{ position: "absolute", top: (2 - Math.min(2, left)) * 7 + (2 - n) * 7, left: `${n * 4}%`, right: `${n * 4}%`, height: 40, borderRadius: 18,
+          background: photos[i + n]?.url ? `url(${photos[i + n].url}) center/cover` : T.surface2, filter: `brightness(${0.55 - n * 0.12})`, transition: "all .25s ease" }} />
+      ))}
+      <div style={{ position: "relative" }}>{deck}</div>
     </div>
   );
 }

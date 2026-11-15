@@ -26,7 +26,7 @@ export function TagQR({ text, size = 240 }) {
   return (
     <svg data-testid="tag-qr" data-tag={text} width={size} height={size} viewBox={`0 0 ${total} ${total}`} shapeRendering="crispEdges" style={{ display: "block" }}>
       <rect width={total} height={total} fill="#fff" />
-      <path d={rects.join("")} fill="#0A0A0B" />
+      <path d={rects.join("")} fill="#0C0D10" />
       <rect data-testid="tag-logo-space" x={h.start + quiet + 0.5} y={h.start + quiet + 0.5} width={h.size - 1} height={h.size - 1} rx={1.4} fill="#fff" />
       <image href={logoTile} x={h.start + quiet + 0.9} y={h.start + quiet + 0.9} width={h.size - 1.8} height={h.size - 1.8} />
     </svg>
@@ -57,7 +57,7 @@ export function ShareTagSheet({ open, onClose, kind, id, title, subtitle, onScan
       <div data-testid="share-tag" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
         <div style={{
           width: "100%", borderRadius: 26, padding: "20px 18px 18px", textAlign: "center",
-          background: "radial-gradient(120% 70% at 50% 0%, rgba(230,56,70,0.30), rgba(10,10,11,0) 70%), #121214",
+          background: "radial-gradient(120% 70% at 50% 0%, rgba(212,67,77,0.30), rgba(12,13,16,0) 70%), #121214",
           border: `1px solid ${T.lineDark}`,
         }}>
           <div className="plate" style={{ fontSize: 10.5, color: T.textDim, letterSpacing: "0.18em" }}>{tr("CARFOOLY")}</div>
@@ -96,9 +96,9 @@ export function drawTagCard({ link, title, subtitle, kind }) {
   const cv = document.createElement("canvas");
   cv.width = W; cv.height = H;
   const g = cv.getContext("2d");
-  g.fillStyle = "#0A0A0B"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#0C0D10"; g.fillRect(0, 0, W, H);
   const glow = g.createRadialGradient(W / 2, 0, 0, W / 2, 0, 900);
-  glow.addColorStop(0, "rgba(230,56,70,0.45)"); glow.addColorStop(1, "rgba(10,10,11,0)");
+  glow.addColorStop(0, "rgba(212,67,77,0.45)"); glow.addColorStop(1, "rgba(12,13,16,0)");
   g.fillStyle = glow; g.fillRect(0, 0, W, H);
   g.textAlign = "center";
   g.fillStyle = "rgba(245,244,242,0.6)"; g.font = "600 30px monospace";
@@ -111,7 +111,7 @@ export function drawTagCard({ link, title, subtitle, kind }) {
   g.fillStyle = "#fff"; roundRect(g, bx, by, box, box, 60); g.fill();
   const m = qrMatrix(link);
   const pad = 56, cell = Math.floor((box - pad * 2) / m.n), off = Math.round(bx + (box - cell * m.n) / 2), offY = Math.round(by + (box - cell * m.n) / 2);
-  g.fillStyle = "#0A0A0B";
+  g.fillStyle = "#0C0D10";
   for (let r = 0; r < m.n; r++) for (let c = 0; c < m.n; c++) if (m.dark(r, c)) g.fillRect(off + c * cell, offY + r * cell, cell, cell);
   // the logo in the middle
   if (logoImg && logoImg.complete && logoImg.naturalWidth) {
