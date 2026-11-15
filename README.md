@@ -74,3 +74,10 @@ After changing the UI: `npm run android:sync`.
 `src/storage.js` (and `src/store/useStore.js`) are the swap points. Next round:
 Postgres tables for users/cars/posts/meets, Supabase Auth (email + Google),
 Storage for photos, and row-level security so people can only edit their own things.
+
+## App icon and logo (temporary)
+
+The logo source is `branding/logo-source.png` (black lizard on white). After changing it, run
+`python3 branding/make_icons.py`: it makes the in-app logo files and the Android launcher icons
+(`branding/icons/`, copied into the Android project by `scripts/patch-android.mjs`). The launch
+screen is plain black on purpose; the lizard animation plays on the feed when the app opens.

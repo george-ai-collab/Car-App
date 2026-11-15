@@ -1,6 +1,7 @@
 import { useState, useRef, useLayoutEffect } from "react";
 import { Car, Compass, Heart, MessageCircle, Search, Bell, MapPin, Share2, Maximize2 } from "lucide-react";
 import { T } from "../theme";
+import { LogoIntro } from "../components/Logo";
 import { hueForId, timeAgo } from "../lib/utils";
 import { Avatar, FollowAvatar, EmptyState, TextInput, BottomSheet, AccountLabel } from "../components/ui";
 import { CommentRow } from "./PostDetail";
@@ -46,6 +47,7 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
 
   return (
     <div data-testid="feed" style={{ position: "relative", height: "100dvh", background: T.bg, overflow: "hidden" }}>
+      {!onlyUser && <LogoIntro />}
       {/* Top controls: search on the left, tabs in the middle, notifications on the right. */}
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, zIndex: 8, display: "flex", alignItems: "center",

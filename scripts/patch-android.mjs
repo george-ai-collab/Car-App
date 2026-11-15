@@ -3,7 +3,7 @@
 //  - location permission, for "Use my location" when posting a meet
 //  - portrait lock, since every screen is designed for a portrait phone
 //  - carfooly:// links (share tags) open the app, and the QR scanner is set up
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, copyFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, copyFileSync, mkdirSync, unlinkSync } from "node:fs";
 
 const manifestPath = "android/app/src/main/AndroidManifest.xml";
 if (!existsSync(manifestPath)) {
@@ -137,12 +137,13 @@ if (buildNo && existsSync(gradlePath)) {
 }
 
 // App icon (temporary lizard logo): white lizard on the red brand colour.
-// Icons are made by branding/ from the logo; the adaptive icon uses the foreground + this colour.
+// Icons are made by branding/make_icons.py; the adaptive icon uses the foreground + this colour.
+// (They live in branding/icons, not branding/android: "android/" is git-ignored.)
 const res = "android/app/src/main/res";
-if (existsSync("branding/android") && existsSync(res)) {
-  for (const dir of readdirSync("branding/android")) {
+if (existsSync("branding/icons") && existsSync(res)) {
+  for (const dir of readdirSync("branding/icons")) {
     mkdirSync(`${res}/${dir}`, { recursive: true });
-    for (const f of readdirSync(`branding/android/${dir}`)) copyFileSync(`branding/android/${dir}/${f}`, `${res}/${dir}/${f}`);
+    for (const f of readdirSync(`branding/icons/${dir}`)) copyFileSync(`branding/icons/${dir}/${f}`, `${res}/${dir}/${f}`);
   }
   mkdirSync(`${res}/values`, { recursive: true });
   writeFileSync(`${res}/values/ic_launcher_background.xml`, `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#E63846</color>\n</resources>\n`);
@@ -152,4 +153,29 @@ if (existsSync("branding/android") && existsSync(res)) {
   writeFileSync(`${res}/mipmap-anydpi-v26/ic_launcher_round.xml`, adaptive);
 }
 
-console.log("patch-android: permissions, portrait lock, tag links, scanner, edge to edge, no scrollbar/bounce, version, app icon applied");
+// No launch splash: Capacitor's default shows its own logo for a moment. Make the launch screen
+// plain app-black (no logo), so the app just opens. (Android 12+ always shows a system launch
+// screen; with a transparent icon it's only the dark background.)
+if (existsSync(res)) {
+  const blank = `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#0A0A0B"/></shape>\n`;
+  for (const dir of readdirSync(res)) {
+    if (!dir.startsWith("drawable")) continue;
+    for (const f of readdirSync(`${res}/${dir}`)) {
+      if (/^splash\.(png|9\.png|jpg|webp)$/.test(f)) { unlinkSync(`${res}/${dir}/${f}`); }
+    }
+  }
+  writeFileSync(`${res}/drawable/splash.xml`, blank);
+  const stylesPath = `${res}/values/styles.xml`;
+  if (existsSync(stylesPath)) {
+    let st = readFileSync(stylesPath, "utf8");
+    st = st.replace(/<style name="AppTheme\.NoActionBarLaunch"[\s\S]*?<\/style>/, `<style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#0A0A0B</item>
+        <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+        <item name="android:background">@drawable/splash</item>
+    </style>`);
+    writeFileSync(stylesPath, st);
+  }
+}
+
+console.log("patch-android: permissions, portrait lock, tag links, scanner, edge to edge, no scrollbar/bounce, version, app icon, no splash applied");

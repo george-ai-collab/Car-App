@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { T, FONT_STACK, MONO_STACK } from "../theme";
 import { LogoTile } from "./Logo";
@@ -26,6 +26,12 @@ export function GlobalStyle() {
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes logoPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.94); opacity: 0.85; } }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes tabInEnd { from { opacity: 0; transform: translateX(var(--slide-from, 44px)); } to { opacity: 1; transform: none; } }
+      @keyframes tabInStart { from { opacity: 0; transform: translateX(calc(var(--slide-from, 44px) * -1)); } to { opacity: 1; transform: none; } }
+      [dir=rtl] { --slide-from: -44px; }
+      @keyframes lizardIntro { 0% { opacity: 0; transform: scale(0.55) rotate(-200deg); } 55% { opacity: 1; transform: scale(1.04) rotate(12deg); } 75% { transform: scale(1) rotate(0deg); } 100% { opacity: 1; transform: scale(1) rotate(0deg); } }
+      @keyframes introOut { 0%, 78% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+      @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
       .fade-in { animation: fadeIn 0.25s ease both; }
       button { transition: opacity 0.15s ease, transform 0.1s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease; }
       .press:active { transform: scale(0.96); }
@@ -60,11 +66,14 @@ export function GlobalStyle() {
   );
 }
 
+// While the app loads its data: plain background, so opening the app doesn't flash a screen.
+// Only if loading is slow (bad connection) does the logo appear, so it doesn't look frozen.
 export function LoadingScreen() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setSlow(true), 900); return () => clearTimeout(t); }, []);
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: T.text }}>
-      <LogoTile size={84} style={{ animation: "logoPulse 1.6s ease-in-out infinite" }} />
-      <div style={{ fontFamily: MONO_STACK, fontSize: 12, color: T.textDim, letterSpacing: "0.08em", marginTop: 8 }}>{tr("LOADING CARFOOLY")}</div>
+    <div data-testid="loading" style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, color: T.text }}>
+      {slow && <div style={{ animation: "fadeIn .4s ease" }}><LogoTile size={84} style={{ animation: "logoPulse 1.6s ease-in-out infinite" }} /></div>}
     </div>
   );
 }
@@ -406,22 +415,42 @@ export function FollowAvatar({ username, size, showFollow, following, onFollow, 
 
 // Text tabs with a red underline (Local / Global, Posts / Discuss / People).
 export function Segmented({ value, onChange, options, testid }) {
+  // The red line under the chosen tab slides to the new tab.
+  const wrap = useRef(null);
+  const [bar, setBar] = useState(null);
+  useLayoutEffect(() => {
+    const el = wrap.current?.querySelector(`[data-seg="${value}"]`);
+    if (el) setBar({ left: el.offsetLeft, width: el.offsetWidth });
+  }, [value, options.map((o) => o[1]).join("|")]);
   return (
-    <div data-testid={testid} style={{ display: "flex", gap: 22, borderBottom: `1px solid ${T.lineDark}`, marginBottom: 16 }}>
+    <div ref={wrap} data-testid={testid} style={{ position: "relative", display: "flex", gap: 22, borderBottom: `1px solid ${T.lineDark}`, marginBottom: 16 }}>
       {options.map(([id, label]) => {
         const on = value === id;
         return (
-          <button key={id} onClick={() => onChange(id)} className="press" style={{
+          <button key={id} data-seg={id} onClick={() => onChange(id)} className="press" style={{
             background: "none", border: "none", padding: "10px 0 12px", position: "relative",
             color: on ? T.text : T.textDim, fontSize: 13, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase",
+            transition: "color .2s ease",
           }}>
             {label}
-            <span style={{ position: "absolute", left: 0, right: 0, bottom: -1, height: 2.5, borderRadius: 2, background: on ? T.accent : "transparent", transition: "background .15s ease" }} />
           </button>
         );
       })}
+      {bar && <span aria-hidden style={{ position: "absolute", bottom: -1, left: 0, width: bar.width, height: 2.5, borderRadius: 2, background: T.accent,
+        transform: `translateX(${bar.left}px)`, transition: "transform .28s cubic-bezier(.2,.8,.2,1), width .28s cubic-bezier(.2,.8,.2,1)" }} />}
     </div>
   );
+}
+
+// Wrap a tab's content: when the tab changes, the new content slides in from the side
+// you're moving towards (mirrored in Arabic).
+// fadeOnly: for content with fixed/sticky bars (a moving parent would drag them along).
+export function TabSlide({ index, children, fadeOnly }) {
+  const prev = useRef(index);
+  const dir = index === prev.current ? 0 : index > prev.current ? 1 : -1;
+  useEffect(() => { prev.current = index; }, [index]);
+  const anim = dir === 0 ? "none" : fadeOnly ? "fadeIn .25s ease" : `${dir > 0 ? "tabInEnd" : "tabInStart"} .32s cubic-bezier(.2,.8,.2,1)`;
+  return <div key={index} style={{ animation: anim }}>{children}</div>;
 }
 
 // A titled card that groups related fields, so a form reads in clear parts.

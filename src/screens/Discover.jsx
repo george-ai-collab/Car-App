@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Heart, Rss, Calendar, Users, ExternalLink, Search, ChevronRight, ScanLine, Flag, Navigation, Globe, LocateFixed, Loader2 } from "lucide-react";
 import { T } from "../theme";
 import { timeAgo } from "../lib/utils";
-import { Avatar, IconBadge, EmptyState, TextInput, SectionLabel, Segmented } from "../components/ui";
+import { Avatar, IconBadge, EmptyState, TextInput, SectionLabel, Segmented, TabSlide } from "../components/ui";
 import { useSwipe } from "../lib/useSwipe";
 import { CarCard } from "./Cars";
 import { CommunityCard } from "./Communities";
@@ -156,11 +156,13 @@ export function NewsScreen({ me, news, onLike, onRefresh }) {
     <div {...sw.bind} style={{ ...sw.bind.style, minHeight: "70vh" }}>
       <div className="display" style={{ fontSize: 24, color: T.text, marginBottom: 6 }}>{tr("News")}</div>
       <Segmented testid="news-tabs" value={tab} onChange={setTab} options={[["general", tr("General")], ["racing", tr("Racing")], ["gulf", tr("Gulf")]]} />
-      {list.length === 0 ? (
-        <EmptyState icon={<Rss size={20} color={T.textDim} />} title={tr("Nothing here yet")} body={tr("Check back soon.")} />
-      ) : (
-        list.map((n) => <NewsCard key={n.id} item={n} me={me} onLike={onLike} />)
-      )}
+      <TabSlide index={i}>
+        {list.length === 0 ? (
+          <EmptyState icon={<Rss size={20} color={T.textDim} />} title={tr("Nothing here yet")} body={tr("Check back soon.")} />
+        ) : (
+          list.map((n) => <NewsCard key={n.id} item={n} me={me} onLike={onLike} />)
+        )}
+      </TabSlide>
       {list.length > 0 && <div style={{ color: T.textDim, fontSize: 11, textAlign: "center", padding: "6px 0 16px", lineHeight: 1.5 }}>{tr("Headlines from each publisher's site. Tap one to read it there.")}</div>}
     </div>
   );

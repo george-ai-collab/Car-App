@@ -4,7 +4,7 @@ import { T } from "../theme";
 import { hueForId, timeAgo } from "../lib/utils";
 import { useSwipe } from "../lib/useSwipe";
 import { MoreMenu, ReportSheet, useSafety } from "../components/Safety";
-import { Avatar, EmptyState, Field, TextInput, TextArea, SectionLabel, Segmented, ConfirmDialog, BottomSheet } from "../components/ui";
+import { Avatar, EmptyState, Field, TextInput, TextArea, SectionLabel, Segmented, ConfirmDialog, BottomSheet, TabSlide } from "../components/ui";
 import { MAX_LINES } from "../lib/text";
 import { RichText } from "../components/RichText";
 import { tr , AT } from "../lib/i18n";
@@ -149,6 +149,7 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
 
       <Segmented testid="community-tabs" value={tab} onChange={setTab} options={[["posts", tr("Posts")], ["chat", tr("Chat")], ["people", (community.requests || []).length && groupAdmin ? tr("People ({0})", community.requests.length) : tr("People")]]} />
 
+      <TabSlide index={order.indexOf(tab)} fadeOnly={tab === "chat"}>
       {tab === "posts" && (
         <>
           <button onClick={onNewPost} className="press" style={dashedBtn}><Plus size={14} /> {tr("Post to")} {community.name}</button>
@@ -163,6 +164,7 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
 
       {tab === "people" && <People community={community} me={me} isAppAdmin={isAppAdmin} users={users} posts={cPosts} openProfile={openProfile}
         onAnswer={onAnswer} onSetRole={onSetRole} onRemove={onRemove} />}
+      </TabSlide>
     </div>
   );
 }
