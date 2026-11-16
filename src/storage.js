@@ -14,7 +14,7 @@
 // replace `remoteAdapter` below with real API calls for shared keys and leave
 // the private keys (like the signed-in handle) on-device.
 
-const DB_NAME = "carfooly";
+const DB_NAME = "lacerta";
 const STORE = "kv";
 
 function openDb() {
