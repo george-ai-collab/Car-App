@@ -2,7 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { T } from "./theme";
 import { useNav } from "./nav/useNav";
 import { useKeyboardOffset } from "./lib/keyboard";
-import { SheetContext, isDriver, SideDrawer } from "./components/ui";
+import { SheetContext, isDriver, SideDrawer, PullRefresh, ErrorScreen } from "./components/ui";
+import { logoWhite } from "./components/Logo";
+import { refreshNews } from "./lib/catalog";
 import { SafetyContext, PermissionNotice } from "./components/Safety";
 import { BottomNav } from "./components/BottomNav";
 import { Feed } from "./screens/Feed";
@@ -28,6 +30,8 @@ import { AdminReports } from "./screens/Admin";
 import { tr } from "./lib/i18n";
 
 const ADD_VIEWS = ["addChoice", "compose", "quickSpot", "addCar", "addMeet"];
+
+const PULL_VIEWS = ["feed", "discover", "newsList", "meetList", "inbox", "communityList", "tracks", "profile"];
 
 export function Shell({ store, toast }) {
   const { me, cars, posts, users, news, meets, communities, notifications, sightings, discussions, actions: a } = store;
@@ -298,8 +302,11 @@ export function Shell({ store, toast }) {
         <div key={cur.key} className="fade-in" data-view={cur.view} style={
           // The feed fills the whole screen, under the status bar and the nav (like TikTok/Instagram).
           fullBleed ? { padding: 0 } : cur.view === "car" ? { padding: "var(--inset-top) 16px 0" } : { padding: "calc(18px + var(--inset-top)) 16px 0" }}>
-          {page}
+          <ErrorScreen resetKey={cur.key} onBack={stack.length > 1 ? back : null}>{page}</ErrorScreen>
         </div>
+        {/* Pull down at the top to refresh (feed, discover, news, meets, notifications, communities). */}
+        <PullRefresh logo={logoWhite} enabled={PULL_VIEWS.includes(cur.view) && sheets === 0 && !settingsOpen}
+          onRefresh={async () => { if (cur.view === "newsList" || cur.view === "discover" || cur.view === "feed") await refreshNews(); await a.reload(); }} />
 
         {/* Pages scroll under the status bar: keep a solid strip behind its icons (the feed shows through). */}
         {!fullBleed && <div aria-hidden style={{ position: "fixed", top: 0, left: 0, right: 0, height: "var(--inset-top)", background: "#0E1013", zIndex: 35 }} />}

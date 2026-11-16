@@ -47,14 +47,28 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
     } else el.scrollTop = 0;
   }, [memoKey, list.length > 0]);
   const tabs = [["foryou", tr("For You")], ["following", tr("Following")]];
+  const [tabsHidden, setTabsHidden] = useState(false);
+  const lastY = useRef(0);
+  const onScroll = (e) => {
+    const y = e.currentTarget.scrollTop;
+    feedScroll.set(memoKey, y);
+    const d = y - lastY.current;
+    if (y < 80) setTabsHidden(false);
+    else if (d > 6) setTabsHidden(true);
+    else if (d < -6) setTabsHidden(false);
+    if (Math.abs(d) > 6 || y < 80) lastY.current = y;
+  };
 
   return (
     <div data-testid="feed" style={{ position: "relative", height: "100dvh", overflow: "hidden" }}>
       {!onlyUser && <LogoIntro />}
-      <div ref={scroller} data-testid="feed-scroller" onScroll={(e) => feedScroll.set(memoKey, e.currentTarget.scrollTop)}
+      <div ref={scroller} data-testid="feed-scroller" onScroll={onScroll}
         style={{ height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain" }}>
-        {/* Header: always reachable, posts scroll underneath it. */}
-        <div data-feed-header style={{ position: "sticky", top: 0, zIndex: 9, background: "rgba(12,13,16,0.88)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${T.lineDark}` }}>
+        {/* room for the header, which floats above the list */}
+        <div style={{ height: `calc(${onlyUser ? 58 : 58 + TABS_H}px + var(--inset-top))` }} />
+        {/* Header: always reachable, posts scroll underneath it. For You / Following tuck away
+            while you scroll down (more room for posts) and come back as soon as you scroll up. */}
+        <div data-feed-header style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 9, background: "rgba(12,13,16,0.88)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${T.lineDark}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "calc(10px + var(--inset-top)) 14px 6px" }}>
             {onlyUser ? (
               <>
@@ -73,7 +87,7 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
             )}
           </div>
           {!onlyUser && (
-            <div style={{ display: "flex", padding: "0 6px" }}>
+            <div data-testid="feed-tabs" data-hidden={tabsHidden || undefined} style={{ display: "flex", padding: "0 6px", overflow: "hidden", maxHeight: tabsHidden ? 0 : TABS_H, opacity: tabsHidden ? 0 : 1, transition: "max-height .25s ease, opacity .2s ease" }}>
               {tabs.map(([id, label]) => (
                 <button key={id} onClick={() => setTab(id)} className="press" aria-current={tab === id ? "page" : undefined} style={{
                   flex: 1, background: "none", border: "none", padding: "10px 0 12px", position: "relative",
@@ -141,6 +155,7 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
   );
 }
 
+const TABS_H = 46;
 const iconBtn = { width: 42, height: 42, border: "none", borderRadius: 999, background: "none", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 };
 
 // Posts run under the floating nav bar; buttons and captions sit just above it.

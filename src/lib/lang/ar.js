@@ -1077,4 +1077,8 @@ export const AR = {
   "From {0}": "من {0}",
   "Race tracks, drag strips and karting": "حلبات السباق والتسارع والكارتينغ",
   "See all tracks": "عرض كل الحلبات",
+  "Something went wrong": "حدث خطأ",
+  "This page hit a problem. Go back or reload the app.": "واجهت هذه الصفحة مشكلة. ارجع أو أعد تحميل التطبيق.",
+  "Go back": "رجوع",
+  "Reload": "إعادة التحميل",
 };

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Component, createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { T, FONT_STACK, MONO_STACK } from "../theme";
 import { LogoTile } from "./Logo";
@@ -572,4 +572,81 @@ export function SideDrawer({ open, onClose, children, testid, width = "min(86vw,
       </div>
     </>
   );
+}
+
+// Pull down at the top of a page to refresh. Works on any page: it only starts when nothing
+// under your finger is scrolled down. Shows the lizard, which spins while loading.
+export function PullRefresh({ onRefresh, enabled = true, logo }) {
+  const [pull, setPull] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const st = useRef(null);
+  const busyRef = useRef(false);
+  const MAX = 110, GO = 70;
+  useEffect(() => {
+    if (!enabled) return;
+    const atTop = (node) => {
+      if (window.scrollY > 0) return false;
+      for (let n = node; n && n !== document.body; n = n.parentElement) {
+        if (n.scrollTop > 0) return false;
+        if (n.dataset && (n.dataset.sheetBackdrop !== undefined || n.dataset.drawer !== undefined || n.dataset.nopull !== undefined)) return false;
+      }
+      return true;
+    };
+    const start = (e) => { st.current = !busyRef.current && e.touches.length === 1 && atTop(e.target) ? { y: e.touches[0].clientY, x: e.touches[0].clientX, on: false } : null; };
+    const move = (e) => {
+      const s = st.current; if (!s) return;
+      const dy = e.touches[0].clientY - s.y, dx = e.touches[0].clientX - s.x;
+      if (!s.on) { if (dy < 0 || Math.abs(dx) > Math.abs(dy)) { st.current = null; return; } if (dy > 12) s.on = true; else return; }
+      if (e.cancelable) e.preventDefault();
+      setPull(Math.min(MAX, dy * 0.5));
+    };
+    const end = async () => {
+      const s = st.current; st.current = null;
+      if (!s || !s.on) { setPull(0); return; }
+      let p = 0; setPull((v) => { p = v; return v; });
+      if (p >= GO) {
+        busyRef.current = true; setBusy(true); setPull(GO);
+        try { await Promise.all([onRefresh?.(), new Promise((r) => setTimeout(r, 600))]); } catch { /* shown elsewhere */ }
+        busyRef.current = false; setBusy(false);
+      }
+      setPull(0);
+    };
+    document.addEventListener("touchstart", start, { passive: true });
+    document.addEventListener("touchmove", move, { passive: false });
+    document.addEventListener("touchend", end);
+    document.addEventListener("touchcancel", end);
+    return () => { document.removeEventListener("touchstart", start); document.removeEventListener("touchmove", move); document.removeEventListener("touchend", end); document.removeEventListener("touchcancel", end); };
+  }, [enabled, onRefresh]);
+  if (!pull && !busy) return null;
+  const ready = pull >= GO;
+  return (
+    <div data-testid="pull-refresh" data-busy={busy || undefined} aria-live="polite" style={{ position: "fixed", top: "calc(6px + var(--inset-top))", left: 0, right: 0, zIndex: 70, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+      <div style={{ width: 44, height: 44, borderRadius: 999, background: ready || busy ? T.accent : T.surface2, border: `1px solid ${T.glassBorder}`, boxShadow: T.shadowRaised, display: "flex", alignItems: "center", justifyContent: "center",
+        transform: `translateY(${pull - 20}px) scale(${Math.min(1, 0.5 + pull / 140)})`, opacity: Math.min(1, pull / 40), transition: st.current ? "none" : "transform .2s ease, opacity .2s ease" }}>
+        {logo ? <img src={logo} alt="" style={{ width: 26, height: 26, transform: busy ? undefined : `rotate(${pull * 4}deg)`, animation: busy ? "spin .8s linear infinite" : "none" }} />
+          : <Loader2 size={20} color="#fff" style={{ animation: busy ? "spin .8s linear infinite" : "none" }} />}
+      </div>
+    </div>
+  );
+}
+
+// If a screen crashes, show a way back instead of a blank page.
+export class ErrorScreen extends Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err) { console.error("screen crashed:", err); }
+  componentDidUpdate(prev) { if (this.state.failed && prev.resetKey !== this.props.resetKey) this.setState({ failed: false }); }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div data-testid="error-screen" style={{ padding: "80px 24px", textAlign: "center", color: T.text }}>
+        <div className="display" style={{ fontSize: 22 }}>{tr("Something went wrong")}</div>
+        <div style={{ color: T.textDim, fontSize: 14, margin: "8px 0 18px", lineHeight: 1.5 }}>{tr("This page hit a problem. Go back or reload the app.")}</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          {this.props.onBack && <button onClick={() => { this.setState({ failed: false }); this.props.onBack(); }} className="press" style={{ padding: "11px 18px", borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontWeight: 700 }}>{tr("Go back")}</button>}
+          <button onClick={() => window.location.reload()} className="press" style={{ padding: "11px 18px", borderRadius: 999, border: "none", background: T.accent, color: "#fff", fontWeight: 700 }}>{tr("Reload")}</button>
+        </div>
+      </div>
+    );
+  }
 }

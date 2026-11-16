@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Heart, Rss, Calendar, Users, ExternalLink, Search, ChevronRight, ScanLine, Flag, Navigation, Globe, LocateFixed, Loader2 } from "lucide-react";
+import { Plus, Heart, Rss, Calendar, Users, ExternalLink, Search, ChevronRight, ScanLine, Flag, Navigation, Globe, LocateFixed, Loader2, MapPin } from "lucide-react";
 import { T } from "../theme";
 import { timeAgo } from "../lib/utils";
 import { Avatar, IconBadge, EmptyState, TextInput, SectionLabel, Segmented, TabSlide } from "../components/ui";
