@@ -1,4 +1,4 @@
--- Carfooly database: tables, security rules (Row Level Security) and automatic notifications.
+-- Lacerta database: tables, security rules (Row Level Security) and automatic notifications.
 -- Anyone signed in can read; you can only create, change or delete your own things.
 -- Rules the app relies on are enforced HERE, so a modified app can't break them.
 

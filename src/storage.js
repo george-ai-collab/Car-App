@@ -1,4 +1,4 @@
-// Carfooly storage adapter.
+// Lacerta storage adapter.
 //
 // The beta was written against the artifact runtime's `window.storage` API:
 //   get(key, shared) -> Promise<{ value } | null>

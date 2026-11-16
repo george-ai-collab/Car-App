@@ -120,7 +120,7 @@ export function LocationPicker({ value, onChange }) {
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => { setLocating(false); setError(""); pickPoint({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
-      (err) => { setLocating(false); if (!handleLocationError(err)) setError(tr("Couldn't get your location right now. Try again, or search instead.")); else setError(tr("Location is off for Carfooly. Search for the place instead, or turn location on.")); },
+      (err) => { setLocating(false); if (!handleLocationError(err)) setError(tr("Couldn't get your location right now. Try again, or search instead.")); else setError(tr("Location is off for Lacerta. Search for the place instead, or turn location on.")); },
       { enableHighAccuracy: true, timeout: 12000 },
     );
   };

@@ -34,7 +34,7 @@ export async function carModels(make) {
 }
 
 // "My car isn't in the list."
-const REQ_KEY = "carfooly-car-requests";
+const REQ_KEY = "lacerta-car-requests";
 export async function requestCar({ make, model, year }) {
   const row = { make: make.trim().slice(0, 30), model: model.trim().slice(0, 40), year: /^\d{4}$/.test(year || "") ? year : "" };
   if (REMOTE) {

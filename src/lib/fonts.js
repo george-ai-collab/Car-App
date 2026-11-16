@@ -15,7 +15,7 @@ const FALLBACK = { display: "'Arial Narrow',ui-sans-serif,system-ui,sans-serif",
 const cssUrl = (f) => `https://fonts.googleapis.com/css2?family=${f.name.replace(/ /g, "+")}:wght@${f.weights.join(";")}&display=swap`;
 
 export function applyFonts() {
-  try { localStorage.removeItem("carfooly-fonts"); } catch { /* the old font tester's setting */ }
+  try { localStorage.removeItem("lacerta-fonts"); } catch { /* the old font tester's setting */ }
   const ar = lang === "ar";
   const root = document.documentElement.style;
   const arabic = ar ? `'${APP_FONTS.arabic.name}',` : "";

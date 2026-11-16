@@ -495,7 +495,7 @@ export function writeMessage(error) {
   if (m.includes("drivers only")) return tr("That's for driver accounts.");
   if (m.includes("admins only") || m.includes("owner only") || (m.includes("row-level security") && m.includes("community"))) return tr("Only the group's admins can do that.");
   if (m.includes("communities_name_unique") || (error?.code === "23505" && m.includes("communit"))) return tr("A community with that name already exists");
-  if (m.includes("not allowed words")) return tr("That includes words we don't allow on Carfooly. Please keep it respectful.");
+  if (m.includes("not allowed words")) return tr("That includes words we don't allow on Lacerta. Please keep it respectful.");
   if (m === "banned" || m.includes("banned")) return tr("Your account has been suspended, so you can't post right now.");
   if (m.includes("blocked")) return tr("You can't do that with this person");
   if (m.includes("reports_once") || (error?.code === "23505" && m.includes("report"))) return tr("You already reported this. Thanks!");

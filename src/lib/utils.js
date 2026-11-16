@@ -49,7 +49,7 @@ export function hueForId(id) {
 }
 
 export function verbPhrase(t) {
-  if (t.type === "created") return tr("added this car to Carfooly");
+  if (t.type === "created") return tr("added this car to Lacerta");
   if (t.type === "mod") return tr("added {0}", t.modName || t.detail || "a mod");
   if (t.type === "spot") return t.detail ? tr("spotted this car {0}", t.detail) : tr("spotted this car");
   if (t.type === "post") return t.detail ? tr("posted: \"{0}\"", t.detail) : tr("posted a photo");

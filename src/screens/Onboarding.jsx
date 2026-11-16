@@ -39,7 +39,7 @@ function LocalOnboarding({ onSubmit, users }) {
       <div style={{ position: "relative", maxWidth: 400, width: "100%", margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 28 }}>
           <LogoTile size={76} />
-          <div className="display" style={{ fontSize: 34, color: T.text, marginTop: 16, letterSpacing: "0.04em" }}>{tr("CARFOOLY")}</div>
+          <div className="display" style={{ fontSize: 34, color: T.text, marginTop: 16, letterSpacing: "0.04em" }}>{tr("LACERTA")}</div>
           <div style={{ color: T.textDim, fontSize: 14.5, marginTop: 6 }}>{tr("Every car has a story. This is where it lives.")}</div>
         </div>
 
@@ -60,7 +60,7 @@ function LocalOnboarding({ onSubmit, users }) {
                 status={!clean ? null : taken ? { bad: true, text: problem === "taken" ? tr("Taken. Try another, or log in.") : HANDLE_MSG[problem] } : !valid ? { bad: true, text: tr("2–24 characters") } : { bad: false, text: tr("Available") }} />
               <div style={{ fontSize: 11.5, color: T.textDim, margin: "-4px 2px 16px" }}>{tr("Lowercase letters, numbers, _ and . only. Handles can't be changed later.")}</div>
               <button disabled={!canCreate || busy} onClick={() => go(clean, displayName)} className="press" style={primary(canCreate)}>
-                {busy ? tr("Setting up…") : tr("Enter Carfooly")} <ChevronRight size={17} />
+                {busy ? tr("Setting up…") : tr("Enter Lacerta")} <ChevronRight size={17} />
               </button>
             </>
           ) : (
@@ -112,7 +112,7 @@ function Frame({ children, note }) {
         {!kb && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", marginBottom: 28 }}>
             <LogoTile size={76} />
-            <div className="display" style={{ fontSize: 34, color: T.text, marginTop: 16, letterSpacing: "0.04em" }}>{tr("CARFOOLY")}</div>
+            <div className="display" style={{ fontSize: 34, color: T.text, marginTop: 16, letterSpacing: "0.04em" }}>{tr("LACERTA")}</div>
             <div style={{ color: T.textDim, fontSize: 14.5, marginTop: 6 }}>{tr("Every car has a story. This is where it lives.")}</div>
           </div>
         )}
@@ -260,7 +260,7 @@ function OnlineOnboarding({ actions }) {
         </>
       ) : mode === "create" ? (
         <button data-testid="submit-create" disabled={!canCreate || busy} onClick={create} className="press" style={primary(canCreate && !busy)}>
-          {busy ? tr("Setting up…") : tr("Enter Carfooly")} <ChevronRight size={17} />
+          {busy ? tr("Setting up…") : tr("Enter Lacerta")} <ChevronRight size={17} />
         </button>
       ) : (
         <button data-testid="submit-login" disabled={!canLogin || busy} onClick={login} className="press" style={primary(canLogin && !busy)}>

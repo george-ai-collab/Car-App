@@ -90,7 +90,7 @@ export function isNear(meet, area) {
 }
 
 // The area is private to this phone/person (not shared with anyone).
-const AREA_KEY = "carfooly-area";
+const AREA_KEY = "lacerta-area";
 export async function loadArea() {
   try { const r = await window.storage.get(AREA_KEY, false); return r ? JSON.parse(r.value) : null; }
   catch { return null; }

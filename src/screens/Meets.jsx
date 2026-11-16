@@ -217,7 +217,7 @@ export function MeetDetail({ meet, me, users, onToggleGoing, onEdit, onDelete, o
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
         {safety && (
           <MoreMenu label={tr("Meet options")} testid="meet-menu" flash={safety.flash}
-            share={{ title: meet.title, text: tr("{0} · {1} · {2} (on Carfooly)", meet.title, fmtWhen(meet.when), meet.location) }}
+            share={{ title: meet.title, text: tr("{0} · {1} · {2} (on Lacerta)", meet.title, fmtWhen(meet.when), meet.location) }}
             items={isCreator ? [
               { label: tr("Edit meet"), icon: <Pencil size={17} />, onClick: () => onEdit(meet.id) },
               { label: tr("Delete meet"), icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },

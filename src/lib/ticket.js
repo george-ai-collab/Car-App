@@ -4,7 +4,7 @@ const ABC = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no 0/O, 1/I/L
 
 export function localTicket(meetId, handle) {
   let h1 = 2166136261, h2 = 5381;
-  const s = `${meetId}|${handle}|carfooly-ticket`;
+  const s = `${meetId}|${handle}|lacerta-ticket`;
   for (let i = 0; i < s.length; i++) { h1 = Math.imul(h1 ^ s.charCodeAt(i), 16777619); h2 = (h2 * 33 + s.charCodeAt(i)) | 0; }
   let out = "";
   for (let i = 0; i < 8; i++) {

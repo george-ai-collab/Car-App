@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
     const found: Record<string, unknown> = {};
     for (const q of (body.geocode as string[]).slice(0, 25)) {
       try {
-        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=2&q=${encodeURIComponent(q)}`, { headers: { "User-Agent": "Carfooly track list setup (one-time)" }, signal: AbortSignal.timeout(8000) });
+        const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=2&q=${encodeURIComponent(q)}`, { headers: { "User-Agent": "Lacerta track list setup (one-time)" }, signal: AbortSignal.timeout(8000) });
         const j = await r.json();
         found[q] = j.map((p: any) => [p.name, p.display_name?.split(",").slice(-3).join(",").trim(), +(+p.lat).toFixed(4), +(+p.lon).toFixed(4), p.type]);
       } catch (e) { found[q] = String(e).slice(0, 60); }

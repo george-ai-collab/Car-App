@@ -20,7 +20,7 @@ const tool = (locked) => ({
   border: `1px solid ${T.lineDark}`, background: "rgba(255,255,255,0.04)", color: locked ? T.textDim : T.text, fontWeight: 700, fontSize: 13,
 });
 
-// ---------- organizer tools (all of them free while Carfooly is in beta) ----------
+// ---------- organizer tools (all of them free while Lacerta is in beta) ----------
 export function OrganizerTools({ meet, users, onManage, onInsights, onRepeat }) {
   const safety = useSafety();
   const a = safety.actions;

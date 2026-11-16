@@ -134,7 +134,7 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
         </button>
         {safety && (
           <MoreMenu label={tr("Community options")} testid="community-menu" flash={safety.flash}
-            share={{ title: community.name, text: tr("Join {0} on Carfooly", community.name) }}
+            share={{ title: community.name, text: tr("Join {0} on Lacerta", community.name) }}
             items={isOwner ? [
               { label: tr("Edit community"), icon: <Pencil size={17} />, onClick: () => setEditing(true) },
               { label: tr("Delete community"), icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },
@@ -328,8 +328,8 @@ function People({ community: c, me, isAppAdmin, users, posts, openProfile, onAns
           <div style={{ height: 14 }} />
         </>
       )}
-      <SectionLabel>{c.kind === "custom" ? tr("Owner and admins") : tr("Run by Carfooly")}</SectionLabel>
-      {leaders.length ? leaders.map((u) => row(u, <div style={{ display: "flex", alignItems: "center", gap: 4 }}>{tag(u)}{manageBtn(u)}</div>)) : <div style={{ color: T.textDim, fontSize: 13 }}>{tr("Carfooly's team keeps this one tidy.")}</div>}
+      <SectionLabel>{c.kind === "custom" ? tr("Owner and admins") : tr("Run by Lacerta")}</SectionLabel>
+      {leaders.length ? leaders.map((u) => row(u, <div style={{ display: "flex", alignItems: "center", gap: 4 }}>{tag(u)}{manageBtn(u)}</div>)) : <div style={{ color: T.textDim, fontSize: 13 }}>{tr("Lacerta's team keeps this one tidy.")}</div>}
       <div style={{ height: 14 }} />
       {top.length > 0 && (
         <>
@@ -390,7 +390,7 @@ export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, o
         <span style={{ flex: 1 }} />
         {safety && (
           <MoreMenu label={tr("Discussion options")} testid="thread-menu" flash={safety.flash}
-            share={{ title: thread.title, text: tr("\"{0}\" in {1} on Carfooly", thread.title, community?.name || "a community") }}
+            share={{ title: thread.title, text: tr("\"{0}\" in {1} on Lacerta", thread.title, community?.name || "a community") }}
             items={thread.author === me ? [
               { label: tr("Edit discussion"), icon: <Pencil size={17} />, onClick: () => { setTitle(thread.title); setBody(thread.body || ""); setEditing(true); } },
               { label: tr("Delete discussion"), icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },

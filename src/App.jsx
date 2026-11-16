@@ -18,11 +18,11 @@ export default function App() {
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
   const store = useStore(flash);
-  // Any part of the app can show a short message: window.dispatchEvent(new CustomEvent("carfooly-flash", { detail: "…" }))
+  // Any part of the app can show a short message: window.dispatchEvent(new CustomEvent("lacerta-flash", { detail: "…" }))
   useEffect(() => {
     const on = (e) => flash(e.detail);
-    window.addEventListener("carfooly-flash", on);
-    return () => window.removeEventListener("carfooly-flash", on);
+    window.addEventListener("lacerta-flash", on);
+    return () => window.removeEventListener("lacerta-flash", on);
   }, [flash]);
 
   return (

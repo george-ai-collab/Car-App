@@ -155,7 +155,7 @@ export function AddCarForm({ onSubmit, initial, flash }) {
       <button disabled={!valid || busy} className="press"
         onClick={async () => { setBusy(true); await onSubmit({ make: pick.canonMake || make, model: pick.canonModel || model, year, nickname, photoUrl, engine, power, gearbox, weight, wheels, zeroToSixty, topSpeed, note, noteDetail, hasPage }); setBusy(false); }}
         style={{ width: "100%", padding: "14px 16px", borderRadius: 16, border: "none", background: valid ? T.accent : T.surface2, color: valid ? "#fff" : T.textDim, fontWeight: 700, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
-        {busy ? tr("Saving…") : editing ? tr("Save changes") : tr("Add to Carfooly")}
+        {busy ? tr("Saving…") : editing ? tr("Save changes") : tr("Add to Lacerta")}
       </button>
     </div>
   );
@@ -202,7 +202,7 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
   const timeline = [...car.timeline].sort((a, b) => new Date(b.date) - new Date(a.date));
   const specs = [
     [tr("Engine"), car.engine], [tr("Power"), car.power], [tr("Gearbox"), car.gearbox], [tr("Weight"), car.weight],
-    [tr("Wheels"), car.wheels], ["0-60", car.zeroToSixty], [tr("Top speed"), car.topSpeed], [tr("On Carfooly since"), fmtDate(car.createdAt)],
+    [tr("Wheels"), car.wheels], ["0-60", car.zeroToSixty], [tr("Top speed"), car.topSpeed], [tr("On Lacerta since"), fmtDate(car.createdAt)],
   ].filter(([, v]) => v);
   const order = ["posts", "build", "specs", "spotters"];
   const sw = useSwipe({ onLeft: () => setTab && setTab(order[Math.min(3, order.indexOf(tab) + 1)]), onRight: () => setTab && setTab(order[Math.max(0, order.indexOf(tab) - 1)]) });
@@ -221,7 +221,7 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
         {safety && (
           <div style={{ position: "absolute", right: 14, top: 14, borderRadius: 999, background: "rgba(0,0,0,0.4)" }}>
             <MoreMenu label={tr("Car options")} testid="car-menu" flash={safety.flash}
-              share={{ title: tr("Carfooly"), text: tr("{0} ({1}), kept by @{2} on Carfooly", name, car.year, car.ownerUsername) }}
+              share={{ title: tr("Lacerta"), text: tr("{0} ({1}), kept by @{2} on Lacerta", name, car.year, car.ownerUsername) }}
               items={[
                 ...(isOwner && onEdit ? [{ label: tr("Edit car"), icon: <Pencil size={17} />, onClick: onEdit }] : []),
                 ...(showTag ? [{ label: tr("Share tag"), icon: <QrCode size={17} />, onClick: showTag }] : []),

@@ -147,8 +147,12 @@ export function PhotoCarousel({ photos, mode = "feed" }) {
   };
   const scrollerRef = useRef(null);
   useEffect(() => { if (many && scrollerRef.current) paint(scrollerRef.current); }, [many, photos.length]);
+  // mode "card" (home feed): edge to edge, in the photo's shape (kept between 4:5 tall and 1.91:1 wide).
+  const cardAspect = Math.min(1.91, Math.max(0.8, photos[0]?.aspect || 1));
   const box = mode === "feed"
     ? { position: "absolute", inset: 0 }
+    : mode === "card"
+    ? { position: "relative", width: "100%", aspectRatio: String(cardAspect), maxHeight: "78vh", overflow: "hidden", background: "#000" }
     : { position: "relative", width: "100%", aspectRatio: photos[0]?.aspect ? String(photos[0].aspect) : "1", maxHeight: "75vh", borderRadius: 18, overflow: "hidden", background: "#000" };
 
   const deck = (
@@ -161,7 +165,7 @@ export function PhotoCarousel({ photos, mode = "feed" }) {
       }}>
         {photos.map((p, k) => (
           <div key={k} style={{ position: "relative", flex: "0 0 100%", height: "100%", scrollSnapAlign: "center", zIndex: photos.length - k }}>
-            <div ref={(n) => { inner.current[k] = n; }} style={{ position: "absolute", inset: 0, overflow: "hidden", willChange: many ? "transform" : undefined, borderRadius: mode === "feed" ? 0 : 18 }}>
+            <div ref={(n) => { inner.current[k] = n; }} style={{ position: "absolute", inset: 0, overflow: "hidden", willChange: many ? "transform" : undefined, borderRadius: mode === "detail" ? 18 : 0 }}>
               {p.type === "video" ? <PostVideo item={p} mode={mode} /> : (
                 <>
                   {mode === "feed" && <div aria-hidden style={{ position: "absolute", inset: -40, background: `url(${p.url}) center/cover`, filter: "blur(28px) brightness(0.55)" }} />}
@@ -184,7 +188,7 @@ export function PhotoCarousel({ photos, mode = "feed" }) {
       )}
     </div>
   );
-  if (mode === "feed" || !many) return deck;
+  if (mode !== "detail" || !many) return deck;
   // On a post's page the deck shows its edges: the next photos peek out above the top one.
   const left = photos.length - 1 - i;
   return (

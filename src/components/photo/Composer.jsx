@@ -15,7 +15,7 @@ import { tr , AT } from "../../lib/i18n";
 
 const MAX_PHOTOS = 10;
 const blobToDataUrl = (b) => new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(b); });
-const alertVideo = () => window.dispatchEvent(new CustomEvent("carfooly-flash", { detail: tr("Couldn't open that video.") }));
+const alertVideo = () => window.dispatchEvent(new CustomEvent("lacerta-flash", { detail: tr("Couldn't open that video.") }));
 
 // Posting, in three steps like the big apps:
 //   1. pick photos (camera or gallery, up to 10)  2. edit them  3. details, then Share.
@@ -58,7 +58,7 @@ export function ComposerFlow({ me, cars, communities, users, initialCommunityId,
         await onSubmit({ ...details, photos: [{ type: "video", url, poster: out.poster, aspect: out.aspect, duration: out.duration, mime: out.type }] });
       } catch (e) {
         setPreparing(null);
-        if (e?.message !== "cancelled") window.dispatchEvent(new CustomEvent("carfooly-flash", { detail: tr("Couldn't prepare that video. Try a shorter part.") }));
+        if (e?.message !== "cancelled") window.dispatchEvent(new CustomEvent("lacerta-flash", { detail: tr("Couldn't prepare that video. Try a shorter part.") }));
       }
       setBusy(false);
       return;

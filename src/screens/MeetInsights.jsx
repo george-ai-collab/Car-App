@@ -145,7 +145,7 @@ export function MeetInsights({ meet, meets, cars, openProfile }) {
       </div>
 
       <div style={{ color: T.textDim, fontSize: 11.5, textAlign: "center", lineHeight: 1.5 }}>
-        {tr("All Pro tools are free while Carfooly is in beta.")}
+        {tr("All Pro tools are free while Lacerta is in beta.")}
       </div>
     </div>
   );

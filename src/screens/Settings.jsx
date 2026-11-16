@@ -93,7 +93,7 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, is
 
       <SectionLabel>{tr("Help")}</SectionLabel>
       <Group>
-        <Row icon={<Info size={16} />} label={tr("How Carfooly works")} sub={tr("See the intro again")} onClick={onTour} />
+        <Row icon={<Info size={16} />} label={tr("How Lacerta works")} sub={tr("See the intro again")} onClick={onTour} />
       </Group>
 
       <Group>
@@ -101,7 +101,7 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, is
       </Group>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: T.textDim, fontSize: 12, marginTop: 4 }}>
-        <Info size={12} /> {tr("Carfooly")} {APP_VERSION}{user.joinedAt ? tr(" · joined {0}", fmtDate(user.joinedAt)) : ""}
+        <Info size={12} /> {tr("Lacerta")} {APP_VERSION}{user.joinedAt ? tr(" · joined {0}", fmtDate(user.joinedAt)) : ""}
       </div>
 
       <BottomSheet open={sheet === "language"} onClose={() => setSheet(null)} title={tr("Language")}>

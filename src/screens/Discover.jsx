@@ -11,45 +11,201 @@ import { tracks as loadTracks, refreshNews } from "../lib/catalog";
 import { distanceKm, loadArea, saveArea, directionsUrl, reversePlace } from "../lib/geo";
 import { handleLocationError } from "../lib/permissions";
 
-// Discover is a set of doors: tap one to open that section (like the + menu).
-export function DiscoverView({ meets, communities, news, onOpenSearch, onOpenCommunities, onOpenMeets, onOpenNews, onOpenTracks, onScan }) {
-  const upcoming = Object.values(meets).filter((m) => !m.when || new Date(m.when) >= new Date()).length;
-  const tiles = [
-    { id: "meets", title: tr("Meets"), sub: tr("Find meets near you, or anywhere in the world"), count: tr("{0} upcoming", upcoming), icon: <Calendar size={24} color="#C9D3DB" />, tone: "accent2", onClick: onOpenMeets },
-    { id: "communities", title: tr("Communities"), sub: tr("Your make, your scene, your people"), count: tr("{0} communities", Object.keys(communities).length), icon: <Users size={24} color={T.accent} />, tone: "accent", onClick: onOpenCommunities },
-    { id: "tracks", title: tr("Tracks"), sub: tr("Race tracks, drag strips and karting near you"), count: tr("Track days and drag nights"), icon: <Flag size={24} color="#C9D3DB" />, tone: "accent2", onClick: onOpenTracks },
-    { id: "news", title: tr("News"), sub: tr("What's happening in cars and racing"), count: tr("{0} stories", Object.keys(news).length), icon: <Rss size={24} color={T.accentWarm} />, tone: "warm", onClick: onOpenNews },
+// Discover reads like the feed: a scrolling list of cards (upcoming meets, news stories,
+// communities, tracks near you), with quick links to each section at the top.
+export function DiscoverView({ me, users, meets, communities, news, onOpenSearch, onOpenCommunities, onOpenMeets, onOpenNews, onOpenTracks, onScan, openMeet, openProfile, openCommunity, onLikeNews, onToggleCommunity }) {
+  const now = Date.now();
+  const upcoming = Object.values(meets).filter((m) => m.when && new Date(m.when).getTime() > now - 4 * 3600e3).sort((a, b) => new Date(a.when) - new Date(b.when));
+  const stories = Object.values(news).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const groups = Object.values(communities).sort((a, b) => b.members.length - a.members.length);
+  const [near, setNear] = useState(null);
+  useEffect(() => {
+    let on = true;
+    Promise.all([loadTracks(), loadArea()]).then(([list, area]) => {
+      if (!on || !list?.length) return;
+      const withKm = list.map((t) => ({ ...t, km: area?.lat != null ? distanceKm(area, t) : null })).sort((x, y) => (x.km ?? 1e9) - (y.km ?? 1e9)).slice(0, 3);
+      setNear({ list: withKm, area });
+    });
+    return () => { on = false; };
+  }, []);
+
+  // Mix the cards like a feed: a meet, a couple of stories, a community, tracks…
+  const cards = [];
+  const mq = upcoming.slice(0, 6), nq = stories.slice(0, 14), cq = groups.slice(0, 4);
+  let i = 0;
+  while (mq.length || nq.length || cq.length) {
+    if (mq.length) cards.push({ k: "meet", v: mq.shift() });
+    if (nq.length) cards.push({ k: "news", v: nq.shift() });
+    if (nq.length) cards.push({ k: "news", v: nq.shift() });
+    if (i === 0 && near) cards.push({ k: "tracks" });
+    if (cq.length) cards.push({ k: "community", v: cq.shift() });
+    i++;
+  }
+  if (!cards.some((c) => c.k === "tracks") && near) cards.push({ k: "tracks" });
+
+  const sections = [
+    { id: "meets", title: tr("Meets"), icon: <Calendar size={16} />, n: upcoming.length, onClick: onOpenMeets },
+    { id: "communities", title: tr("Communities"), icon: <Users size={16} />, n: Object.keys(communities).length, onClick: onOpenCommunities },
+    { id: "tracks", title: tr("Tracks"), icon: <Flag size={16} />, onClick: onOpenTracks },
+    { id: "news", title: tr("News"), icon: <Rss size={16} />, n: stories.length, onClick: onOpenNews },
   ];
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-        <div className="display" style={{ fontSize: 24, color: T.text }}>{tr("Discover")}</div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div className="display" style={{ fontSize: 26, color: T.text }}>{tr("Discover")}</div>
         <div style={{ display: "flex", gap: 8 }}>
           {onScan && (
-            <button onClick={onScan} aria-label={tr("Scan a tag")} data-testid="scan-tag" className="press" style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 999, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <button onClick={onScan} aria-label={tr("Scan a tag")} data-testid="scan-tag" className="press" style={roundBtn}>
               <ScanLine size={19} color={T.text} />
             </button>
           )}
-          <button onClick={onOpenSearch} aria-label={tr("Search")} className="press" style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 999, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Search size={19} color={T.text} />
-          </button>
         </div>
       </div>
-      {tiles.map((t) => (
-        <button key={t.id} data-testid={`door-${t.id}`} onClick={t.onClick} className="press" style={{
-          width: "100%", display: "flex", alignItems: "center", gap: 16, padding: "22px 18px", marginBottom: 12, textAlign: "start",
-          background: `linear-gradient(135deg, ${T.surface2}, ${T.surface})`, border: `1px solid ${T.lineDark}`, borderRadius: 24, boxShadow: T.shadowCard,
-        }}>
-          <IconBadge size={56} tone={t.tone}>{t.icon}</IconBadge>
-          <div style={{ flex: 1 }}>
-            <div style={{ color: T.text, fontSize: 18, fontWeight: 700 }}>{t.title}</div>
-            <div style={{ color: T.textDim, fontSize: 13, lineHeight: 1.4, marginTop: 3 }}>{t.sub}</div>
-            <div className="plate" style={{ color: T.textDim, fontSize: 10.5, marginTop: 8 }}>{t.count}</div>
-          </div>
-          <ChevronRight size={20} color={T.textDim} />
-        </button>
-      ))}
+      <button onClick={onOpenSearch} aria-label={tr("Search")} className="press" style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 16, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.textDim, fontSize: 14, marginBottom: 12, textAlign: "start" }}>
+        <Search size={17} color={T.textDim} /> {tr("Search people, cars and communities")}
+      </button>
+      <div data-noswipe style={{ display: "flex", gap: 8, overflowX: "auto", margin: "0 -16px 6px", padding: "0 16px 4px" }}>
+        {sections.map((t) => (
+          <button key={t.id} data-testid={`door-${t.id}`} onClick={t.onClick} className="press" style={{
+            flex: "0 0 auto", display: "flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 999,
+            border: `1px solid ${T.lineDark}`, background: T.surface2, color: T.text, fontSize: 13.5, fontWeight: 700,
+          }}>
+            <span style={{ color: T.accent, display: "flex" }}>{t.icon}</span>{t.title}
+            {t.n != null && <span style={{ color: T.textDim, fontWeight: 600, fontSize: 12 }}>{t.n}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ margin: "0 -16px" }}>
+        {cards.length === 0 && <div style={{ padding: "30px 16px" }}><EmptyState icon={<Rss size={20} color={T.textDim} />} title={tr("Nothing here yet")} body={tr("Check back soon.")} /></div>}
+        {cards.map((c, k) => {
+          if (c.k === "meet") return <MeetFeedCard key={"m" + c.v.id} meet={c.v} users={users} onOpen={openMeet} openProfile={openProfile} />;
+          if (c.k === "news") return <NewsFeedCard key={"n" + c.v.id} item={c.v} me={me} onLike={onLikeNews} />;
+          if (c.k === "community") return <CommunityFeedCard key={"c" + c.v.id} c={c.v} me={me} onOpen={openCommunity} onToggle={onToggleCommunity} />;
+          return <TracksFeedCard key={"t" + k} near={near} onOpen={onOpenTracks} />;
+        })}
+      </div>
     </div>
+  );
+}
+const roundBtn = { background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 999, width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" };
+const cardWrap = { borderTop: `1px solid ${T.lineDark}`, padding: "14px 0 6px", animation: "fadeIn .3s ease" };
+const cardHead = { display: "flex", alignItems: "center", gap: 11, padding: "0 16px" };
+const kicker = (color) => ({ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, color, fontWeight: 700 });
+
+function MeetFeedCard({ meet, users, onOpen, openProfile }) {
+  const d = new Date(meet.when);
+  const going = (meet.attendees || []).length;
+  const host = meet.submittedBy;
+  const live = d.getTime() <= Date.now();
+  return (
+    <article data-testid="discover-meet" style={cardWrap}>
+      <div style={cardHead}>
+        {host ? <button onClick={() => openProfile?.(host)} style={{ background: "none", border: "none", padding: 0 }}><Avatar username={host} size={42} /></button> : <IconBadge size={42} tone="accent"><Calendar size={18} color={T.text} /></IconBadge>}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>{host ? (users?.[host]?.name || host) : tr("Meet")}</div>
+          <div className="plate" style={kicker(live ? "#FFB3B8" : T.accent)}><Calendar size={11} /> {live ? tr("Live now") : tr("Upcoming meet")}</div>
+        </div>
+      </div>
+      <button onClick={() => onOpen?.(meet.id)} className="press" style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, textAlign: "start", marginTop: 12 }}>
+        <div style={{ position: "relative", height: 170, overflow: "hidden",
+          background: meet.cover ? `url(${meet.cover}) center/cover` : `radial-gradient(120% 120% at 100% 0%, rgba(212,67,77,0.45), transparent 60%), linear-gradient(135deg, #22252B, ${T.bg})` }}>
+          <div style={{ position: "absolute", left: 16, bottom: 14, right: 16, display: "flex", alignItems: "flex-end", gap: 14 }}>
+            <div style={{ background: "rgba(12,13,16,0.75)", backdropFilter: "blur(6px)", borderRadius: 14, padding: "8px 12px", textAlign: "center", border: `1px solid ${T.glassBorder}` }}>
+              <div className="plate" style={{ color: T.accent, fontSize: 10.5 }}>{d.toLocaleDateString(locale(), { month: "short" })}</div>
+              <div className="display" style={{ color: "#fff", fontSize: 26, lineHeight: 1 }}>{d.getDate()}</div>
+            </div>
+            <div style={{ flex: 1, minWidth: 0, color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,0.6)" }}>
+              <div className="display" style={{ fontSize: 22, lineHeight: 1.1 }}>{meet.title}</div>
+              <div style={{ fontSize: 12.5, opacity: 0.9, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                {d.toLocaleTimeString(locale(), { hour: "numeric", minute: "2-digit" })} · <MapPin size={11} /> <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{meet.city || meet.location}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </button>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px 8px" }}>
+        <span style={{ color: T.textDim, fontSize: 13 }}>{going === 1 ? tr("1 going") : tr("{0} going", going)}</span>
+        <button onClick={() => onOpen?.(meet.id)} className="press" style={{ padding: "8px 16px", borderRadius: 999, border: "none", background: T.accent, color: "#fff", fontWeight: 700, fontSize: 13 }}>{tr("See meet")}</button>
+      </div>
+    </article>
+  );
+}
+
+function NewsFeedCard({ item, me, onLike }) {
+  const liked = item.likes.includes(me);
+  const [pop, setPop] = useState(false);
+  const doLike = () => { onLike(item.id); if (!liked) { setPop(true); setTimeout(() => setPop(false), 350); } };
+  return (
+    <article data-testid="discover-news" dir={item.lang === "ar" ? "rtl" : undefined} style={cardWrap}>
+      <div style={cardHead}>
+        <IconBadge size={42} tone="warm"><Rss size={18} color={T.accentWarm} /></IconBadge>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>{item.source}</div>
+          <div style={{ color: T.textDim, fontSize: 12 }}>{timeAgo(item.date)}</div>
+        </div>
+      </div>
+      <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ display: "block", color: T.text, fontSize: 16, fontWeight: 700, lineHeight: 1.35, padding: "10px 16px 0", textDecoration: "none" }}>{item.title}</a>
+      {item.image && (
+        <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginTop: 12 }}>
+          <img src={item.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.parentElement.style.display = "none"; }}
+            style={{ width: "100%", aspectRatio: "16 / 9", objectFit: "cover", display: "block", background: T.surface2 }} />
+        </a>
+      )}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "6px 6px 4px" }}>
+        <button onClick={doLike} aria-label={tr("Like")} className="press" style={actBtn}>
+          <Heart size={20} color={liked ? T.accent : T.textDim} fill={liked ? T.accent : "none"} className={pop ? "heart-pop" : ""} /> <span>{item.likes.length}</span>
+        </button>
+        <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ ...actBtn, textDecoration: "none" }}><ExternalLink size={18} color={T.textDim} /> {tr("Read")}</a>
+      </div>
+    </article>
+  );
+}
+const actBtn = { background: "none", border: "none", padding: "10px 14px", display: "flex", alignItems: "center", gap: 7, color: T.textDim, fontSize: 14, fontWeight: 600 };
+
+function CommunityFeedCard({ c, me, onOpen, onToggle }) {
+  const state = c.members.includes(me) ? "joined" : (c.requests || []).includes(me) ? "requested" : c.kind === "custom" && c.joinMode === "approval" ? "ask" : "join";
+  const label = { joined: tr("Joined"), requested: tr("Requested"), ask: tr("Ask to join"), join: tr("Join") }[state];
+  return (
+    <article data-testid="discover-community" style={cardWrap}>
+      <div style={cardHead}>
+        <IconBadge size={42} tone="accent"><Users size={18} color={T.accent} /></IconBadge>
+        <button onClick={() => onOpen?.(c.id)} style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "start" }}>
+          <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>{c.name}</div>
+          <div style={{ color: T.textDim, fontSize: 12 }}>{c.members.length === 1 ? tr("1 member") : tr("{0} members", c.members.length)}</div>
+        </button>
+        <button onClick={() => onToggle?.(c.id)} className="press" style={{ padding: "8px 14px", borderRadius: 999, border: state === "join" || state === "ask" ? "none" : `1px solid ${T.lineDark}`, background: state === "join" || state === "ask" ? T.accent : "none", color: state === "join" || state === "ask" ? "#fff" : T.textDim, fontSize: 12.5, fontWeight: 700 }}>{label}</button>
+      </div>
+      {c.description && <div style={{ color: T.textDim, fontSize: 13.5, lineHeight: 1.45, padding: "10px 16px 10px" }}>{c.description}</div>}
+    </article>
+  );
+}
+
+function TracksFeedCard({ near, onOpen }) {
+  if (!near) return null;
+  return (
+    <article data-testid="discover-tracks" style={cardWrap}>
+      <div style={cardHead}>
+        <IconBadge size={42} tone="accent2"><Flag size={18} color={T.accent2} /></IconBadge>
+        <div style={{ flex: 1 }}>
+          <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>{tr("Tracks near you")}</div>
+          <div style={{ color: T.textDim, fontSize: 12 }}>{near.area ? tr("From {0}", near.area.label || near.area.city || tr("your area")) : tr("Race tracks, drag strips and karting")}</div>
+        </div>
+      </div>
+      <div style={{ padding: "8px 16px 6px" }}>
+        {near.list.map((t) => (
+          <button key={t.id} onClick={onOpen} className="press" style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 0", background: "none", border: "none", borderBottom: `1px solid ${T.lineDark}`, textAlign: "start" }}>
+            <Flag size={15} color={T.accent} />
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: "block", color: T.text, fontSize: 14, fontWeight: 600 }}>{t.name}</span>
+              <span style={{ display: "block", color: T.textDim, fontSize: 12 }}>{[t.city, t.country].filter(Boolean).join(", ")}</span>
+            </span>
+            {t.km != null && <span className="plate" style={{ color: T.accent2, fontSize: 11.5 }}>{tr("{0} km", t.km < 10 ? t.km.toFixed(1) : Math.round(t.km).toLocaleString(locale()))}</span>}
+          </button>
+        ))}
+        <button onClick={onOpen} className="press" style={{ marginTop: 6, background: "none", border: "none", color: T.accent, fontWeight: 700, fontSize: 13, padding: "6px 0", display: "flex", alignItems: "center", gap: 3 }}>{tr("See all tracks")} <ChevronRight size={14} className="flip-rtl" /></button>
+      </div>
+    </article>
   );
 }
 

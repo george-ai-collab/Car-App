@@ -16,17 +16,17 @@ import { tr } from "../lib/i18n";
 // other people's changes. Offline/test builds (local) keep everything on the device.
 
 export const KEYS = {
-  cars: "carfooly-cars",
-  posts: "carfooly-posts",
-  users: "carfooly-users",
-  news: "carfooly-news",
-  meets: "carfooly-meets",
-  communities: "carfooly-communities",
-  notifications: "carfooly-notifications",
-  sightings: "carfooly-sightings",
-  discussions: "carfooly-discussions",
-  reports: "carfooly-reports",
-  me: "carfooly-me",
+  cars: "lacerta-cars",
+  posts: "lacerta-posts",
+  users: "lacerta-users",
+  news: "lacerta-news",
+  meets: "lacerta-meets",
+  communities: "lacerta-communities",
+  notifications: "lacerta-notifications",
+  sightings: "lacerta-sightings",
+  discussions: "lacerta-discussions",
+  reports: "lacerta-reports",
+  me: "lacerta-me",
 };
 
 const readShared = (key) => window.storage.get(key, true).then((r) => (r ? JSON.parse(r.value) : null)).catch(() => null);
@@ -49,7 +49,7 @@ export function useStore(flash) {
   });
   // Private to the signed-in person: posts they hid ("not interested") and people they blocked.
   const [prefs, setPrefs] = useState({ hidden: [], blocked: [] });
-  const prefsKey = (h) => `carfooly-prefs:${h}`;
+  const prefsKey = (h) => `lacerta-prefs:${h}`;
   useEffect(() => {
     if (!me || REMOTE) return;
     window.storage.get(prefsKey(me), false).then((r) => setPrefs(r ? { hidden: [], blocked: [], ...JSON.parse(r.value) } : { hidden: [], blocked: [] })).catch(() => {});
@@ -71,7 +71,7 @@ export function useStore(flash) {
   const version = useRef(0);          // goes up with every change made on this phone
   const newId = (prefix) => (REMOTE ? crypto.randomUUID() : uid(prefix));
   const idOf = (handle) => ref.current.users[handle]?.id || null;
-  const CACHE = "carfooly-cache";
+  const CACHE = "lacerta-cache";
 
   const apply = (res) => {
     ref.current = res.data;
@@ -259,7 +259,7 @@ export function useStore(flash) {
     try { await startSession(res.userId); return {}; } catch { return { error: tr("Password changed. Log in with your new password.") }; }
   };
   // New accounts get a short "make it yours" setup once (remembered on this phone).
-  const setupKey = (h) => `carfooly-setup:${h}`;
+  const setupKey = (h) => `lacerta-setup:${h}`;
   const markNewAccount = (h) => window.storage.set(setupKey(h), "pending", false).catch(() => {});
 
   const updateProfile = async ({ name, bio, avatar, accountType }, quiet) => {

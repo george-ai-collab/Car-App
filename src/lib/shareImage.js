@@ -11,7 +11,7 @@ export async function shareImage({ png, name, text }) {
   try {
     if (Capacitor.isNativePlatform()) {
       const file = await Filesystem.writeFile({ path: name, data: base64, directory: Directory.Cache });
-      await Share.share({ title: "Carfooly", text, files: [file.uri], dialogTitle: tr("Share tag") });
+      await Share.share({ title: "Lacerta", text, files: [file.uri], dialogTitle: tr("Share tag") });
       return "shared";
     }
     const blob = await (await fetch(png)).blob();

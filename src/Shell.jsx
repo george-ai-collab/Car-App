@@ -37,19 +37,19 @@ export function Shell({ store, toast }) {
   const [sheets, setSheets] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false); // Settings slides in from the side over your profile
   // Only brand-new accounts see the intro: first the short "make it yours" setup, then the tour.
-  // Logging back in to an existing account never shows it (it's in Settings → How Carfooly works).
+  // Logging back in to an existing account never shows it (it's in Settings → How Lacerta works).
   const [tour, setTour] = useState(false);
   const [setup, setSetup] = useState(false);
   useEffect(() => {
-    window.storage.get(`carfooly-setup:${me}`, false).then((r) => {
+    window.storage.get(`lacerta-setup:${me}`, false).then((r) => {
       if (r?.value !== "pending") return;
-      if (window.__skipWelcome) { window.storage.set(`carfooly-setup:${me}`, "done", false).catch(() => {}); setTour(true); } // tests
+      if (window.__skipWelcome) { window.storage.set(`lacerta-setup:${me}`, "done", false).catch(() => {}); setTour(true); } // tests
       else setSetup(true);
     }).catch(() => {});
   }, [me]);
   const finishSetup = async (data, addCar) => {
     if ((await a.updateProfile(data, true)) === false) return; // e.g. a word we don't allow: stay on the setup
-    window.storage.set(`carfooly-setup:${me}`, "done", false).catch(() => {});
+    window.storage.set(`lacerta-setup:${me}`, "done", false).catch(() => {});
     setSetup(false);
     setTour(true);
     if (addCar) { addCarAfterTour.current = true; return; }
@@ -70,8 +70,8 @@ export function Shell({ store, toast }) {
 
   // Android back button / gesture (see main.jsx). Returns false on the Feed so the app minimizes.
   useEffect(() => {
-    window.__carfoolyBack = back;
-    return () => { delete window.__carfoolyBack; };
+    window.__lacertaBack = back;
+    return () => { delete window.__lacertaBack; };
   }, [back]);
 
   // Each page comes back at the scroll position you left it.
@@ -109,12 +109,12 @@ export function Shell({ store, toast }) {
   const [tagFor, setTagFor] = useState(null); // { kind, id, title, subtitle }
   const openFromTag = (text, source = "tag") => {
     const t = parseTag(text);
-    if (!t) { store.flash(tr("That's not a Carfooly tag")); return; }
+    if (!t) { store.flash(tr("That's not a Lacerta tag")); return; }
     if (t.kind === "meet") {
-      if (!meets[t.id]) { store.flash(tr("That meet isn't on Carfooly anymore")); return; }
+      if (!meets[t.id]) { store.flash(tr("That meet isn't on Lacerta anymore")); return; }
       setTagFor(null); go("meet", { id: t.id, source });
     } else if (t.kind === "user") {
-      if (!users[t.id]) { store.flash(tr("No one on Carfooly has that tag")); return; }
+      if (!users[t.id]) { store.flash(tr("No one on Lacerta has that tag")); return; }
       setTagFor(null); openProfile(t.id);
     } else {
       const car = cars[t.id];
@@ -132,9 +132,9 @@ export function Shell({ store, toast }) {
   fromTagRef.current = openFromTag;
   useEffect(() => {
     const on = (e) => fromTagRef.current(e.detail, "link"); // opened from outside the app
-    window.addEventListener("carfooly-open-tag", on);
+    window.addEventListener("lacerta-open-tag", on);
     if (window.__pendingTag) { const t = window.__pendingTag; window.__pendingTag = null; setTimeout(() => fromTagRef.current(t, "link"), 0); }
-    return () => window.removeEventListener("carfooly-open-tag", on);
+    return () => window.removeEventListener("lacerta-open-tag", on);
   }, []);
 
   const unread = (notifications[me] || []).filter((n) => !n.read).length;
@@ -154,7 +154,7 @@ export function Shell({ store, toast }) {
     case "userPosts":
       page = <Feed me={me} cars={cars} posts={posts} users={users} onlyUser={p.username} startId={p.id}
         openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
-        actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
+        actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} onBack={back} />;
       break;
     case "inbox":
       page = <InboxView me={me} notifications={notifications[me] || []} posts={posts} cars={cars} discussions={discussions}
@@ -166,7 +166,7 @@ export function Shell({ store, toast }) {
         openCar={openCar} openProfile={openProfile} openCommunity={openCommunity}
         onLikeNews={a.toggleNewsLike} onToggleGoing={a.toggleGoing} onToggleCommunity={a.toggleCommunityMembership}
         onOpenSearch={() => go("search")} onOpenCommunities={() => go("communityList")}
-        onOpenMeets={() => go("meetList")} onOpenNews={() => go("newsList")} onOpenTracks={() => go("tracks")} />;
+        onOpenMeets={() => go("meetList")} onOpenNews={() => go("newsList")} onOpenTracks={() => go("tracks")} openMeet={(id) => openMeet(id, "discover")} />;
       break;
     case "search":
       page = <SearchScreen me={me} cars={cars} users={users} communities={communities}

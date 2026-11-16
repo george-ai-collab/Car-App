@@ -6,7 +6,7 @@ let client = null;
 export function sb() {
   if (!client) {
     client = createClient(SUPABASE_URL, SUPABASE_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: "carfooly-auth" },
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false, storageKey: "lacerta-auth" },
     });
   }
   return client;

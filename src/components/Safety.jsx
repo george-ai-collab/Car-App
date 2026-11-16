@@ -80,8 +80,8 @@ export function PermissionNotice() {
   const [kind, setKind] = useState(null);
   useEffect(() => {
     const on = (e) => setKind(e.detail);
-    window.addEventListener("carfooly-permission", on);
-    return () => window.removeEventListener("carfooly-permission", on);
+    window.addEventListener("lacerta-permission", on);
+    return () => window.removeEventListener("lacerta-permission", on);
   }, []);
   const info = kind && PERMISSION_HELP[kind];
   return (

@@ -43,10 +43,10 @@ export function ShareTagSheet({ open, onClose, kind, id, title, subtitle, onScan
     setBusy(true);
     const r = await shareImage({
       png: drawTagCard({ link, title, subtitle, kind }),
-      name: `carfooly-tag-${kind === "user" ? id : kind}.png`,
-      text: kind === "car" ? tr("{0} on Carfooly. Scan the tag to open its page.", title)
-        : kind === "meet" ? tr("{0} on Carfooly. Scan the tag to see the meet and say you're going.", title)
-        : tr("Find me on Carfooly: @{0}. Scan my tag to open my profile.", id),
+      name: `lacerta-tag-${kind === "user" ? id : kind}.png`,
+      text: kind === "car" ? tr("{0} on Lacerta. Scan the tag to open its page.", title)
+        : kind === "meet" ? tr("{0} on Lacerta. Scan the tag to see the meet and say you're going.", title)
+        : tr("Find me on Lacerta: @{0}. Scan my tag to open my profile.", id),
     });
     setBusy(false);
     if (r === "saved" && flash) flash(tr("Tag saved"));
@@ -60,7 +60,7 @@ export function ShareTagSheet({ open, onClose, kind, id, title, subtitle, onScan
           background: "radial-gradient(120% 70% at 50% 0%, rgba(212,67,77,0.30), rgba(12,13,16,0) 70%), #121214",
           border: `1px solid ${T.lineDark}`,
         }}>
-          <div className="plate" style={{ fontSize: 10.5, color: T.textDim, letterSpacing: "0.18em" }}>{tr("CARFOOLY")}</div>
+          <div className="plate" style={{ fontSize: 10.5, color: T.textDim, letterSpacing: "0.18em" }}>{tr("LACERTA")}</div>
           <div className="display" data-testid="tag-title" style={{ fontSize: 22, color: T.text, marginTop: 8, lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
           {subtitle && <div className={subtitle.startsWith("@") ? "plate handle" : "plate"} style={{ fontSize: 12, color: T.textDim, marginTop: 4 }}>{subtitle}</div>}
           <div style={{ display: "inline-block", background: "#fff", borderRadius: 22, padding: 12, marginTop: 16, boxShadow: "0 10px 40px rgba(0,0,0,0.45)" }}>
@@ -119,7 +119,7 @@ export function drawTagCard({ link, title, subtitle, kind }) {
     g.drawImage(logoImg, hx + cell * 0.4, hy + cell * 0.4, hs - cell * 0.8, hs - cell * 0.8);
   }
   g.fillStyle = "rgba(245,244,242,0.6)"; g.font = "500 34px system-ui, sans-serif";
-  g.fillText(kind === "car" ? tr("Scan with Carfooly to open this car") : kind === "meet" ? tr("Scan with Carfooly to see the meet") : tr("Scan with Carfooly to open my profile"), W / 2, by + box + 100);
+  g.fillText(kind === "car" ? tr("Scan with Lacerta to open this car") : kind === "meet" ? tr("Scan with Lacerta to see the meet") : tr("Scan with Lacerta to open my profile"), W / 2, by + box + 100);
   return cv.toDataURL("image/png");
 }
 

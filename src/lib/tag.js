@@ -3,7 +3,7 @@ import qrcode from "qrcode-generator";
 // Share tags: a QR code for every profile, car page and meet.
 // A tag only holds a permanent id (the handle, which can never change, or the car's id),
 // so the same profile or car always gets the exact same QR code. It never rolls over.
-export const TAG_SCHEME = "carfooly";
+export const TAG_SCHEME = "lacerta";
 
 export const tagLink = (kind, id) => `${TAG_SCHEME}://${kind === "car" ? "car" : kind === "meet" ? "m" : "u"}/${encodeURIComponent(id)}`;
 
@@ -15,9 +15,10 @@ export const ticketLink = (meetId, code) => `${TAG_SCHEME}://t/${encodeURICompon
 export function parseTag(text) {
   if (!text || typeof text !== "string") return null;
   const t = text.trim();
-  const tk = t.match(/^carfooly:\/\/t\/([^/?#\s]+)\/([^/?#\s]+)/i);
+  // Tags made before the rename (carfooly://) still work.
+  const tk = t.match(/^(?:lacerta|carfooly):\/\/t\/([^/?#\s]+)\/([^/?#\s]+)/i);
   if (tk) { try { return { kind: "ticket", meetId: decodeURIComponent(tk[1]), code: decodeURIComponent(tk[2]).toUpperCase() }; } catch { return null; } }
-  let m = t.match(/^carfooly:\/\/(car|u|m)\/([^/?#\s]+)/i);
+  let m = t.match(/^(?:lacerta|carfooly):\/\/(car|u|m)\/([^/?#\s]+)/i);
   if (!m) m = t.match(/^https?:\/\/[^/]+\/(c|car|u|m)\/([^/?#\s]+)/i);
   if (!m) return null;
   const k = m[1].toLowerCase();
