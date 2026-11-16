@@ -95,7 +95,7 @@ export function CrewChat({ community: c, me, users, meets = {}, isAppAdmin, myId
       reload();
     } catch (e) {
       const msg = String(e?.message || "").toLowerCase();
-      flash(msg.includes("row-level") ? tr("Only admins can send messages here right now.") : msg.includes("not allowed words") ? tr("That includes words we don't allow on Carfooly. Please keep it respectful.") : tr("Couldn't send that. Try again."));
+      flash(msg.includes("row-level") ? tr("Only admins can send messages here right now.") : msg.includes("not allowed words") ? tr("That includes words we don't allow on Lacerta. Please keep it respectful.") : tr("Couldn't send that. Try again."));
     }
     setSending(false);
   };

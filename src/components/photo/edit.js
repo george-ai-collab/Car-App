@@ -29,7 +29,7 @@ export const FILTERS = [
   { id: "noir", label: tr("Noir"), css: "grayscale(1) contrast(1.45) brightness(0.9)" },
 ];
 
-export const TEXT_COLORS = ["#FFFFFF", "#141414", "#E63846", "#F2B84B", "#457B90", "#7BD389"];
+export const TEXT_COLORS = ["#FFFFFF", "#141414", "#D4434D", "#CBB083", "#8A9BAA", "#8FBF9A"];
 
 export function blankEdit(src, w, h) {
   return {
@@ -116,7 +116,7 @@ export function bakeEdit(e, ratio, maxW = 1080) {
       }
       (e.stickers || []).forEach((s) => {
         const x = (s.x / 100) * W, y = (s.y / 100) * H, w = (s.w / 100) * W, h = (s.h / 100) * H, r = Math.min(10, w / 4, h / 4);
-        ctx.fillStyle = "rgba(10,10,11,0.96)";
+        ctx.fillStyle = "rgba(12,13,16,0.96)";
         ctx.beginPath();
         ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
         ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); ctx.fill();

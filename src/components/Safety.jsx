@@ -32,7 +32,7 @@ export function ReportSheet({ open, onClose, what, onSend, reasons = REPORT_REAS
         {reasons.map((r) => (
           <button key={r} data-testid="report-reason" onClick={() => setReason(r)} className="press" style={{
             padding: "12px 14px", borderRadius: 14, textAlign: "start", fontSize: 14, fontWeight: 600,
-            border: `1px solid ${reason === r ? T.accent : "transparent"}`, background: reason === r ? "rgba(230,56,70,0.14)" : "rgba(255,255,255,0.06)", color: T.text,
+            border: `1px solid ${reason === r ? T.accent : "transparent"}`, background: reason === r ? "rgba(212,67,77,0.14)" : "rgba(255,255,255,0.06)", color: T.text,
           }}>{tr(r)}</button>
         ))}
       </div>
@@ -80,8 +80,8 @@ export function PermissionNotice() {
   const [kind, setKind] = useState(null);
   useEffect(() => {
     const on = (e) => setKind(e.detail);
-    window.addEventListener("carfooly-permission", on);
-    return () => window.removeEventListener("carfooly-permission", on);
+    window.addEventListener("lacerta-permission", on);
+    return () => window.removeEventListener("lacerta-permission", on);
   }, []);
   const info = kind && PERMISSION_HELP[kind];
   return (

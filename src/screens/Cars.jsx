@@ -155,7 +155,7 @@ export function AddCarForm({ onSubmit, initial, flash }) {
       <button disabled={!valid || busy} className="press"
         onClick={async () => { setBusy(true); await onSubmit({ make: pick.canonMake || make, model: pick.canonModel || model, year, nickname, photoUrl, engine, power, gearbox, weight, wheels, zeroToSixty, topSpeed, note, noteDetail, hasPage }); setBusy(false); }}
         style={{ width: "100%", padding: "14px 16px", borderRadius: 16, border: "none", background: valid ? T.accent : T.surface2, color: valid ? "#fff" : T.textDim, fontWeight: 700, fontSize: 15, opacity: busy ? 0.7 : 1 }}>
-        {busy ? tr("Saving…") : editing ? tr("Save changes") : tr("Add to Carfooly")}
+        {busy ? tr("Saving…") : editing ? tr("Save changes") : tr("Add to Lacerta")}
       </button>
     </div>
   );
@@ -171,7 +171,7 @@ export function Toggle({ on, onChange, label, sub }) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)} className="press" style={{
       width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", marginBottom: 16, borderRadius: 16,
-      border: `1px solid ${on ? "rgba(230,56,70,0.5)" : T.lineDark}`, background: T.surface, textAlign: "start",
+      border: `1px solid ${on ? "rgba(212,67,77,0.5)" : T.lineDark}`, background: T.surface, textAlign: "start",
     }}>
       <div style={{ flex: 1 }}>
         <div style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{label}</div>
@@ -202,7 +202,7 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
   const timeline = [...car.timeline].sort((a, b) => new Date(b.date) - new Date(a.date));
   const specs = [
     [tr("Engine"), car.engine], [tr("Power"), car.power], [tr("Gearbox"), car.gearbox], [tr("Weight"), car.weight],
-    [tr("Wheels"), car.wheels], ["0-60", car.zeroToSixty], [tr("Top speed"), car.topSpeed], [tr("On Carfooly since"), fmtDate(car.createdAt)],
+    [tr("Wheels"), car.wheels], ["0-60", car.zeroToSixty], [tr("Top speed"), car.topSpeed], [tr("On Lacerta since"), fmtDate(car.createdAt)],
   ].filter(([, v]) => v);
   const order = ["posts", "build", "specs", "spotters"];
   const sw = useSwipe({ onLeft: () => setTab && setTab(order[Math.min(3, order.indexOf(tab) + 1)]), onRight: () => setTab && setTab(order[Math.max(0, order.indexOf(tab) - 1)]) });
@@ -217,11 +217,11 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
       {/* Hero: the car */}
       <div style={{ position: "relative", margin: "0 -16px", aspectRatio: "4 / 3.2", maxHeight: "52vh", background: car.photoUrl ? `url(${car.photoUrl}) center/cover` : `linear-gradient(135deg, hsl(${hue},45%,24%), hsl(${hue},35%,10%))` }}>
         {!car.photoUrl && <Car size={70} color="rgba(245,244,242,0.35)" style={{ position: "absolute", left: "50%", top: "42%", transform: "translate(-50%,-50%)" }} />}
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(10,10,11,1) 0%, rgba(10,10,11,0.55) 30%, rgba(10,10,11,0) 60%)" }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(12,13,16,1) 0%, rgba(12,13,16,0.55) 30%, rgba(12,13,16,0) 60%)" }} />
         {safety && (
           <div style={{ position: "absolute", right: 14, top: 14, borderRadius: 999, background: "rgba(0,0,0,0.4)" }}>
             <MoreMenu label={tr("Car options")} testid="car-menu" flash={safety.flash}
-              share={{ title: tr("Carfooly"), text: tr("{0} ({1}), kept by @{2} on Carfooly", name, car.year, car.ownerUsername) }}
+              share={{ title: tr("Lacerta"), text: tr("{0} ({1}), kept by @{2} on Lacerta", name, car.year, car.ownerUsername) }}
               items={[
                 ...(isOwner && onEdit ? [{ label: tr("Edit car"), icon: <Pencil size={17} />, onClick: onEdit }] : []),
                 ...(showTag ? [{ label: tr("Share tag"), icon: <QrCode size={17} />, onClick: showTag }] : []),
@@ -252,7 +252,7 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
           </div>
         </button>
         {!isOwner && onFollowOwner && (
-          <button onClick={onFollowOwner} className="press" style={{ padding: "6px 12px", borderRadius: 999, border: `1px solid ${followsOwner ? T.lineDark : T.accent}`, background: followsOwner ? "transparent" : "rgba(230,56,70,0.14)", color: followsOwner ? T.textDim : T.accent, fontSize: 12, fontWeight: 700 }}>
+          <button onClick={onFollowOwner} className="press" style={{ padding: "6px 12px", borderRadius: 999, border: `1px solid ${followsOwner ? T.lineDark : T.accent}`, background: followsOwner ? "transparent" : "rgba(212,67,77,0.14)", color: followsOwner ? T.textDim : T.accent, fontSize: 12, fontWeight: 700 }}>
             {followsOwner ? tr("Following") : tr("Follow")}
           </button>
         )}
@@ -261,7 +261,7 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
       {/* Dash: the numbers, like gauges */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12 }}>
         {[[tr("Followers"), (car.followerUsernames || []).length], [tr("Spots"), car.spotterUsernames.length], [tr("Posts"), carPosts.length], [tr("Mods"), car.mods.length]].map(([l, v]) => (
-          <div key={l} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 16, background: "radial-gradient(100% 120% at 50% 0%, rgba(230,56,70,0.12), transparent 70%), " + T.surface, border: `1px solid ${T.lineDark}` }}>
+          <div key={l} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 16, background: "radial-gradient(100% 120% at 50% 0%, rgba(212,67,77,0.12), transparent 70%), " + T.surface, border: `1px solid ${T.lineDark}` }}>
             <div className="plate" style={{ color: T.text, fontSize: 19, fontWeight: 700 }}>{v}</div>
             <div style={{ color: T.textDim, fontSize: 10.5, marginTop: 2 }}>{l}</div>
           </div>
@@ -279,7 +279,7 @@ export function CarPage({ car, me, users = {}, posts = {}, sightings = {}, onAdd
         ) : (
           <>
             <button onClick={onFollowBuild} className="press" style={actBtn(!following)}>{following ? <Check size={15} /> : <Plus size={15} />} {following ? tr("Following build") : tr("Follow build")}</button>
-            {viewerIsDriver && <button onClick={onSpot} disabled={alreadySpotted} className="press" style={{ ...actBtn(false), color: alreadySpotted ? T.textDim : "#8EC3D6" }}><MapPin size={15} /> {alreadySpotted ? tr("Spotted") : tr("I spotted this")}</button>}
+            {viewerIsDriver && <button onClick={onSpot} disabled={alreadySpotted} className="press" style={{ ...actBtn(false), color: alreadySpotted ? T.textDim : "#AEBBC6" }}><MapPin size={15} /> {alreadySpotted ? tr("Spotted") : tr("I spotted this")}</button>}
           </>
         )}
       </div>

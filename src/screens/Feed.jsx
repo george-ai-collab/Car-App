@@ -1,9 +1,9 @@
-import { useState, useRef, useLayoutEffect } from "react";
-import { Car, Compass, Heart, MessageCircle, Search, Bell, MapPin, Share2, Maximize2 } from "lucide-react";
+import { useState, useRef, useLayoutEffect, useEffect } from "react";
+import { Car, Compass, Heart, MessageCircle, Search, Bell, MapPin, Share2, Maximize2, ChevronLeft } from "lucide-react";
 import { T } from "../theme";
-import { LogoIntro } from "../components/Logo";
+import { LogoIntro, logoWhite } from "../components/Logo";
 import { hueForId, timeAgo } from "../lib/utils";
-import { Avatar, FollowAvatar, EmptyState, TextInput, BottomSheet, AccountLabel } from "../components/ui";
+import { Avatar, FollowAvatar, EmptyState, TextInput, BottomSheet, AccountLabel, TabSlide } from "../components/ui";
 import { CommentRow } from "./PostDetail";
 import { PostMenu } from "../components/PostMenu";
 import { PhotoCarousel, postPhotos, VideoButtons } from "../components/photo/PhotoCarousel";
@@ -12,7 +12,7 @@ import { shareText } from "../lib/share";
 import { ActionMenu } from "../components/ui";
 import { MAX_LINES } from "../lib/text";
 import { RichText } from "../components/RichText";
-import { tr , AT } from "../lib/i18n";
+import { locale, tr , AT } from "../lib/i18n";
 
 // Remembers how far down the feed you were, so coming back lands on the same post.
 const feedScroll = new Map();
@@ -22,8 +22,10 @@ const railBtn = { width: 52, background: "none", border: "none", padding: 0, dis
 const railCount = { color: "#fff", fontSize: 12, fontWeight: 600, textShadow: "0 1px 3px rgba(0,0,0,0.5)" };
 const topIcon = { width: 46, height: 46, border: "none", borderRadius: 999, pointerEvents: "auto", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 };
 
-// onlyUser: one person's posts (opened from their profile), starting at startId; scroll down for the next.
-export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile, openPost, toggleLike, addComment, addReply, openSearch, openInbox, unreadCount, actions, scrollKey, onFollow, prefs, onlyUser, startId }) {
+// The home feed: a normal scrolling list of posts (like Instagram), under a header that stays put
+// (logo, search, bell, For You / Following). "What's on" sits at the very top and scrolls away.
+// onlyUser: one person's posts (opened from their profile), starting at startId.
+export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile, openPost, toggleLike, addComment, addReply, openSearch, openInbox, unreadCount, actions, scrollKey, onFollow, prefs, onlyUser, startId, meets = {}, news = {}, openMeet, openNews, onBack }) {
   const following = (users[me]?.following) || [];
   const hidden = prefs?.hidden || [], blocked = prefs?.blocked || [];
   let list = Object.values(posts).filter((p) => !p.archived && !hidden.includes(p.id) && !blocked.includes(p.authorUsername)).sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -40,70 +42,83 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
     if (!el) return;
     if (feedScroll.has(memoKey)) el.scrollTop = feedScroll.get(memoKey);
     else if (startId) {
-      const i = list.findIndex((p) => p.id === startId);
-      if (i > 0) el.scrollTop = i * el.clientHeight;
+      const node = el.querySelector(`[data-post-id="${startId}"]`);
+      if (node) el.scrollTop = node.offsetTop - (el.querySelector("[data-feed-header]")?.offsetHeight || 0);
     } else el.scrollTop = 0;
   }, [memoKey, list.length > 0]);
+  const tabs = [["foryou", tr("For You")], ["following", tr("Following")]];
+  const [tabsHidden, setTabsHidden] = useState(false);
+  const lastY = useRef(0);
+  const onScroll = (e) => {
+    const y = e.currentTarget.scrollTop;
+    feedScroll.set(memoKey, y);
+    const d = y - lastY.current;
+    if (y < 80) setTabsHidden(false);
+    else if (d > 6) setTabsHidden(true);
+    else if (d < -6) setTabsHidden(false);
+    if (Math.abs(d) > 6 || y < 80) lastY.current = y;
+  };
 
   return (
-    <div data-testid="feed" style={{ position: "relative", height: "100dvh", background: T.bg, overflow: "hidden" }}>
+    <div data-testid="feed" style={{ position: "relative", height: "100dvh", overflow: "hidden" }}>
       {!onlyUser && <LogoIntro />}
-      {/* Top controls: search on the left, tabs in the middle, notifications on the right. */}
-      <div style={{
-        position: "absolute", top: 0, left: 0, right: 0, zIndex: 8, display: "flex", alignItems: "center",
-        justifyContent: "space-between", gap: 8, padding: "calc(10px + var(--inset-top)) 14px 34px",
-        background: "linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0))",
-        pointerEvents: "none",
-      }}>
-        {onlyUser ? (
-          <div data-testid="user-posts-title" className="glass-light" style={{ margin: "0 auto", borderRadius: 999, padding: "9px 16px", color: "#fff", fontSize: 14, fontWeight: 700 }}>
-            {AT}{onlyUser} · {list.length} {list.length === 1 ? tr("post") : tr("posts")}
+      <div ref={scroller} data-testid="feed-scroller" onScroll={onScroll}
+        style={{ height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain" }}>
+        {/* room for the header, which floats above the list */}
+        <div style={{ height: `calc(${onlyUser ? 58 : 58 + TABS_H}px + var(--inset-top))` }} />
+        {/* Header: always reachable, posts scroll underneath it. For You / Following tuck away
+            while you scroll down (more room for posts) and come back as soon as you scroll up. */}
+        <div data-feed-header style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 9, background: "rgba(12,13,16,0.88)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${T.lineDark}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "calc(10px + var(--inset-top)) 14px 6px" }}>
+            {onlyUser ? (
+              <>
+                {onBack && <button onClick={onBack} aria-label={tr("Back")} className="press" style={iconBtn}><ChevronLeft size={22} color={T.text} className="flip-rtl" /></button>}
+                <div data-testid="user-posts-title" style={{ flex: 1, color: T.text, fontSize: 16, fontWeight: 700 }}>{AT}{onlyUser} · {list.length} {list.length === 1 ? tr("post") : tr("posts")}</div>
+              </>
+            ) : (
+              <>
+                <div data-testid="brand" style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
+                  <img src={logoWhite} alt="" style={{ width: 30, height: 30 }} />
+                  <span className="display" style={{ color: T.text, fontSize: 21, letterSpacing: "0.12em" }}>LACERTA</span>
+                </div>
+                <button onClick={openSearch} aria-label={tr("Search")} className="press" style={iconBtn}><Search size={22} color={T.text} /></button>
+                <NotifBell count={unreadCount} onClick={openInbox} style={iconBtn} />
+              </>
+            )}
           </div>
-        ) : <>
-        <button onClick={openSearch} aria-label={tr("Search")} className="glass-light press" style={topIcon}>
-          <Search size={21} color="#fff" />
-        </button>
-        <div className="glass-light" style={{ display: "flex", borderRadius: 999, padding: 4, pointerEvents: "auto" }}>
-          {[["foryou", tr("For You")], ["following", tr("Following")]].map(([id, label]) => (
-            <button key={id} onClick={() => setTab(id)} className="press" style={{
-              background: tab === id ? "rgba(255,255,255,0.92)" : "none", border: "none",
-              padding: "9px 17px", borderRadius: 999,
-              fontSize: 14.5, fontWeight: 700, color: tab === id ? T.ink : "rgba(255,255,255,0.75)",
-            }}>
-              {label}
-            </button>
-          ))}
-        </div>
-        <button onClick={openInbox} aria-label={tr("Notifications")} className="glass-light press" style={{ ...topIcon, position: "relative" }}>
-          <Bell size={21} color="#fff" />
-          {unreadCount > 0 && (
-            <span style={{
-              position: "absolute", top: 9, right: 10, width: 9, height: 9, borderRadius: 99,
-              background: T.accent, border: `1.5px solid rgba(0,0,0,0.3)`,
-            }} />
+          {!onlyUser && (
+            <div data-testid="feed-tabs" data-hidden={tabsHidden || undefined} style={{ display: "flex", padding: "0 6px", overflow: "hidden", maxHeight: tabsHidden ? 0 : TABS_H, opacity: tabsHidden ? 0 : 1, transition: "max-height .25s ease, opacity .2s ease" }}>
+              {tabs.map(([id, label]) => (
+                <button key={id} onClick={() => setTab(id)} className="press" aria-current={tab === id ? "page" : undefined} style={{
+                  flex: 1, background: "none", border: "none", padding: "10px 0 12px", position: "relative",
+                  color: tab === id ? T.text : T.textDim, fontSize: 15, fontWeight: 700, transition: "color .2s ease",
+                }}>
+                  {label}
+                  <span aria-hidden style={{ position: "absolute", bottom: 0, left: "28%", right: "28%", height: 3, borderRadius: 3, background: T.accent, transform: `scaleX(${tab === id ? 1 : 0})`, transition: "transform .25s cubic-bezier(.2,.8,.2,1)" }} />
+                </button>
+              ))}
+            </div>
           )}
-        </button>
-        </>}
-      </div>
-
-      {list.length === 0 ? (
-        <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
-          <EmptyState icon={<Compass size={22} color={T.textDim} />}
-            title={tab === "following" ? tr("No posts yet") : tr("Nothing here yet")}
-            body={tab === "following" ? tr("Follow people to see their posts here.") : tr("Be the first to post about a car.")} />
         </div>
-      ) : (
-        <div ref={scroller} data-testid="feed-scroller" onScroll={(e) => feedScroll.set(memoKey, e.currentTarget.scrollTop)} style={{
-          height: "100%", overflowY: "auto", scrollSnapType: "y mandatory", WebkitOverflowScrolling: "touch",
-        }}>
-          {list.map((p) => (
-            <FeedSlide key={p.id} post={p} car={cars[p.carId]} me={me} actions={actions}
+
+        {!onlyUser && tab !== "following" && <LiveBar meets={meets} news={news} openMeet={openMeet} openNews={openNews} />}
+
+        <TabSlide index={tab === "following" ? 1 : 0}>
+          {list.length === 0 ? (
+            <div style={{ padding: "40px 20px" }}>
+              <EmptyState icon={<Compass size={22} color={T.textDim} />}
+                title={tab === "following" ? tr("No posts yet") : tr("Nothing here yet")}
+                body={tab === "following" ? tr("Follow people to see their posts here.") : tr("Be the first to post about a car.")} />
+            </div>
+          ) : list.map((p) => (
+            <PostCard key={p.id} post={p} car={cars[p.carId]} me={me} actions={actions}
               following={following.includes(p.authorUsername)} onFollow={onFollow} onHold={() => setHoldId(p.id)}
-              openCar={openCar} openProfile={openProfile} toggleLike={toggleLike}
+              openCar={openCar} openProfile={openProfile} toggleLike={toggleLike} openPost={openPost}
               openComments={() => setCommentsPostId(p.id)} />
           ))}
-        </div>
-      )}
+          <div style={{ height: "calc(100px + var(--inset-bottom))" }} />
+        </TabSlide>
+      </div>
 
       {holdPost && (
         <QuickActions post={holdPost} me={me} car={cars[holdPost.carId]} onClose={() => setHoldId(null)}
@@ -140,6 +155,9 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
   );
 }
 
+const TABS_H = 46;
+const iconBtn = { width: 42, height: 42, border: "none", borderRadius: 999, background: "none", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, padding: 0 };
+
 // Posts run under the floating nav bar; buttons and captions sit just above it.
 export const FEED_BOTTOM = "calc(84px + var(--inset-bottom))";
 
@@ -161,98 +179,104 @@ export function FeedCommentInput({ postId, addComment }) {
   );
 }
 
-export function FeedSlide({ post, car, me, openCar, openProfile, toggleLike, openComments, actions, following, onFollow, onHold }) {
+// One post in the feed: who posted it, the caption and tags, the photos, then like / comment / share.
+// Double-tap the photo to like; hold for quick actions; tap a video to pause.
+export function PostCard({ post, car, me, openCar, openProfile, openPost, toggleLike, openComments, actions, following, onFollow, onHold }) {
   const liked = post.likes.includes(me);
   const [pop, setPop] = useState(false);
   const [burst, setBurst] = useState(null);
-  // Double-tap anywhere on the post to like it (never un-likes, like Instagram). Hold for quick actions.
-  const slideRef = useRef(null);
+  const mediaRef = useRef(null);
   const pics = postPhotos(post);
   const hasVideo = pics.some((p) => p.type === "video");
+  // (Videos pause/play with their own tap and buttons.)
   const gesture = useTapGestures({
-    // Videos: one tap pauses or plays (a quick second tap still likes the post).
-    onTap: hasVideo ? () => { const v = slideRef.current?.querySelector("video"); if (v) { if (v.paused) v.play().catch(() => {}); else v.pause(); } } : undefined,
     onDoubleTap: (x, y) => { if (!liked) toggleLike(post.id); setBurst({ x, y, k: Date.now() }); },
     onHold: () => onHold && onHold(),
   });
   const hue = hueForId(post.id);
   const doLike = () => { toggleLike(post.id); if (!liked) { setPop(true); setTimeout(() => setPop(false), 350); } };
+  const carName = car ? `${car.make} ${car.model}` : post.carLabel;
+  const share = () => shareText({ title: tr("Lacerta"), text: tr("{0}{1} on Lacerta{2}", post.authorUsername, carName ? `'s ${carName}` : "", post.caption ? `: "${post.caption}"` : "") });
   return (
-    <div ref={slideRef} data-testid="feed-slide" {...gesture} style={{
-      height: "100%", width: "100%", scrollSnapAlign: "start", scrollSnapStop: "always",
-      position: "relative", display: "flex", alignItems: "flex-end", overflow: "hidden",
-      background: pics.length ? "#000" : `linear-gradient(135deg, hsl(${hue},45%,20%), hsl(${hue},35%,10%))`,
-    }}>
-      {pics.length ? (
-        // Whole photos, never cropped; swipe sideways when there are several.
-        <PhotoCarousel photos={pics} mode="feed" />
-      ) : (
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: "90px 28px 160px" }}>
-          {post.caption
-            ? <RichText text={post.caption} maxLines={MAX_LINES.caption} clamp={8} onDark style={{ color: "#fff", fontSize: post.caption.length > 120 ? 20 : 27, lineHeight: 1.25, textAlign: "center", fontWeight: 700 }} />
-            : <Car size={52} color="rgba(245,244,242,0.3)" />}
+    <article data-testid="feed-slide" data-post-id={post.id} style={{ borderBottom: `1px solid ${T.lineDark}`, paddingTop: 14, animation: "fadeIn .3s ease" }}>
+      {/* who + where */}
+      <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "0 14px" }}>
+        <FollowAvatar username={post.authorUsername} size={44} onOpen={() => openProfile(post.authorUsername)}
+          showFollow={post.authorUsername !== me && !!onFollow} following={following} onFollow={() => onFollow(post.authorUsername)} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <button onClick={() => openProfile(post.authorUsername)} aria-label={post.authorUsername} style={{ background: "none", border: "none", padding: 0, color: T.text, fontSize: 15, fontWeight: 700 }}>
+              {post.authorUsername}
+            </button>
+            <AccountLabel username={post.authorUsername} />
+            {post.hidden && <span data-testid="hidden-mark" style={{ color: "#fff", fontSize: 10, fontWeight: 700, background: "rgba(212,67,77,0.85)", borderRadius: 5, padding: "2px 6px" }}>{tr("HIDDEN · REPORTED")}</span>}
+          </div>
+          <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 1 }}>
+            {timeAgo(post.date)}{post.editedAt && <span data-testid="edited"> · {tr("edited")}</span>}
+          </div>
+          {post.location && (
+            <div data-testid="feed-location" style={{ display: "flex", alignItems: "center", gap: 4, color: T.accent2, fontSize: 12.5, fontWeight: 600, marginTop: 2 }}>
+              <MapPin size={12} /> {post.location.label}
+            </div>
+          )}
         </div>
-      )}
-      {burst && (
-        <Heart key={burst.k} size={110} color={T.accent} fill={T.accent} className="big-heart"
-          style={{ position: "absolute", left: burst.x, top: burst.y, zIndex: 6, pointerEvents: "none", filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.4))" }} />
-      )}
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "linear-gradient(to top, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.15) 45%, rgba(0,0,0,0) 65%)" }} />
-
-      {/* Right-side action column: like, comment, and (on your own posts) the ··· menu, all lined up. */}
-      <div style={{ position: "absolute", right: 6, bottom: FEED_BOTTOM, zIndex: 3, display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
-        <button onClick={doLike} aria-label={tr("Like")} style={railBtn}>
-          <Heart size={30} color={liked ? T.accent : "#fff"} fill={liked ? T.accent : "none"} className={pop ? "heart-pop" : ""} style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }} />
-          <span style={railCount}>{post.likes.length}</span>
-        </button>
-        <button onClick={openComments} aria-label={tr("Comments")} style={railBtn}>
-          <MessageCircle size={29} color="#fff" style={{ filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" }} />
-          <span style={railCount}>{post.comments.length}</span>
-        </button>
-        {hasVideo && <VideoButtons column />}
-        {actions && <PostMenu post={post} me={me} actions={actions} overlay carName={car ? `${car.make} ${car.model}` : post.carLabel} />}
+        {actions && <PostMenu post={post} me={me} actions={actions} carName={carName} />}
       </div>
 
-      <div style={{ position: "relative", zIndex: 2, padding: "0 72px 0 14px", paddingBottom: FEED_BOTTOM, width: "100%" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
-          <FollowAvatar username={post.authorUsername} size={34} onOpen={() => openProfile(post.authorUsername)}
-            showFollow={post.authorUsername !== me && !!onFollow} following={following} onFollow={() => onFollow(post.authorUsername)} />
-          <button onClick={() => openProfile(post.authorUsername)} style={{ background: "none", border: "none", padding: 0, color: "#fff", fontSize: 14, fontWeight: 700, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
-            {post.authorUsername}
-          </button>
-          <AccountLabel username={post.authorUsername} onDark />
-          {post.hidden && <span data-testid="hidden-mark" style={{ color: "#fff", fontSize: 10.5, fontWeight: 700, background: "rgba(230,56,70,0.85)", borderRadius: 5, padding: "2px 6px" }}>{tr("HIDDEN · REPORTED")}</span>}
-          {post.editedAt && <span data-testid="edited" style={{ color: "rgba(255,255,255,0.55)", fontSize: 11, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>{tr("edited")}</span>}
+      {/* caption + chips */}
+      {post.caption && pics.length > 0 && (
+        <div style={{ padding: "10px 14px 0" }}>
+          <RichText text={post.caption} maxLines={MAX_LINES.caption} clamp={4} onMore={openComments} style={{ color: T.text, fontSize: 15, lineHeight: 1.45 }} />
         </div>
-        {(post.location || (post.tags || []).length > 0) && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: 600, marginBottom: 8, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>
-            {post.location && <span data-testid="feed-location" style={{ display: "flex", alignItems: "center", gap: 4 }}><MapPin size={12} /> {post.location.label}</span>}
-            {(post.tags || []).length > 0 && <span data-testid="feed-tags">{tr("with")} {post.tags.map((h, k) => <button key={h} onClick={() => openProfile(h)} style={{ background: "none", border: "none", padding: 0, color: "#fff", fontWeight: 700, fontSize: 12 }}>{AT}{h}{k < post.tags.length - 1 ? ", " : ""}</button>)}</span>}
+      )}
+      {(car || post.carLabel || (post.tags || []).length > 0) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, padding: "10px 14px 0" }}>
+          {car && <button onClick={() => openCar(car.id)} style={{ ...chip, borderColor: "rgba(212,67,77,0.55)", color: "#FFD6D9", cursor: car.hasPage === false ? "default" : "pointer" }}>{car.make} {car.model} '{car.year}</button>}
+          {!car && post.carLabel && <span style={chip}>{post.carLabel}</span>}
+          {(post.tags || []).length > 0 && <span data-testid="feed-tags" style={{ display: "contents" }}>{post.tags.map((h) => <button key={h} onClick={() => openProfile(h)} style={chip}>{AT}{h}</button>)}</span>}
+        </div>
+      )}
+
+      {/* the photos / video (or a text card) */}
+      <div ref={mediaRef} {...gesture} style={{ position: "relative", marginTop: 12 }}>
+        {pics.length ? (
+          <PhotoCarousel photos={pics} mode="card" />
+        ) : (
+          <div style={{ margin: "0 14px", minHeight: 160, borderRadius: 20, display: "flex", alignItems: "center", justifyContent: "center", padding: "30px 22px",
+            background: `radial-gradient(120% 90% at 0% 0%, hsla(${hue},45%,35%,0.55), transparent 60%), linear-gradient(135deg, hsl(${hue},30%,16%), ${T.surface})` }}>
+            {post.caption
+              ? <RichText text={post.caption} maxLines={MAX_LINES.caption} clamp={8} onDark style={{ color: "#fff", fontSize: post.caption.length > 120 ? 18 : 23, lineHeight: 1.3, textAlign: "center", fontWeight: 700 }} />
+              : <Car size={44} color="rgba(245,244,242,0.3)" />}
           </div>
         )}
-        {car && (
-          <button onClick={() => openCar(car.id)} style={{
-            cursor: car.hasPage === false ? "default" : "pointer",
-            background: "rgba(230,56,70,0.9)", border: "none", borderRadius: 999, padding: "4px 10px",
-            color: "#fff", fontSize: 11.5, fontWeight: 700, marginBottom: 8,
-          }}>
-            {car.make} {car.model} '{car.year}
-          </button>
-        )}
-        {!car && post.carLabel && (
-          <div style={{ display: "inline-block", background: "rgba(255,255,255,0.16)", backdropFilter: "blur(8px)", borderRadius: 999, padding: "4px 10px", color: "#fff", fontSize: 11.5, fontWeight: 700, marginBottom: 8 }}>
-            {post.carLabel}
-          </div>
-        )}
-        {post.caption && pics.length > 0 && (
-          // Two lines here; "more" opens the comments panel with the full caption on top (like TikTok).
-          <RichText text={post.caption} maxLines={MAX_LINES.caption} clamp={2} onDark onMore={openComments}
-            style={{ color: "#fff", fontSize: 13.5, lineHeight: 1.4, textShadow: "0 1px 3px rgba(0,0,0,0.5)" }} />
+        {burst && (
+          <Heart key={burst.k} size={100} color={T.accent} fill={T.accent} className="big-heart"
+            style={{ position: "absolute", left: burst.x, top: burst.y, zIndex: 6, pointerEvents: "none", filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.4))" }} />
         )}
       </div>
-    </div>
+
+      {/* actions */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", padding: "6px 6px 8px" }}>
+        <button onClick={openComments} aria-label={tr("Comments")} className="press" style={actBtn}>
+          <MessageCircle size={21} color={T.textDim} /> <span>{post.comments.length}</span>
+        </button>
+        <button onClick={doLike} aria-label={tr("Like")} className="press" style={actBtn}>
+          <Heart size={21} color={liked ? T.accent : T.textDim} fill={liked ? T.accent : "none"} className={pop ? "heart-pop" : ""} /> <span style={{ color: liked ? T.text : T.textDim }}>{post.likes.length}</span>
+        </button>
+        <button onClick={share} aria-label={tr("Share")} className="press" style={actBtn}>
+          <Share2 size={20} color={T.textDim} />
+        </button>
+        {openPost && (
+          <button onClick={() => openPost(post.id)} aria-label={tr("Open post")} className="press" style={actBtn}>
+            <Maximize2 size={19} color={T.textDim} />
+          </button>
+        )}
+      </div>
+    </article>
   );
 }
+const chip = { background: "rgba(138,155,170,0.08)", border: `1px solid rgba(138,155,170,0.35)`, borderRadius: 10, padding: "6px 12px", color: "#D7DEE4", fontSize: 13, fontWeight: 700 };
+const actBtn = { background: "none", border: "none", padding: "10px 14px", display: "flex", alignItems: "center", gap: 7, color: T.textDim, fontSize: 14, fontWeight: 600 };
 
 // Hold a post: the actions people reach for most, without hunting for buttons.
 function QuickActions({ post, me, car, onClose, onLike, onComment, onOpen }) {
@@ -262,8 +286,81 @@ function QuickActions({ post, me, car, onClose, onLike, onComment, onOpen }) {
     <ActionMenu open onClose={onClose} items={[
       { label: liked ? tr("Unlike") : tr("Like"), icon: <Heart size={17} />, onClick: onLike },
       { label: tr("Comment"), icon: <MessageCircle size={17} />, onClick: onComment },
-      { label: tr("Share"), icon: <Share2 size={17} />, onClick: () => shareText({ title: tr("Carfooly"), text: tr("{0}{1} on Carfooly{2}", post.authorUsername, carName ? `'s ${carName}` : "", post.caption ? `: "${post.caption}"` : "") }) },
+      { label: tr("Share"), icon: <Share2 size={17} />, onClick: () => shareText({ title: tr("Lacerta"), text: tr("{0}{1} on Lacerta{2}", post.authorUsername, carName ? `'s ${carName}` : "", post.caption ? `: "${post.caption}"` : "") }) },
       { label: tr("Open post"), icon: <Maximize2 size={17} />, onClick: onOpen },
     ]} />
+  );
+}
+
+// The bell: no counter bubble. When something new arrives it rings and glows for a second;
+// while there's anything unread it keeps a thin red ring.
+export function NotifBell({ count, onClick, style }) {
+  const [ping, setPing] = useState(0);
+  const last = useRef(0);
+  useEffect(() => {
+    if (count > last.current) setPing((p) => p + 1);
+    last.current = count;
+  }, [count]);
+  return (
+    <button onClick={onClick} aria-label={tr("Notifications")} title={count ? tr("{0} new", count) : undefined} data-testid="notif-bell" data-unread={count > 0 || undefined}
+      className="press" style={{ ...style, position: "relative", boxShadow: count ? `inset 0 0 0 1.5px ${T.accent}` : style?.boxShadow,
+        animation: ping ? "glowBlink 1.1s ease 1" : "none" }} key={ping}>
+      <Bell size={21} color={count ? "#FFD6D9" : T.text} style={{ animation: ping ? "bellRing 0.9s ease 1" : "none", transformOrigin: "50% 10%" }} />
+    </button>
+  );
+}
+
+// Like a sports app's live scores: a strip of what's coming up (meets) and what's new (news),
+// across the top of the feed. Can be folded away.
+function LiveBar({ meets, news, openMeet, openNews }) {
+  const now = Date.now();
+  const soon = Object.values(meets)
+    .filter((m) => m.when && new Date(m.when).getTime() > now - 4 * 3600e3)
+    .sort((a, b) => new Date(a.when) - new Date(b.when)).slice(0, 4);
+  const fresh = Object.values(news).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 4);
+  const items = [];
+  for (let i = 0; i < 4; i++) { if (soon[i]) items.push({ kind: "meet", m: soon[i] }); if (fresh[i]) items.push({ kind: "news", n: fresh[i] }); }
+  if (!items.length) return null;
+  const when = (iso) => {
+    const t = new Date(iso).getTime();
+    if (t <= now) return { live: true, label: tr("Live now") };
+    const d = new Date(iso), today = new Date();
+    const tm = d.toLocaleTimeString(locale(), { hour: "numeric", minute: "2-digit" });
+    if (d.toDateString() === today.toDateString()) return { label: tr("Today · {0}", tm) };
+    const tmr = new Date(); tmr.setDate(today.getDate() + 1);
+    if (d.toDateString() === tmr.toDateString()) return { label: tr("Tomorrow · {0}", tm) };
+    return { label: d.toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short" }) };
+  };
+  return (
+    <section data-testid="live-bar" style={{ padding: "12px 0 14px", borderBottom: `1px solid ${T.lineDark}` }}>
+      <div className="plate" style={{ fontSize: 10.5, color: T.textDim, padding: "0 14px 8px", display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 6, height: 6, borderRadius: 9, background: T.accent, animation: "logoPulse 1.6s ease-in-out infinite" }} /> {tr("What's on")}
+      </div>
+      <div data-noswipe style={{ display: "flex", gap: 10, overflowX: "auto", padding: "0 14px", scrollSnapType: "x proximity", scrollPaddingInline: 14 }}>
+        {items.map((it) => {
+          const meet = it.kind === "meet";
+          const w = meet ? when(it.m.when) : null;
+          const img = !meet && it.n.image;
+          return (
+            <button key={(meet ? "m" : "n") + (meet ? it.m.id : it.n.id)} data-testid={meet ? "live-meet" : "live-news"}
+              onClick={() => (meet ? openMeet?.(it.m.id) : openNews?.())} className="press"
+              style={{ flex: "0 0 auto", width: 236, height: 72, borderRadius: 18, border: `1px solid ${T.lineDark}`, padding: "10px 12px", display: "flex", alignItems: "center", gap: 11, textAlign: "start", scrollSnapAlign: "start", overflow: "hidden",
+                background: meet ? `linear-gradient(135deg, rgba(212,67,77,0.16), ${T.surface} 70%)` : T.surface }}>
+              {img ? <img src={img} alt="" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: 50, height: 50, borderRadius: 12, objectFit: "cover", flexShrink: 0, background: T.surface2 }} />
+                : <span style={{ width: 4, alignSelf: "stretch", borderRadius: 4, background: meet ? T.accent : T.accentWarm, flexShrink: 0 }} />}
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span className="plate" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 9.5, color: meet ? (w.live ? "#FFB3B8" : T.textDim) : T.accentWarm }}>
+                  {meet && w.live && <span style={{ width: 6, height: 6, borderRadius: 9, background: T.accent, animation: "logoPulse 1.2s ease-in-out infinite" }} />}
+                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{meet ? `${tr("Meet")} · ${w.label}` : `${tr("News")} · ${it.n.source || ""}`}</span>
+                </span>
+                <span dir="auto" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", color: T.text, fontSize: 13, fontWeight: 700, lineHeight: 1.25, marginTop: 3 }}>
+                  {meet ? it.m.title : it.n.title}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }

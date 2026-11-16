@@ -9,7 +9,7 @@ import { cleanText, tokenize } from "../lib/text";
 import { tr } from "../lib/i18n";
 
 // Captions, bios and comments: @handles open that profile, website links open the browser
-// (after a "you're leaving Carfooly" check). Long text can be clamped with "more".
+// (after a "you're leaving Lacerta" check). Long text can be clamped with "more".
 export function RichText({ text, maxLines, clamp, style, linkColor, onDark, onMore }) {
   const users = useContext(UsersContext);
   const safety = useSafety();
@@ -50,7 +50,7 @@ export function RichText({ text, maxLines, clamp, style, linkColor, onDark, onMo
   );
 }
 
-const askToOpen = (url) => window.dispatchEvent(new CustomEvent("carfooly-open-link", { detail: url }));
+const askToOpen = (url) => window.dispatchEvent(new CustomEvent("lacerta-open-link", { detail: url }));
 
 export async function openExternal(url) {
   try {
@@ -64,17 +64,17 @@ export function LinkNotice() {
   const [url, setUrl] = useState(null);
   useEffect(() => {
     const on = (e) => setUrl(e.detail);
-    window.addEventListener("carfooly-open-link", on);
-    return () => window.removeEventListener("carfooly-open-link", on);
+    window.addEventListener("lacerta-open-link", on);
+    return () => window.removeEventListener("lacerta-open-link", on);
   }, []);
   let host = "";
   try { host = url ? new URL(url).hostname.replace(/^www\./, "") : ""; } catch { host = url || ""; }
   return (
-    <BottomSheet open={!!url} onClose={() => setUrl(null)} title={tr("Leaving Carfooly")} maxHeight="70vh">
+    <BottomSheet open={!!url} onClose={() => setUrl(null)} title={tr("Leaving Lacerta")} maxHeight="70vh">
       {url && (
         <div data-testid="link-notice">
           <div style={{ color: T.text, fontSize: 14.5, lineHeight: 1.5, marginBottom: 12 }}>
-            {tr("This link opens")} <b>{host}</b>{tr(", a website outside Carfooly. We don't check these sites, so only open links you trust.")}
+            {tr("This link opens")} <b>{host}</b>{tr(", a website outside Lacerta. We don't check these sites, so only open links you trust.")}
           </div>
           <div style={{ color: T.textDim, fontSize: 12.5, background: "rgba(255,255,255,0.06)", borderRadius: 12, padding: "9px 11px", marginBottom: 16, overflowWrap: "anywhere" }}>{url}</div>
           <div style={{ display: "flex", gap: 8 }}>

@@ -41,7 +41,7 @@ export function SpotForm({ onSubmit, flash }) {
           <span className="plate" style={{ position: "absolute", left: 12, top: 12, background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: 10, padding: "4px 9px", borderRadius: 999 }}>{tr("Spotted")}</span>
           {warn && (
             <div data-testid="spot-photo-warning" style={{ position: "absolute", left: 10, right: 10, top: 44, padding: "10px 12px", borderRadius: 14, background: "rgba(20,20,23,0.88)", color: "#fff", fontSize: 12.5, lineHeight: 1.4, display: "flex", gap: 8 }}>
-              <AlertTriangle size={16} color="#F2C76A" style={{ flexShrink: 0, marginTop: 1 }} />
+              <AlertTriangle size={16} color="#D9BE8A" style={{ flexShrink: 0, marginTop: 1 }} />
               <div>
                 <b>{issues.dark && issues.blurry ? tr("This looks dark and blurry.") : issues.dark ? tr("This looks quite dark.") : tr("This looks blurry.")}</b>{" "}
                 {tr("A clearer photo helps people (and later our car check) see what it is. Retake it, or keep it if it's the best you can get.")}

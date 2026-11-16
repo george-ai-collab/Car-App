@@ -18,16 +18,18 @@ export default function App() {
     timer.current = setTimeout(() => setToast(null), 2200);
   }, []);
   const store = useStore(flash);
-  // Any part of the app can show a short message: window.dispatchEvent(new CustomEvent("carfooly-flash", { detail: "…" }))
+  // Any part of the app can show a short message: window.dispatchEvent(new CustomEvent("lacerta-flash", { detail: "…" }))
   useEffect(() => {
     const on = (e) => flash(e.detail);
-    window.addEventListener("carfooly-flash", on);
-    return () => window.removeEventListener("carfooly-flash", on);
+    window.addEventListener("lacerta-flash", on);
+    return () => window.removeEventListener("lacerta-flash", on);
   }, [flash]);
 
   return (
     <UsersContext.Provider value={store.users}>
-      <div style={{ fontFamily: BODY_STACK, background: T.bg, minHeight: "100vh" }}>
+      <div style={{ fontFamily: BODY_STACK, background: T.bg, minHeight: "100vh", position: "relative", isolation: "isolate" }}>
+        {/* The soft background light, fixed behind every page. */}
+        <div aria-hidden style={{ position: "fixed", inset: 0, backgroundImage: T.bgGradient, zIndex: -1, pointerEvents: "none" }} />
         <GlobalStyle />
         {!hasChosenLanguage() && !window.__skipLanguage ? (
           // first open: pick a language (the app restarts in it)

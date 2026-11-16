@@ -17,7 +17,7 @@ function Row({ icon, label, sub, onClick, danger, disabled, right }) {
       width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px", border: "none",
       background: "transparent", color: danger ? T.accent : T.text, textAlign: "start", opacity: disabled ? 0.45 : 1,
     }}>
-      <div style={{ width: 32, height: 32, borderRadius: 11, background: danger ? "rgba(230,56,70,0.14)" : "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+      <div style={{ width: 32, height: 32, borderRadius: 11, background: danger ? "rgba(212,67,77,0.14)" : "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
         {icon}
       </div>
       <div style={{ flex: 1 }}>
@@ -93,7 +93,7 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, is
 
       <SectionLabel>{tr("Help")}</SectionLabel>
       <Group>
-        <Row icon={<Info size={16} />} label={tr("How Carfooly works")} sub={tr("See the intro again")} onClick={onTour} />
+        <Row icon={<Info size={16} />} label={tr("How Lacerta works")} sub={tr("See the intro again")} onClick={onTour} />
       </Group>
 
       <Group>
@@ -101,7 +101,7 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, is
       </Group>
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, color: T.textDim, fontSize: 12, marginTop: 4 }}>
-        <Info size={12} /> {tr("Carfooly")} {APP_VERSION}{user.joinedAt ? tr(" · joined {0}", fmtDate(user.joinedAt)) : ""}
+        <Info size={12} /> {tr("Lacerta")} {APP_VERSION}{user.joinedAt ? tr(" · joined {0}", fmtDate(user.joinedAt)) : ""}
       </div>
 
       <BottomSheet open={sheet === "language"} onClose={() => setSheet(null)} title={tr("Language")}>
@@ -180,7 +180,7 @@ export function AvatarPicker({ onPick }) {
     );
   }
   return (
-    <button onClick={() => setOpen(true)} className="press" style={{ padding: "8px 14px", borderRadius: 999, border: "none", background: "rgba(230,56,70,0.14)", color: T.accent, fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+    <button onClick={() => setOpen(true)} className="press" style={{ padding: "8px 14px", borderRadius: 999, border: "none", background: "rgba(212,67,77,0.14)", color: T.accent, fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
       <ImageIcon size={13} /> {tr("Change photo")}
     </button>
   );

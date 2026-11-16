@@ -43,7 +43,7 @@ async function signUp(page, name, handle, welcome) {
   await page.getByPlaceholder("e.g. George Q").fill(name);
   await page.getByPlaceholder("e.g. george_q").fill(handle);
   await page.getByText("Available").waitFor();
-  await page.getByTestId("email").fill(`carfooly.e2e.${handle}@mailinator.com`);
+  await page.getByTestId("email").fill(`lacerta.e2e.${handle}@mailinator.com`);
   await page.getByTestId("password").fill(`Test-${run}-pass`);
   await page.getByTestId("submit-create").click();
   await Promise.race([
@@ -159,7 +159,7 @@ await step("B: delete account", B, () => deleteAccount(B));
 await step("A: delete account", A, () => deleteAccount(A));
 await step("A: deleted account can't log in any more", A, async () => {
   await A.getByTestId("mode-login").click();
-  await A.getByTestId("email").fill(`carfooly.e2e.${a}@mailinator.com`);
+  await A.getByTestId("email").fill(`lacerta.e2e.${a}@mailinator.com`);
   await A.getByTestId("password").fill(`Test-${run}-pass`);
   await A.getByTestId("submit-login").click();
   await A.getByText("Wrong email or password.").waitFor();

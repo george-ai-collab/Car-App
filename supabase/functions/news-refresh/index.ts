@@ -50,7 +50,7 @@ async function hash(s: string) {
 }
 
 async function readFeed(f: Feed) {
-  const r = await fetch(f.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; CarfoolyNews/1.0)", Accept: "application/rss+xml, application/xml, text/xml" }, signal: AbortSignal.timeout(12000) });
+  const r = await fetch(f.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; LacertaNews/1.0)", Accept: "application/rss+xml, application/xml, text/xml" }, signal: AbortSignal.timeout(12000) });
   if (!r.ok) throw new Error("HTTP " + r.status);
   const xml = await r.text();
   const blocks = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) || xml.match(/<entry[\s>][\s\S]*?<\/entry>/gi) || [];
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
       const old = new Set((have || []).map((r) => r.url));
       await Promise.all(rows.filter((r) => !r.image && !old.has(r.url)).slice(0, 10).map(async (r) => {
         try {
-          const page = await fetch(r.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; CarfoolyNews/1.0)" }, signal: AbortSignal.timeout(6000) });
+          const page = await fetch(r.url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; LacertaNews/1.0)" }, signal: AbortSignal.timeout(6000) });
           const html = (await page.text()).slice(0, 60000);
           const img = attr(html, /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) || attr(html, /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
           if (/^https:\/\//.test(img)) r.image = img;

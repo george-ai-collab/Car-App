@@ -143,7 +143,7 @@ export async function load(userId) {
     profiles, follows, cars, carMods, carEvents, carFollows, carSpots, sightings,
     communities, members, threads, threadReplies, threadLikes,
     posts, postLikes, comments, commentLikes, meets, attendees, newsLikes, notifications, blocks, hidden, reports,
-    announcements, meetSpots, meetViews, newsItems, joinRequests,
+    announcements, meetSpots, meetViews, newsItems, joinRequests, myTickets,
   ] = await Promise.all([
     t("profiles", "id,handle,name,bio,avatar_url,account_type,is_admin,banned,created_at"),
     t("follows", "follower_id,followee_id"),
@@ -163,6 +163,7 @@ export async function load(userId) {
     t("meet_announcements"), t("meet_spots"), t("meet_views", "meet_id,user_id,source,created_at"), // views: organizers only
     t("news_items", "id,url,title,source,summary,image,category,lang,published_at", (q) => q.order("published_at", { ascending: false }).limit(180)).catch(() => []),
     t("community_join_requests", "community_id,user_id").catch(() => []), // yours, plus the ones for groups you run
+    t("meet_tickets", "meet_id,code").catch(() => []), // only your own tickets
   ]);
 
   const H = {}; // user id -> handle
@@ -311,6 +312,7 @@ export async function load(userId) {
     data: {
       cars: carsOut, posts: postsOut, users, news, meets: meetsOut, communities: communitiesOut,
       notifications: me ? { [me]: notifs } : {}, sightings: sightingsOut, discussions,
+      tickets: Object.fromEntries(myTickets.map((x) => [x.meet_id, x.code])),
       reports: reports.map((r) => ({ id: r.id, kind: r.kind, targetId: r.target_id, reason: r.reason, note: r.note, by: h(r.reporter_id), date: r.created_at, status: r.status })),
     },
     prefs: { hidden: hidden.map((x) => x.post_id), blocked: blocks.map((b) => h(b.blocked_id)).filter(Boolean) },
@@ -437,6 +439,11 @@ export const write = {
   approveDriver: (me, meetId, userId, ok) => (ok
     ? must(sb().from("meet_attendees").update({ approved: true }).eq("meet_id", meetId).eq("user_id", userId))
     : must(sb().from("meet_attendees").delete().eq("meet_id", meetId).eq("user_id", userId))),
+  checkInTicket: async (me, meetId, code) => {
+    const { data, error } = await sb().rpc("check_in_ticket", { p_meet: meetId, p_code: code });
+    if (error) throw error;
+    return data;
+  },
   checkIn: (me, meetId, userId, on) => must(sb().from("meet_attendees").update({ checked_in_at: on ? new Date().toISOString() : null }).eq("meet_id", meetId).eq("user_id", userId)),
   announce: (me, meetId, a) => must(sb().from("meet_announcements").insert({ id: a.id, meet_id: meetId, author_id: me, text: a.text, audience: a.audience || "all" })),
   meetSpot: async (me, meetId, carId, verified) => {
@@ -488,7 +495,7 @@ export function writeMessage(error) {
   if (m.includes("drivers only")) return tr("That's for driver accounts.");
   if (m.includes("admins only") || m.includes("owner only") || (m.includes("row-level security") && m.includes("community"))) return tr("Only the group's admins can do that.");
   if (m.includes("communities_name_unique") || (error?.code === "23505" && m.includes("communit"))) return tr("A community with that name already exists");
-  if (m.includes("not allowed words")) return tr("That includes words we don't allow on Carfooly. Please keep it respectful.");
+  if (m.includes("not allowed words")) return tr("That includes words we don't allow on Lacerta. Please keep it respectful.");
   if (m === "banned" || m.includes("banned")) return tr("Your account has been suspended, so you can't post right now.");
   if (m.includes("blocked")) return tr("You can't do that with this person");
   if (m.includes("reports_once") || (error?.code === "23505" && m.includes("report"))) return tr("You already reported this. Thanks!");

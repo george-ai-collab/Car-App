@@ -35,7 +35,7 @@ jobs:
           set -o pipefail
           npm install 2>&1 | tee -a build.log
 
-      - name: Build the Carfooly frontend
+      - name: Build the Lacerta frontend
         env:
           VITE_BUILD: ${{ github.run_number }}
           # Optional: maps and place search from Geoapify. Without it the app uses the free services.
@@ -63,13 +63,13 @@ jobs:
           cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon 2>&1 | tee -a ../build.log
 
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk carfooly-debug.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk lacerta-debug.apk
 
       - uses: actions/upload-artifact@v4
         id: upload
         with:
-          name: carfooly-apk
-          path: carfooly-debug.apk
+          name: lacerta-apk
+          path: lacerta-debug.apk
           retention-days: 30
 
       - name: Post the APK link on the PR
@@ -78,7 +78,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh pr comment ${{ github.event.pull_request.number }} --repo ${{ github.repository }} \
-            --body "✅ APK built for \`${GITHUB_SHA::7}\`. Download **carfooly-apk** here: ${{ steps.upload.outputs.artifact-url }}"
+            --body "✅ APK built for \`${GITHUB_SHA::7}\`. Download **lacerta-apk** here: ${{ steps.upload.outputs.artifact-url }}"
 
       - name: Post the error on the PR
         if: failure() && github.event_name == 'pull_request'

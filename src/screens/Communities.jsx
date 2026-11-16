@@ -134,7 +134,7 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
         </button>
         {safety && (
           <MoreMenu label={tr("Community options")} testid="community-menu" flash={safety.flash}
-            share={{ title: community.name, text: tr("Join {0} on Carfooly", community.name) }}
+            share={{ title: community.name, text: tr("Join {0} on Lacerta", community.name) }}
             items={isOwner ? [
               { label: tr("Edit community"), icon: <Pencil size={17} />, onClick: () => setEditing(true) },
               { label: tr("Delete community"), icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },
@@ -197,7 +197,7 @@ function EditCommunitySheet({ open, onClose, community, onSave }) {
         {chatMode === "auto" && (
           <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
             {AUTO_LIMITS.map((n) => (
-              <button key={n} data-testid={`auto-limit-${n}`} onClick={() => setLimit(n)} className="press" style={{ flex: 1, padding: "8px 0", borderRadius: 12, border: `1px solid ${limit === n ? T.accent : T.lineDark}`, background: limit === n ? "rgba(230,56,70,0.14)" : T.surface, color: T.text, fontWeight: 700, fontSize: 13 }}>{n}</button>
+              <button key={n} data-testid={`auto-limit-${n}`} onClick={() => setLimit(n)} className="press" style={{ flex: 1, padding: "8px 0", borderRadius: 12, border: `1px solid ${limit === n ? T.accent : T.lineDark}`, background: limit === n ? "rgba(212,67,77,0.14)" : T.surface, color: T.text, fontWeight: 700, fontSize: 13 }}>{n}</button>
             ))}
           </div>
         )}
@@ -211,7 +211,7 @@ function Choice({ value, onChange, options, testid }) {
   return (
     <div data-testid={testid} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       {options.map(([v, label, hint]) => (
-        <button key={v} data-testid={`${testid}-${v}`} onClick={() => onChange(v)} className="press" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 14, textAlign: "start", border: `1px solid ${value === v ? T.accent : T.lineDark}`, background: value === v ? "rgba(230,56,70,0.10)" : T.surface }}>
+        <button key={v} data-testid={`${testid}-${v}`} onClick={() => onChange(v)} className="press" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 14, textAlign: "start", border: `1px solid ${value === v ? T.accent : T.lineDark}`, background: value === v ? "rgba(212,67,77,0.10)" : T.surface }}>
           <span style={{ width: 16, height: 16, borderRadius: 999, border: `2px solid ${value === v ? T.accent : T.textDim}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             {value === v && <span style={{ width: 7, height: 7, borderRadius: 999, background: T.accent }} />}
           </span>
@@ -328,8 +328,8 @@ function People({ community: c, me, isAppAdmin, users, posts, openProfile, onAns
           <div style={{ height: 14 }} />
         </>
       )}
-      <SectionLabel>{c.kind === "custom" ? tr("Owner and admins") : tr("Run by Carfooly")}</SectionLabel>
-      {leaders.length ? leaders.map((u) => row(u, <div style={{ display: "flex", alignItems: "center", gap: 4 }}>{tag(u)}{manageBtn(u)}</div>)) : <div style={{ color: T.textDim, fontSize: 13 }}>{tr("Carfooly's team keeps this one tidy.")}</div>}
+      <SectionLabel>{c.kind === "custom" ? tr("Owner and admins") : tr("Run by Lacerta")}</SectionLabel>
+      {leaders.length ? leaders.map((u) => row(u, <div style={{ display: "flex", alignItems: "center", gap: 4 }}>{tag(u)}{manageBtn(u)}</div>)) : <div style={{ color: T.textDim, fontSize: 13 }}>{tr("Lacerta's team keeps this one tidy.")}</div>}
       <div style={{ height: 14 }} />
       {top.length > 0 && (
         <>
@@ -390,7 +390,7 @@ export function ThreadPage({ thread, community, me, onReply, onLike, onDelete, o
         <span style={{ flex: 1 }} />
         {safety && (
           <MoreMenu label={tr("Discussion options")} testid="thread-menu" flash={safety.flash}
-            share={{ title: thread.title, text: tr("\"{0}\" in {1} on Carfooly", thread.title, community?.name || "a community") }}
+            share={{ title: thread.title, text: tr("\"{0}\" in {1} on Lacerta", thread.title, community?.name || "a community") }}
             items={thread.author === me ? [
               { label: tr("Edit discussion"), icon: <Pencil size={17} />, onClick: () => { setTitle(thread.title); setBody(thread.body || ""); setEditing(true); } },
               { label: tr("Delete discussion"), icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },

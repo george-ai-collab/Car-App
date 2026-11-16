@@ -16,7 +16,7 @@ export function PostMenu({ post, me, actions, onDeleted, overlay, carName }) {
   const safety = useSafety();
   const mine = post.authorUsername === me;
   const myCars = Object.values(safety?.cars || {}).filter((c) => c.ownerUsername === me);
-  const share = { title: tr("Carfooly"), text: tr("{0}{1} on Carfooly{2}", post.authorUsername, carName ? `'s ${carName}` : "", post.caption ? `: "${post.caption}"` : "") };
+  const share = { title: tr("Lacerta"), text: tr("{0}{1} on Lacerta{2}", post.authorUsername, carName ? `'s ${carName}` : "", post.caption ? `: "${post.caption}"` : "") };
 
   if (!mine) {
     if (!safety) return null;
@@ -48,7 +48,7 @@ export function PostMenu({ post, me, actions, onDeleted, overlay, carName }) {
               {[{ id: null, label: tr("No car") }, ...myCars.map((c) => ({ id: c.id, label: c.nickname || `${c.make} ${c.model}` }))].map((c) => (
                 <button key={c.id || "none"} onClick={() => setCarId(c.id)} className="press" style={{
                   padding: "7px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 700,
-                  border: `1px solid ${carId === c.id ? T.accent : T.lineDark}`, background: carId === c.id ? "rgba(230,56,70,0.14)" : "transparent", color: carId === c.id ? T.accent : T.text,
+                  border: `1px solid ${carId === c.id ? T.accent : T.lineDark}`, background: carId === c.id ? "rgba(212,67,77,0.14)" : "transparent", color: carId === c.id ? T.accent : T.text,
                 }}>{c.label}</button>
               ))}
             </div>

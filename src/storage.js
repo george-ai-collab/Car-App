@@ -1,4 +1,4 @@
-// Carfooly storage adapter.
+// Lacerta storage adapter.
 //
 // The beta was written against the artifact runtime's `window.storage` API:
 //   get(key, shared) -> Promise<{ value } | null>
@@ -14,7 +14,7 @@
 // replace `remoteAdapter` below with real API calls for shared keys and leave
 // the private keys (like the signed-in handle) on-device.
 
-const DB_NAME = "carfooly";
+const DB_NAME = "lacerta";
 const STORE = "kv";
 
 function openDb() {

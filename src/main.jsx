@@ -29,7 +29,7 @@ function exitHint() {
 function handleBack() {
   const backdrops = document.querySelectorAll("[data-sheet-backdrop]");
   if (backdrops.length) return backdrops[backdrops.length - 1].click(); // top-most sheet
-  if (window.__carfoolyBack && window.__carfoolyBack()) return; // back one page
+  if (window.__lacertaBack && window.__lacertaBack()) return; // back one page
   const now = Date.now();
   if (now - lastExitPress < 2000) { document.getElementById("exit-hint")?.remove(); CapApp.minimizeApp(); return; }
   lastExitPress = now;
@@ -38,13 +38,13 @@ function handleBack() {
 window.__hwBack = handleBack; // tests
 if (Capacitor.isNativePlatform()) CapApp.addListener("backButton", handleBack);
 
-// Share tags: a carfooly:// link opened from outside (another app, or the phone's camera).
+// Share tags: a lacerta:// link opened from outside (another app, or the phone's camera).
 // If the app isn't ready yet, Shell picks it up when it opens.
 const openTag = (text) => {
   if (!text) return;
   window.__pendingTag = text;
-  window.dispatchEvent(new CustomEvent("carfooly-open-tag", { detail: text }));
-  window.__pendingTag = window.__carfoolyBack ? null : text; // Shell mounted: handled now
+  window.dispatchEvent(new CustomEvent("lacerta-open-tag", { detail: text }));
+  window.__pendingTag = window.__lacertaBack ? null : text; // Shell mounted: handled now
 };
 if (Capacitor.isNativePlatform()) {
   CapApp.addListener("appUrlOpen", (e) => openTag(e.url));

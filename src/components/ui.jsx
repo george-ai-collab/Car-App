@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Component, createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { T, FONT_STACK, MONO_STACK } from "../theme";
 import { LogoTile } from "./Logo";
@@ -30,6 +30,16 @@ export function GlobalStyle() {
       @keyframes tabInStart { from { opacity: 0; transform: translateX(calc(var(--slide-from, 44px) * -1)); } to { opacity: 1; transform: none; } }
       [dir=rtl] { --slide-from: -44px; }
       @keyframes lizardIntro { 0% { opacity: 0; transform: scale(0.55) rotate(-200deg); } 55% { opacity: 1; transform: scale(1.04) rotate(12deg); } 75% { transform: scale(1) rotate(0deg); } 100% { opacity: 1; transform: scale(1) rotate(0deg); } }
+      @keyframes fadeOut { to { opacity: 0; } }
+      @keyframes drawerInR { from { transform: translateX(100%); } }
+      @keyframes drawerOutR { to { transform: translateX(100%); } }
+      @keyframes drawerInL { from { transform: translateX(-100%); } }
+      @keyframes drawerOutL { to { transform: translateX(-100%); } }
+      @keyframes threadDraw { to { stroke-dashoffset: 0; } }
+      @keyframes createPop { from { opacity: 0; transform: translateY(40px) scale(0.4); } }
+      @keyframes orbit { 0% { transform: translate(0, 0); } 25% { transform: translate(2.5px, -2.5px); } 50% { transform: translate(0, -4px); } 75% { transform: translate(-2.5px, -2.5px); } 100% { transform: translate(0, 0); } }
+      @keyframes bellRing { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(16deg); } 30% { transform: rotate(-13deg); } 45% { transform: rotate(9deg); } 60% { transform: rotate(-5deg); } 75% { transform: rotate(2deg); } }
+      @keyframes glowBlink { 0%, 100% { box-shadow: 0 0 0 0 rgba(212,67,77,0); } 40% { box-shadow: 0 0 0 6px rgba(212,67,77,0.35), 0 0 18px 4px rgba(212,67,77,0.35); } }
       @keyframes introOut { 0%, 78% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
       @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
       .fade-in { animation: fadeIn 0.25s ease both; }
@@ -125,8 +135,8 @@ export function IconTab({ active, onClick, icon, label }) {
 }
 
 export function IconBadge({ children, tone = "accent", size = 40 }) {
-  const bg = tone === "accent" ? "rgba(230,56,70,0.16)"
-    : tone === "teal" || tone === "accent2" ? "rgba(69,123,144,0.18)"
+  const bg = tone === "accent" ? "rgba(212,67,77,0.16)"
+    : tone === "teal" || tone === "accent2" ? "rgba(138,155,170,0.18)"
     : tone === "warm" ? "rgba(242,184,75,0.18)"
     : "rgba(245,244,242,0.07)";
   return (
@@ -479,7 +489,7 @@ export function ChipPicker({ value, onChange, options, testid }) {
         return (
           <button key={o.id} type="button" onClick={() => onChange(o.id)} className="press" style={{
             flexShrink: 0, padding: o.sub ? "8px 14px" : "9px 14px", borderRadius: 16, textAlign: "start",
-            border: `1px solid ${on ? T.accent : T.lineDark}`, background: on ? "rgba(230,56,70,0.14)" : T.surface2, color: on ? T.text : T.textDim,
+            border: `1px solid ${on ? T.accent : T.lineDark}`, background: on ? "rgba(212,67,77,0.14)" : T.surface2, color: on ? T.text : T.textDim,
           }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: on ? T.text : T.text, whiteSpace: "nowrap" }}>{o.label}</div>
             {o.sub && <div style={{ fontSize: 10.5, color: on ? T.accent : T.textDim, marginTop: 1, whiteSpace: "nowrap" }}>{o.sub}</div>}
@@ -502,4 +512,141 @@ export function AccountLabel({ username, onDark }) {
       color: T.ink, background: T.paper, boxShadow: onDark ? "0 1px 3px rgba(0,0,0,0.4)" : "none",
     }}>{t === "club" ? tr("CLUB") : tr("BUSINESS")}</span>
   );
+}
+
+// A panel that slides in from the side (right; left in Arabic) over the page, which stays
+// visible and dimmed behind it. Tap outside, press back or drag it away to close.
+// (No transform while open, so sheets and dialogs opened from inside it still sit on the screen.)
+export function SideDrawer({ open, onClose, children, testid, width = "min(86vw, 380px)" }) {
+  const sheets = useContext(SheetContext);
+  const panel = useRef(null);
+  const back = useRef(null);
+  const [closing, setClosing] = useState(false);
+  const rtl = typeof document !== "undefined" && document.documentElement.dir === "rtl";
+  useEffect(() => {
+    if (!open || !sheets) return;
+    sheets(1);
+    return () => sheets(-1);
+  }, [open]);
+  useEffect(() => { if (open) setClosing(false); }, [open]);
+  const close = () => { setClosing(true); setTimeout(() => { setClosing(false); onClose(); }, 220); };
+
+  // Drag towards the edge to close.
+  useEffect(() => {
+    const el = panel.current;
+    if (!open || !el) return;
+    let x0 = 0, y0 = 0, dx = 0, on = false, dragging = false;
+    const sign = rtl ? -1 : 1;
+    const start = (e) => { if (e.target.closest?.("input, textarea, [data-noswipe]")) return; const t = e.touches[0]; x0 = t.clientX; y0 = t.clientY; dx = 0; on = true; dragging = false; };
+    const move = (e) => {
+      if (!on) return;
+      const t = e.touches[0]; dx = (t.clientX - x0) * sign;
+      if (!dragging) { if (Math.abs(t.clientY - y0) > 12 && Math.abs(t.clientY - y0) > Math.abs(dx)) { on = false; return; } if (dx > 8) dragging = true; }
+      if (dragging) { e.cancelable && e.preventDefault(); el.style.transition = "none"; el.style.transform = `translateX(${Math.max(0, dx) * sign}px)`; if (back.current) back.current.style.opacity = String(Math.max(0.2, 1 - dx / el.offsetWidth)); }
+    };
+    const end = () => {
+      if (!on) return; on = false;
+      if (!dragging) return;
+      if (dx > el.offsetWidth * 0.3) close();
+      else { el.style.transition = "transform .2s ease"; el.style.transform = ""; if (back.current) back.current.style.opacity = "1"; }
+    };
+    el.addEventListener("touchstart", start, { passive: true });
+    el.addEventListener("touchmove", move, { passive: false });
+    el.addEventListener("touchend", end);
+    return () => { el.removeEventListener("touchstart", start); el.removeEventListener("touchmove", move); el.removeEventListener("touchend", end); };
+  }, [open]);
+
+  if (!open) return null;
+  return (
+    <>
+      <div ref={back} data-sheet-backdrop onClick={close} style={{ position: "fixed", inset: 0, zIndex: 38, background: "rgba(6,7,9,0.5)", backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)",
+        animation: closing ? "fadeOut .22s ease forwards" : "fadeIn .22s ease" }} />
+      <div ref={panel} data-testid={testid} data-drawer style={{
+        position: "fixed", top: 0, bottom: 0, insetInlineEnd: 0, width, zIndex: 39, overflowY: "auto", overscrollBehavior: "contain",
+        background: `linear-gradient(180deg, #17191E, ${T.bg})`, borderInlineStart: `1px solid ${T.glassBorder}`, boxShadow: "-20px 0 50px rgba(0,0,0,0.5)",
+        borderStartStartRadius: 26, borderEndStartRadius: 26,
+        padding: "calc(8px + var(--inset-top)) 18px calc(24px + var(--inset-bottom))",
+        animation: closing ? `${rtl ? "drawerOutL" : "drawerOutR"} .22s ease forwards` : `${rtl ? "drawerInL" : "drawerInR"} .3s cubic-bezier(.2,.8,.2,1)`,
+      }}>
+        {children}
+      </div>
+    </>
+  );
+}
+
+// Pull down at the top of a page to refresh. Works on any page: it only starts when nothing
+// under your finger is scrolled down. Shows the lizard, which spins while loading.
+export function PullRefresh({ onRefresh, enabled = true, logo }) {
+  const [pull, setPull] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const st = useRef(null);
+  const busyRef = useRef(false);
+  const MAX = 110, GO = 70;
+  useEffect(() => {
+    if (!enabled) return;
+    const atTop = (node) => {
+      if (window.scrollY > 0) return false;
+      for (let n = node; n && n !== document.body; n = n.parentElement) {
+        if (n.scrollTop > 0) return false;
+        if (n.dataset && (n.dataset.sheetBackdrop !== undefined || n.dataset.drawer !== undefined || n.dataset.nopull !== undefined)) return false;
+      }
+      return true;
+    };
+    const start = (e) => { st.current = !busyRef.current && e.touches.length === 1 && atTop(e.target) ? { y: e.touches[0].clientY, x: e.touches[0].clientX, on: false } : null; };
+    const move = (e) => {
+      const s = st.current; if (!s) return;
+      const dy = e.touches[0].clientY - s.y, dx = e.touches[0].clientX - s.x;
+      if (!s.on) { if (dy < 0 || Math.abs(dx) > Math.abs(dy)) { st.current = null; return; } if (dy > 12) s.on = true; else return; }
+      if (e.cancelable) e.preventDefault();
+      setPull(Math.min(MAX, dy * 0.5));
+    };
+    const end = async () => {
+      const s = st.current; st.current = null;
+      if (!s || !s.on) { setPull(0); return; }
+      let p = 0; setPull((v) => { p = v; return v; });
+      if (p >= GO) {
+        busyRef.current = true; setBusy(true); setPull(GO);
+        try { await Promise.all([onRefresh?.(), new Promise((r) => setTimeout(r, 600))]); } catch { /* shown elsewhere */ }
+        busyRef.current = false; setBusy(false);
+      }
+      setPull(0);
+    };
+    document.addEventListener("touchstart", start, { passive: true });
+    document.addEventListener("touchmove", move, { passive: false });
+    document.addEventListener("touchend", end);
+    document.addEventListener("touchcancel", end);
+    return () => { document.removeEventListener("touchstart", start); document.removeEventListener("touchmove", move); document.removeEventListener("touchend", end); document.removeEventListener("touchcancel", end); };
+  }, [enabled, onRefresh]);
+  if (!pull && !busy) return null;
+  const ready = pull >= GO;
+  return (
+    <div data-testid="pull-refresh" data-busy={busy || undefined} aria-live="polite" style={{ position: "fixed", top: "calc(6px + var(--inset-top))", left: 0, right: 0, zIndex: 70, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+      <div style={{ width: 44, height: 44, borderRadius: 999, background: ready || busy ? T.accent : T.surface2, border: `1px solid ${T.glassBorder}`, boxShadow: T.shadowRaised, display: "flex", alignItems: "center", justifyContent: "center",
+        transform: `translateY(${pull - 20}px) scale(${Math.min(1, 0.5 + pull / 140)})`, opacity: Math.min(1, pull / 40), transition: st.current ? "none" : "transform .2s ease, opacity .2s ease" }}>
+        {logo ? <img src={logo} alt="" style={{ width: 26, height: 26, transform: busy ? undefined : `rotate(${pull * 4}deg)`, animation: busy ? "spin .8s linear infinite" : "none" }} />
+          : <Loader2 size={20} color="#fff" style={{ animation: busy ? "spin .8s linear infinite" : "none" }} />}
+      </div>
+    </div>
+  );
+}
+
+// If a screen crashes, show a way back instead of a blank page.
+export class ErrorScreen extends Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err) { console.error("screen crashed:", err); }
+  componentDidUpdate(prev) { if (this.state.failed && prev.resetKey !== this.props.resetKey) this.setState({ failed: false }); }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div data-testid="error-screen" style={{ padding: "80px 24px", textAlign: "center", color: T.text }}>
+        <div className="display" style={{ fontSize: 22 }}>{tr("Something went wrong")}</div>
+        <div style={{ color: T.textDim, fontSize: 14, margin: "8px 0 18px", lineHeight: 1.5 }}>{tr("This page hit a problem. Go back or reload the app.")}</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+          {this.props.onBack && <button onClick={() => { this.setState({ failed: false }); this.props.onBack(); }} className="press" style={{ padding: "11px 18px", borderRadius: 999, border: `1px solid ${T.lineDark}`, background: T.surface, color: T.text, fontWeight: 700 }}>{tr("Go back")}</button>}
+          <button onClick={() => window.location.reload()} className="press" style={{ padding: "11px 18px", borderRadius: 999, border: "none", background: T.accent, color: "#fff", fontWeight: 700 }}>{tr("Reload")}</button>
+        </div>
+      </div>
+    );
+  }
 }

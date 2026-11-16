@@ -2,7 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { T } from "./theme";
 import { useNav } from "./nav/useNav";
 import { useKeyboardOffset } from "./lib/keyboard";
-import { SheetContext, isDriver } from "./components/ui";
+import { SheetContext, isDriver, SideDrawer, PullRefresh, ErrorScreen } from "./components/ui";
+import { logoWhite } from "./components/Logo";
+import { refreshNews } from "./lib/catalog";
 import { SafetyContext, PermissionNotice } from "./components/Safety";
 import { BottomNav } from "./components/BottomNav";
 import { Feed } from "./screens/Feed";
@@ -29,26 +31,29 @@ import { tr } from "./lib/i18n";
 
 const ADD_VIEWS = ["addChoice", "compose", "quickSpot", "addCar", "addMeet"];
 
+const PULL_VIEWS = ["feed", "discover", "newsList", "meetList", "inbox", "communityList", "tracks", "profile"];
+
 export function Shell({ store, toast }) {
   const { me, cars, posts, users, news, meets, communities, notifications, sightings, discussions, actions: a } = store;
   const nav = useNav();
   const { current: cur, stack, go, back, tab, replace, reset, patch } = nav;
   const p = cur.params || {};
   const [sheets, setSheets] = useState(0);
+  const [settingsOpen, setSettingsOpen] = useState(false); // Settings slides in from the side over your profile
   // Only brand-new accounts see the intro: first the short "make it yours" setup, then the tour.
-  // Logging back in to an existing account never shows it (it's in Settings → How Carfooly works).
+  // Logging back in to an existing account never shows it (it's in Settings → How Lacerta works).
   const [tour, setTour] = useState(false);
   const [setup, setSetup] = useState(false);
   useEffect(() => {
-    window.storage.get(`carfooly-setup:${me}`, false).then((r) => {
+    window.storage.get(`lacerta-setup:${me}`, false).then((r) => {
       if (r?.value !== "pending") return;
-      if (window.__skipWelcome) { window.storage.set(`carfooly-setup:${me}`, "done", false).catch(() => {}); setTour(true); } // tests
+      if (window.__skipWelcome) { window.storage.set(`lacerta-setup:${me}`, "done", false).catch(() => {}); setTour(true); } // tests
       else setSetup(true);
     }).catch(() => {});
   }, [me]);
   const finishSetup = async (data, addCar) => {
     if ((await a.updateProfile(data, true)) === false) return; // e.g. a word we don't allow: stay on the setup
-    window.storage.set(`carfooly-setup:${me}`, "done", false).catch(() => {});
+    window.storage.set(`lacerta-setup:${me}`, "done", false).catch(() => {});
     setSetup(false);
     setTour(true);
     if (addCar) { addCarAfterTour.current = true; return; }
@@ -69,8 +74,8 @@ export function Shell({ store, toast }) {
 
   // Android back button / gesture (see main.jsx). Returns false on the Feed so the app minimizes.
   useEffect(() => {
-    window.__carfoolyBack = back;
-    return () => { delete window.__carfoolyBack; };
+    window.__lacertaBack = back;
+    return () => { delete window.__lacertaBack; };
   }, [back]);
 
   // Each page comes back at the scroll position you left it.
@@ -108,12 +113,12 @@ export function Shell({ store, toast }) {
   const [tagFor, setTagFor] = useState(null); // { kind, id, title, subtitle }
   const openFromTag = (text, source = "tag") => {
     const t = parseTag(text);
-    if (!t) { store.flash(tr("That's not a Carfooly tag")); return; }
+    if (!t) { store.flash(tr("That's not a Lacerta tag")); return; }
     if (t.kind === "meet") {
-      if (!meets[t.id]) { store.flash(tr("That meet isn't on Carfooly anymore")); return; }
+      if (!meets[t.id]) { store.flash(tr("That meet isn't on Lacerta anymore")); return; }
       setTagFor(null); go("meet", { id: t.id, source });
     } else if (t.kind === "user") {
-      if (!users[t.id]) { store.flash(tr("No one on Carfooly has that tag")); return; }
+      if (!users[t.id]) { store.flash(tr("No one on Lacerta has that tag")); return; }
       setTagFor(null); openProfile(t.id);
     } else {
       const car = cars[t.id];
@@ -131,9 +136,9 @@ export function Shell({ store, toast }) {
   fromTagRef.current = openFromTag;
   useEffect(() => {
     const on = (e) => fromTagRef.current(e.detail, "link"); // opened from outside the app
-    window.addEventListener("carfooly-open-tag", on);
+    window.addEventListener("lacerta-open-tag", on);
     if (window.__pendingTag) { const t = window.__pendingTag; window.__pendingTag = null; setTimeout(() => fromTagRef.current(t, "link"), 0); }
-    return () => window.removeEventListener("carfooly-open-tag", on);
+    return () => window.removeEventListener("lacerta-open-tag", on);
   }, []);
 
   const unread = (notifications[me] || []).filter((n) => !n.read).length;
@@ -143,7 +148,8 @@ export function Shell({ store, toast }) {
     case "feed":
       page = <Feed me={me} cars={cars} posts={posts} users={users} tab={p.feedTab || "foryou"} setTab={(t) => patch({ feedTab: t })}
         openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
-        openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
+        openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs}
+        meets={meets} news={news} openMeet={(id) => openMeet(id, "feed")} openNews={() => go("newsList")} />;
       break;
     case "reports":
       page = store.isAdmin && <AdminReports me={me} reports={store.reports} data={{ posts, users, discussions, meets, communities, cars }}
@@ -152,7 +158,7 @@ export function Shell({ store, toast }) {
     case "userPosts":
       page = <Feed me={me} cars={cars} posts={posts} users={users} onlyUser={p.username} startId={p.id}
         openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
-        actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} />;
+        actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs} onBack={back} />;
       break;
     case "inbox":
       page = <InboxView me={me} notifications={notifications[me] || []} posts={posts} cars={cars} discussions={discussions}
@@ -164,7 +170,7 @@ export function Shell({ store, toast }) {
         openCar={openCar} openProfile={openProfile} openCommunity={openCommunity}
         onLikeNews={a.toggleNewsLike} onToggleGoing={a.toggleGoing} onToggleCommunity={a.toggleCommunityMembership}
         onOpenSearch={() => go("search")} onOpenCommunities={() => go("communityList")}
-        onOpenMeets={() => go("meetList")} onOpenNews={() => go("newsList")} onOpenTracks={() => go("tracks")} />;
+        onOpenMeets={() => go("meetList")} onOpenNews={() => go("newsList")} onOpenTracks={() => go("tracks")} openMeet={(id) => openMeet(id, "discover")} />;
       break;
     case "search":
       page = <SearchScreen me={me} cars={cars} users={users} communities={communities}
@@ -252,7 +258,7 @@ export function Shell({ store, toast }) {
       page = p.username && <Profile username={p.username} me={me} cars={cars} posts={posts} users={users} sightings={sightings}
         tab={p.tab || "posts"} setTab={(t) => patch({ tab: t })}
         onToggleFollow={() => a.toggleFollow(p.username)} openCar={openCar} openPost={(id) => go("userPosts", { username: p.username, id })}
-        onAddCar={() => go("addCar")} onOpenSettings={() => go("settings")} />;
+        onAddCar={() => go("addCar")} onOpenSettings={() => setSettingsOpen(true)} />;
       break;
     case "postDetail": {
       const post = posts[p.id];
@@ -296,11 +302,14 @@ export function Shell({ store, toast }) {
         <div key={cur.key} className="fade-in" data-view={cur.view} style={
           // The feed fills the whole screen, under the status bar and the nav (like TikTok/Instagram).
           fullBleed ? { padding: 0 } : cur.view === "car" ? { padding: "var(--inset-top) 16px 0" } : { padding: "calc(18px + var(--inset-top)) 16px 0" }}>
-          {page}
+          <ErrorScreen resetKey={cur.key} onBack={stack.length > 1 ? back : null}>{page}</ErrorScreen>
         </div>
+        {/* Pull down at the top to refresh (feed, discover, news, meets, notifications, communities). */}
+        <PullRefresh logo={logoWhite} enabled={PULL_VIEWS.includes(cur.view) && sheets === 0 && !settingsOpen}
+          onRefresh={async () => { if (cur.view === "newsList" || cur.view === "discover" || cur.view === "feed") await refreshNews(); await a.reload(); }} />
 
         {/* Pages scroll under the status bar: keep a solid strip behind its icons (the feed shows through). */}
-        {!fullBleed && <div aria-hidden style={{ position: "fixed", top: 0, left: 0, right: 0, height: "var(--inset-top)", background: T.bg, zIndex: 35 }} />}
+        {!fullBleed && <div aria-hidden style={{ position: "fixed", top: 0, left: 0, right: 0, height: "var(--inset-top)", background: "#0E1013", zIndex: 35 }} />}
         {toast && (
           <div style={{ position: "fixed", bottom: "calc(86px + var(--inset-bottom))", left: "50%", transform: "translateX(-50%)", background: T.text, color: T.ink, padding: "10px 18px", borderRadius: 999, fontSize: 13.5, fontWeight: 600, zIndex: 60, boxShadow: "0 6px 20px rgba(0,0,0,0.3)", whiteSpace: "nowrap" }}>
             {toast}
@@ -312,7 +321,11 @@ export function Shell({ store, toast }) {
         <PermissionNotice />
         <LinkNotice />
         <ShareTagSheet open={!!tagFor} onClose={() => setTagFor(null)} {...(tagFor || {})} flash={store.flash} onScan={() => { setTagFor(null); scan(); }} />
-        <BottomNav active={activeTab} onTab={onTab} hidden={sheets > 0 || kb > 0 || setup} />
+        <SideDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} testid="settings-drawer">
+          <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={(...x) => { setSettingsOpen(false); go(...x); }} actions={a}
+            onTour={() => { setSettingsOpen(false); setTour(true); }} isAdmin={store.isAdmin} openReports={store.reports.length} />
+        </SideDrawer>
+        <BottomNav active={activeTab} onTab={onTab} onCreate={pickAdd} driver={isDriver(users[me])} hidden={sheets > 0 || kb > 0 || setup} />
       </div>
     </SheetContext.Provider>
     </SafetyContext.Provider>

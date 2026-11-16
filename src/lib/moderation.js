@@ -23,8 +23,8 @@ export const BANNED = [
 // Handles kept back: the app itself, staff-looking names, and car brands (so the real brand can
 // claim theirs later). Blocked as the whole handle, and as "<brand>_official", "official_<brand>"…
 export const RESERVED = [
-  "carfooly", "admin", "administrator", "support", "help", "official", "moderator", "mod", "mods", "staff", "team", "security",
-  "system", "root", "owner", "founder", "verified", "news", "info", "contact", "app", "carfoolyapp", "carfooly_official",
+  "lacerta", "admin", "administrator", "support", "help", "official", "moderator", "mod", "mods", "staff", "team", "security",
+  "system", "root", "owner", "founder", "verified", "news", "info", "contact", "app", "lacertaapp", "lacerta_official",
   // brands
   "bmw", "mercedes", "mercedesbenz", "benz", "amg", "audi", "porsche", "volkswagen", "vw", "toyota", "lexus", "nissan", "infiniti",
   "honda", "acura", "mazda", "subaru", "mitsubishi", "suzuki", "hyundai", "kia", "genesis", "ford", "chevrolet", "chevy", "gmc",
@@ -70,4 +70,4 @@ export function handleProblem(handle) {
   return null;
 }
 
-export const RESPECT_MESSAGE = "That includes words we don't allow on Carfooly. Please keep it respectful.";
+export const RESPECT_MESSAGE = "That includes words we don't allow on Lacerta. Please keep it respectful.";

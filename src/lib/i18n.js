@@ -9,7 +9,7 @@ export const LANGS = [
   { code: "ar", name: "Arabic", native: "العربية", dir: "rtl" },
 ];
 const DICTS = { ar: AR };
-const KEY = "carfooly-lang";
+const KEY = "lacerta-lang";
 
 const read = () => { try { return localStorage.getItem(KEY); } catch { return null; } };
 const saved = read();

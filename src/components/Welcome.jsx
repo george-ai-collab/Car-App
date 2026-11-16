@@ -23,7 +23,7 @@ export function AccountTypePicker({ value, onChange }) {
         return (
           <button key={id} data-testid={`type-${id}`} onClick={() => onChange(id)} className="press" style={{
             display: "flex", alignItems: "center", gap: 12, padding: "14px 14px", borderRadius: 18, textAlign: "start",
-            background: on ? "rgba(230,56,70,0.12)" : T.surface, border: `1px solid ${on ? T.accent : T.lineDark}`,
+            background: on ? "rgba(212,67,77,0.12)" : T.surface, border: `1px solid ${on ? T.accent : T.lineDark}`,
           }}>
             <div style={{ width: 40, height: 40, borderRadius: 14, background: on ? T.accent : "rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <Icon size={19} color={on ? "#fff" : T.text} />
@@ -54,7 +54,7 @@ export function Welcome({ me, user = {}, onDone }) {
 
   return (
     <div data-testid="welcome" style={{ position: "fixed", inset: 0, zIndex: 70, background: T.bg, overflowY: "auto" }}>
-      <div aria-hidden style={{ position: "absolute", inset: 0, height: 360, pointerEvents: "none", background: "radial-gradient(90% 60% at 50% 0%, rgba(230,56,70,0.22), rgba(10,10,11,0) 70%)" }} />
+      <div aria-hidden style={{ position: "absolute", inset: 0, height: 360, pointerEvents: "none", background: "radial-gradient(90% 60% at 50% 0%, rgba(212,67,77,0.22), rgba(12,13,16,0) 70%)" }} />
       <div style={{ position: "relative", maxWidth: 440, margin: "0 auto", padding: `calc(28px + var(--inset-top)) 20px calc(${kb + 30}px + var(--inset-bottom))`, minHeight: "100%", display: "flex", flexDirection: "column" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
           <div style={{ display: "flex", gap: 6 }}>

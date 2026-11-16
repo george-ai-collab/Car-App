@@ -72,7 +72,7 @@ export function VideoTrim({ video, setVideo, onBack, onNext }) {
 
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "16px 2px 8px" }}>
         <span style={{ color: T.text, fontSize: 13.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}><Scissors size={14} color={T.accent} /> <span data-testid="trim-length">{fmtSecs(end - start)}</span> {tr("selected")}</span>
-        <span style={{ color: tooLong ? "#F2C76A" : T.textDim, fontSize: 12 }}>{tooLong ? tr("Video is {0} · max {1}", fmtSecs(duration), fmtSecs(MAX_SECONDS)) : tr("Up to {0}", fmtSecs(MAX_SECONDS))}</span>
+        <span style={{ color: tooLong ? "#D9BE8A" : T.textDim, fontSize: 12 }}>{tooLong ? tr("Video is {0} · max {1}", fmtSecs(duration), fmtSecs(MAX_SECONDS)) : tr("Up to {0}", fmtSecs(MAX_SECONDS))}</span>
       </div>
       <div ref={bar} data-testid="trim-bar" data-noswipe onPointerMove={move} onPointerUp={up} onPointerCancel={up}
         style={{ position: "relative", height: 48, borderRadius: 12, background: "repeating-linear-gradient(90deg, #26262b 0 18px, #1f1f23 18px 36px)", touchAction: "none", userSelect: "none" }}>

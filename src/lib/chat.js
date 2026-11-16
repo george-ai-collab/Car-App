@@ -9,7 +9,7 @@ import { uploadIfNeeded } from "../backend/remote";
 
 export const CHAT_LIMIT = 200;      // newest messages shown
 export const MAX_MESSAGE = 1000;    // characters
-const KEY = "carfooly-chat";
+const KEY = "lacerta-chat";
 const POLL_MS = REMOTE ? 6000 : 1200;
 
 // What each person can do in a community.

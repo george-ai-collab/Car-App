@@ -127,5 +127,5 @@ function CarRequests() {
 
 const btn = (danger) => ({
   flex: 1, padding: "10px 8px", borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 13, fontWeight: 700,
-  border: `1px solid ${danger ? "rgba(230,56,70,0.5)" : T.lineDark}`, background: danger ? "rgba(230,56,70,0.12)" : "transparent", color: danger ? T.accent : T.text,
+  border: `1px solid ${danger ? "rgba(212,67,77,0.5)" : T.lineDark}`, background: danger ? "rgba(212,67,77,0.12)" : "transparent", color: danger ? T.accent : T.text,
 });

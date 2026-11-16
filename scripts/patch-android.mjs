@@ -1,8 +1,8 @@
-// Runs after `npx cap add android`. Adds what the Carfooly UI needs on Android:
+// Runs after `npx cap add android`. Adds what the Lacerta UI needs on Android:
 //  - CAMERA permission, so "Take a photo" in Spot / New Post opens the camera
 //  - location permission, for "Use my location" when posting a meet
 //  - portrait lock, since every screen is designed for a portrait phone
-//  - carfooly:// links (share tags) open the app, and the QR scanner is set up
+//  - lacerta:// links (share tags) open the app, and the QR scanner is set up
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, copyFileSync, mkdirSync, unlinkSync } from "node:fs";
 
 const manifestPath = "android/app/src/main/AndroidManifest.xml";
@@ -28,13 +28,13 @@ if (!xml.includes('android:screenOrientation=')) {
   xml = xml.replace(/<activity\b/, '<activity\n            android:screenOrientation="portrait"');
 }
 
-// Share tags: carfooly://… links open the app.
-if (!xml.includes('android:scheme="carfooly"')) {
+// Share tags: lacerta://… links open the app.
+if (!xml.includes('android:scheme="lacerta"')) {
   xml = xml.replace("</activity>", `    <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="carfooly" />
+                <data android:scheme="lacerta" />
             </intent-filter>
         </activity>`);
 }
@@ -60,7 +60,7 @@ const activity = findFile("android/app/src/main/java", "MainActivity.java");
 if (activity) {
   const src = readFileSync(activity, "utf8");
   if (!src.includes("setDecorFitsSystemWindows")) {
-    const pkg = (src.match(/^package\s+[\w.]+;/m) || ["package com.carfooly.app;"])[0];
+    const pkg = (src.match(/^package\s+[\w.]+;/m) || ["package com.lacerta.app;"])[0];
     writeFileSync(activity, `${pkg}
 
 import android.graphics.Color;
@@ -157,7 +157,7 @@ if (existsSync("branding/icons") && existsSync(res)) {
 // plain app-black (no logo), so the app just opens. (Android 12+ always shows a system launch
 // screen; with a transparent icon it's only the dark background.)
 if (existsSync(res)) {
-  const blank = `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#0A0A0B"/></shape>\n`;
+  const blank = `<?xml version="1.0" encoding="utf-8"?>\n<shape xmlns:android="http://schemas.android.com/apk/res/android"><solid android:color="#0C0D10"/></shape>\n`;
   for (const dir of readdirSync(res)) {
     if (!dir.startsWith("drawable")) continue;
     for (const f of readdirSync(`${res}/${dir}`)) {
@@ -169,7 +169,7 @@ if (existsSync(res)) {
   if (existsSync(stylesPath)) {
     let st = readFileSync(stylesPath, "utf8");
     st = st.replace(/<style name="AppTheme\.NoActionBarLaunch"[\s\S]*?<\/style>/, `<style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#0A0A0B</item>
+        <item name="windowSplashScreenBackground">#0C0D10</item>
         <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
         <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
         <item name="android:background">@drawable/splash</item>
