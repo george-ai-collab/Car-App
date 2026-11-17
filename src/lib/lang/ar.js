@@ -1089,4 +1089,12 @@ export const AR = {
   "Cut off": "سيُقص",
   "Use this": "استخدم هذا",
   "Drag to move it. The dark parts won't show on your profile.": "اسحب لتحريكها. الأجزاء الداكنة لن تظهر في ملفك.",
+  "Add photos with this clip": "أضف صورًا مع هذا المقطع",
+  "Clips in a post with photos can be up to {0} each": "المقاطع في منشور مع صور تصل إلى {0} لكل مقطع",
+  "A post can have up to {0} of video in total.": "يمكن أن يحتوي المنشور على {0} من الفيديو كحد أقصى.",
+  "Add a short clip": "أضف مقطعًا قصيرًا",
+  "Clip": "مقطع",
+  "Clips in a post with photos can be up to {0} each, and {1} of video in total.": "المقاطع في منشور مع صور تصل إلى {0} لكل مقطع، و{1} من الفيديو إجمالًا.",
+  "{0} left": "متبقٍ {0}",
+  "Use this shape for every photo": "استخدم هذا الشكل لكل الصور",
 };

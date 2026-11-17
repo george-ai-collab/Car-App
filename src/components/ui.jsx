@@ -576,7 +576,7 @@ export function SideDrawer({ open, onClose, children, testid, width = "min(86vw,
 
 // Pull down at the top of a page to refresh. Works on any page: it only starts when nothing
 // under your finger is scrolled down. Shows the lizard, which spins while loading.
-export function PullRefresh({ onRefresh, enabled = true, logo }) {
+export function PullRefresh({ onRefresh, enabled = true }) {
   const [pull, setPull] = useState(0);
   const [busy, setBusy] = useState(false);
   const st = useRef(null);
@@ -598,13 +598,14 @@ export function PullRefresh({ onRefresh, enabled = true, logo }) {
       const dy = e.touches[0].clientY - s.y, dx = e.touches[0].clientX - s.x;
       if (!s.on) { if (dy < 0 || Math.abs(dx) > Math.abs(dy)) { st.current = null; return; } if (dy > 12) s.on = true; else return; }
       if (e.cancelable) e.preventDefault();
-      setPull(Math.min(MAX, dy * 0.5));
+      s.pull = Math.min(MAX, dy * 0.5);
+      setPull(s.pull);
     };
     const end = async () => {
       const s = st.current; st.current = null;
       if (!s || !s.on) { setPull(0); return; }
-      let p = 0; setPull((v) => { p = v; return v; });
-      if (p >= GO) {
+      // (Read the distance from the gesture itself: a state updater isn't run straight away here.)
+      if ((s.pull || 0) >= GO) {
         busyRef.current = true; setBusy(true); setPull(GO);
         try { await Promise.all([onRefresh?.(), new Promise((r) => setTimeout(r, 600))]); } catch { /* shown elsewhere */ }
         busyRef.current = false; setBusy(false);
@@ -618,13 +619,25 @@ export function PullRefresh({ onRefresh, enabled = true, logo }) {
     return () => { document.removeEventListener("touchstart", start); document.removeEventListener("touchmove", move); document.removeEventListener("touchend", end); document.removeEventListener("touchcancel", end); };
   }, [enabled, onRefresh]);
   if (!pull && !busy) return null;
-  const ready = pull >= GO;
+  // Android's standard pull-to-refresh: a round disc with a circular arrow that fills in as you
+  // pull, then turns into the usual spinning arc while it loads.
+  const f = Math.min(1, pull / GO), R = 8.5, C = 2 * Math.PI * R;
+  const arc = busy ? 0 : 0.8 * f;
+  const end = -90 + arc * 360, rad = (end * Math.PI) / 180;
+  const ax = 12 + R * Math.cos(rad), ay = 12 + R * Math.sin(rad);
   return (
     <div data-testid="pull-refresh" data-busy={busy || undefined} aria-live="polite" style={{ position: "fixed", top: "calc(6px + var(--inset-top))", left: 0, right: 0, zIndex: 70, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
-      <div style={{ width: 44, height: 44, borderRadius: 999, background: ready || busy ? T.accent : T.surface2, border: `1px solid ${T.glassBorder}`, boxShadow: T.shadowRaised, display: "flex", alignItems: "center", justifyContent: "center",
-        transform: `translateY(${pull - 20}px) scale(${Math.min(1, 0.5 + pull / 140)})`, opacity: Math.min(1, pull / 40), transition: st.current ? "none" : "transform .2s ease, opacity .2s ease" }}>
-        {logo ? <img src={logo} alt="" style={{ width: 26, height: 26, transform: busy ? undefined : `rotate(${pull * 4}deg)`, animation: busy ? "spin .8s linear infinite" : "none" }} />
-          : <Loader2 size={20} color="#fff" style={{ animation: busy ? "spin .8s linear infinite" : "none" }} />}
+      <style>{"@keyframes lrRot{to{transform:rotate(360deg)}}@keyframes lrDash{0%{stroke-dasharray:1 60;stroke-dashoffset:0}50%{stroke-dasharray:38 60;stroke-dashoffset:-8}100%{stroke-dasharray:38 60;stroke-dashoffset:-52}}"}</style>
+      <div style={{ width: 40, height: 40, borderRadius: 999, background: "#F4F4F5", boxShadow: "0 2px 6px rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center",
+        transform: `translateY(${Math.min(pull, GO) * 1.1 - 10}px) scale(${busy ? 1 : 0.6 + 0.4 * f})`, opacity: busy ? 1 : Math.min(1, pull / 30), transition: st.current ? "none" : "transform .25s ease, opacity .25s ease" }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" data-testid="refresh-spinner" style={busy ? { animation: "lrRot 1.3s linear infinite" } : { transform: `rotate(${pull * 2.2}deg)` }}>
+          {busy
+            ? <circle cx="12" cy="12" r={R} fill="none" stroke={T.accent} strokeWidth="2.6" strokeLinecap="round" style={{ animation: "lrDash 1.3s ease-in-out infinite", transformOrigin: "center" }} />
+            : <>
+                <circle cx="12" cy="12" r={R} fill="none" stroke={T.accent} strokeWidth="2.6" strokeDasharray={`${arc * C} ${C}`} transform="rotate(-90 12 12)" opacity={0.35 + 0.65 * f} />
+                {f > 0.15 && <polygon points="-2.6,-3 2.6,0 -2.6,3" fill={T.accent} opacity={0.35 + 0.65 * f} transform={`translate(${ax} ${ay}) rotate(${end + 90})`} />}
+              </>}
+        </svg>
       </div>
     </div>
   );

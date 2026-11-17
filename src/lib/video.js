@@ -2,6 +2,10 @@ import { tr } from "./i18n";
 // Videos: read one, trim it to at most 60 seconds, and shrink it on the phone before upload
 // (720p, ~1.6 Mbit/s, so a full minute is ~12 MB instead of 100+ MB). Original sound is kept.
 export const MAX_SECONDS = 60;
+// A post that mixes photos and clips: each clip up to 15 s, and all its clips together up to
+// 60 s (the same as one video post), so cutting a long video into parts gains nothing.
+export const CLIP_MAX = 15;
+export const CLIP_TOTAL = 60;
 const MAX_SIDE = 1280;
 
 export function readVideo(file) {

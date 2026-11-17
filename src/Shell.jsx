@@ -3,7 +3,6 @@ import { T } from "./theme";
 import { useNav } from "./nav/useNav";
 import { useKeyboardOffset } from "./lib/keyboard";
 import { SheetContext, isDriver, SideDrawer, PullRefresh, ErrorScreen } from "./components/ui";
-import { logoWhite } from "./components/Logo";
 import { refreshNews } from "./lib/catalog";
 import { SafetyContext, PermissionNotice } from "./components/Safety";
 import { BottomNav } from "./components/BottomNav";
@@ -306,7 +305,7 @@ export function Shell({ store, toast }) {
           <ErrorScreen resetKey={cur.key} onBack={stack.length > 1 ? back : null}>{page}</ErrorScreen>
         </div>
         {/* Pull down at the top to refresh (feed, discover, news, meets, notifications, communities). */}
-        <PullRefresh logo={logoWhite} enabled={PULL_VIEWS.includes(cur.view) && sheets === 0 && !settingsOpen}
+        <PullRefresh enabled={PULL_VIEWS.includes(cur.view) && sheets === 0 && !settingsOpen}
           onRefresh={async () => { if (cur.view === "newsList" || cur.view === "discover" || cur.view === "feed") await refreshNews(); await a.reload(); }} />
 
         {/* Pages scroll under the status bar: keep a solid strip behind its icons (the feed shows through). */}

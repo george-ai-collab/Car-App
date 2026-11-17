@@ -33,7 +33,7 @@ export const TEXT_COLORS = ["#FFFFFF", "#141414", "#D4434D", "#CBB083", "#8A9BAA
 
 export function blankEdit(src, w, h) {
   return {
-    src, w, h, zoom: 1, rot: 0, straighten: 0, panX: 0, panY: 0, filter: "none",
+    src, w, h, shape: "original", zoom: 1, rot: 0, straighten: 0, panX: 0, panY: 0, filter: "none",
     adjust: { brightness: 0, contrast: 0, saturation: 0, warmth: 0 }, texts: [], stickers: [],
   };
 }
