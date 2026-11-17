@@ -1,12 +1,13 @@
 import { useRef } from "react";
 
-// Double-tap and press-and-hold on an area, ignoring buttons and text boxes inside it.
-//   <div {...useTapGestures({ onDoubleTap: (x, y) => …, onHold: () => … })}>
+// Single tap, double-tap and press-and-hold on an area, ignoring buttons and text boxes inside it.
+//   <div {...useTapGestures({ onTap: () => …, onDoubleTap: (x, y) => …, onHold: () => … })}>
+// onTap waits a moment to make sure it isn't the first half of a double-tap.
 // x, y = where the second tap landed, relative to the area.
 const MOVE = 12, HOLD_MS = 480, DOUBLE_MS = 300;
 
-export function useTapGestures({ onDoubleTap, onHold }) {
-  const st = useRef({ last: 0, lx: 0, ly: 0, timer: null, down: null, held: false });
+export function useTapGestures({ onTap, onDoubleTap, onHold }) {
+  const st = useRef({ last: 0, lx: 0, ly: 0, timer: null, tap: null, down: null, held: false });
   const skip = (e) => !!e.target.closest?.("button, a, input, textarea, select, [data-notap]");
 
   const clear = () => { clearTimeout(st.current.timer); st.current.timer = null; };
@@ -32,10 +33,12 @@ export function useTapGestures({ onDoubleTap, onHold }) {
       const now = Date.now();
       if (onDoubleTap && now - s.last < DOUBLE_MS && Math.abs(e.clientX - s.lx) < 40 && Math.abs(e.clientY - s.ly) < 40) {
         s.last = 0;
+        clearTimeout(s.tap); s.tap = null;
         const r = e.currentTarget.getBoundingClientRect();
         onDoubleTap(e.clientX - r.left, e.clientY - r.top);
       } else {
         s.last = now; s.lx = e.clientX; s.ly = e.clientY;
+        if (onTap) { clearTimeout(s.tap); s.tap = setTimeout(() => { s.tap = null; onTap(); }, DOUBLE_MS); }
       }
     },
     onPointerCancel: () => { clear(); st.current.down = null; },

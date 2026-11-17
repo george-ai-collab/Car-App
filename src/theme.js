@@ -23,9 +23,10 @@ export const T = {
   glassHighlight: "inset 0 1px 0 rgba(255,255,255,0.08)",
 };
 
-export const FONT_STACK = "'Barlow Semi Condensed','Arial Narrow',ui-sans-serif,system-ui,sans-serif";
-export const BODY_STACK = "'Inter',ui-sans-serif,system-ui,-apple-system,sans-serif";
-export const MONO_STACK = "'IBM Plex Mono','SFMono-Regular',ui-monospace,monospace";
+// Fonts are set in src/lib/fonts.js (picked in Settings → Fonts while we decide).
+export const FONT_STACK = "var(--font-display, 'Barlow Semi Condensed','Arial Narrow',ui-sans-serif,system-ui,sans-serif)";
+export const BODY_STACK = "var(--font-body, 'Inter',ui-sans-serif,system-ui,-apple-system,sans-serif)";
+export const MONO_STACK = "var(--font-mono, 'IBM Plex Mono','SFMono-Regular',ui-monospace,monospace)";
 
 // Common button looks, so screens don't repeat long style objects.
 export const primaryButton = (enabled = true) => ({

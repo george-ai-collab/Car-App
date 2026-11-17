@@ -1,3 +1,4 @@
+import { tr } from "../../lib/i18n";
 // The maths behind the photo editor. The preview (CSS) and the saved photo (canvas)
 // both use these, so what you see while editing is what gets posted.
 //
@@ -10,22 +11,22 @@
 //   stickers: [{ id, x, y, w, h } in % of frame]  (plate covers) }
 
 export const SHAPES = [
-  { id: "original", label: "Original" },
-  { id: "4:5", label: "Portrait", ratio: 4 / 5 },
-  { id: "1:1", label: "Square", ratio: 1 },
-  { id: "16:9", label: "Landscape", ratio: 16 / 9 },
+  { id: "original", label: tr("Original") },
+  { id: "4:5", label: tr("Portrait"), ratio: 4 / 5 },
+  { id: "1:1", label: tr("Square"), ratio: 1 },
+  { id: "16:9", label: tr("Landscape"), ratio: 16 / 9 },
 ];
 const MIN_R = 4 / 5, MAX_R = 1.91;
 
 export const FILTERS = [
-  { id: "none", label: "Normal", css: "" },
-  { id: "vivid", label: "Vivid", css: "saturate(1.55) contrast(1.1)" },
-  { id: "street", label: "Street", css: "contrast(1.2) saturate(0.85) brightness(0.95)" },
-  { id: "golden", label: "Golden", css: "sepia(0.35) saturate(1.3) brightness(1.04)" },
-  { id: "night", label: "Night", css: "hue-rotate(-12deg) saturate(1.2) contrast(1.15) brightness(0.9)" },
-  { id: "fade", label: "Fade", css: "contrast(0.85) brightness(1.08) saturate(0.8)" },
-  { id: "mono", label: "Mono", css: "grayscale(1) contrast(1.1)" },
-  { id: "noir", label: "Noir", css: "grayscale(1) contrast(1.45) brightness(0.9)" },
+  { id: "none", label: tr("Normal"), css: "" },
+  { id: "vivid", label: tr("Vivid"), css: "saturate(1.55) contrast(1.1)" },
+  { id: "street", label: tr("Street"), css: "contrast(1.2) saturate(0.85) brightness(0.95)" },
+  { id: "golden", label: tr("Golden"), css: "sepia(0.35) saturate(1.3) brightness(1.04)" },
+  { id: "night", label: tr("Night"), css: "hue-rotate(-12deg) saturate(1.2) contrast(1.15) brightness(0.9)" },
+  { id: "fade", label: tr("Fade"), css: "contrast(0.85) brightness(1.08) saturate(0.8)" },
+  { id: "mono", label: tr("Mono"), css: "grayscale(1) contrast(1.1)" },
+  { id: "noir", label: tr("Noir"), css: "grayscale(1) contrast(1.45) brightness(0.9)" },
 ];
 
 export const TEXT_COLORS = ["#FFFFFF", "#141414", "#E63846", "#F2B84B", "#457B90", "#7BD389"];

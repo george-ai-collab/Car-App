@@ -4,10 +4,12 @@ import { T } from "../theme";
 import { ActionMenu, BottomSheet, TextArea } from "./ui";
 import { shareText } from "../lib/share";
 import { PERMISSION_HELP } from "../lib/permissions";
+import { tr } from "../lib/i18n";
 
 export const REPORT_REASONS = [
   "Spam or scam",
-  "Harassment or hate",
+  "Racism or hate speech",
+  "Offensive language or bullying",
   "Dangerous driving or street racing",
   "Nudity or violence",
   "Shows someone's private info (plate, address)",
@@ -15,42 +17,45 @@ export const REPORT_REASONS = [
   "Something else",
 ];
 
+// Cars get one more reason first: someone posting a car as theirs when it belongs to someone else.
+export const CAR_REPORT_REASONS = ["Carjacked : this isn't their car", ...REPORT_REASONS];
+
 // Pick a reason, add an optional note, send.
-export function ReportSheet({ open, onClose, what, onSend }) {
+export function ReportSheet({ open, onClose, what, onSend, reasons = REPORT_REASONS }) {
   const [reason, setReason] = useState(null);
   const [note, setNote] = useState("");
   const close = () => { setReason(null); setNote(""); onClose(); };
   return (
-    <BottomSheet open={open} onClose={close} title={`Report ${what}`} maxHeight="80vh">
-      <div style={{ color: T.textDim, fontSize: 13, marginBottom: 12 }}>Reports are private. The person won't know it was you.</div>
+    <BottomSheet open={open} onClose={close} title={tr("Report {0}", tr(what))} maxHeight="80vh">
+      <div style={{ color: T.textDim, fontSize: 13, marginBottom: 12 }}>{tr("Reports are private. The person won't know it was you.")}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {REPORT_REASONS.map((r) => (
+        {reasons.map((r) => (
           <button key={r} data-testid="report-reason" onClick={() => setReason(r)} className="press" style={{
-            padding: "12px 14px", borderRadius: 14, textAlign: "left", fontSize: 14, fontWeight: 600,
+            padding: "12px 14px", borderRadius: 14, textAlign: "start", fontSize: 14, fontWeight: 600,
             border: `1px solid ${reason === r ? T.accent : "transparent"}`, background: reason === r ? "rgba(230,56,70,0.14)" : "rgba(255,255,255,0.06)", color: T.text,
-          }}>{r}</button>
+          }}>{tr(r)}</button>
         ))}
       </div>
-      {reason && <div style={{ marginTop: 12 }}><TextArea value={note} onChange={setNote} placeholder="Anything else we should know? (optional)" maxLength={300} rows={2} /></div>}
+      {reason && <div style={{ marginTop: 12 }}><TextArea maxLines={6} value={note} onChange={setNote} placeholder={tr("Anything else we should know? (optional)")} maxLength={300} rows={2} /></div>}
       <button disabled={!reason} onClick={async () => { await onSend(reason, note); close(); }} className="press" style={{
         width: "100%", marginTop: 12, padding: 13, borderRadius: 16, border: "none", fontWeight: 600, fontSize: 15,
         background: reason ? T.accent : T.surface2, color: reason ? "#fff" : T.textDim,
-      }}>Send report</button>
+      }}>{tr("Send report")}</button>
     </BottomSheet>
   );
 }
 
 // The "···" button for things you don't own (and the share option for things you do).
 // items: extra rows for the owner (edit/delete…). Others get Share, Not interested, Report, Block.
-export function MoreMenu({ label = "More options", testid = "more-menu", items = [], share, report, hide, block, flash, overlay, size = 18 }) {
+export function MoreMenu({ label = tr("More options"), testid = "more-menu", items = [], share, report, hide, block, flash, overlay, size = 18 }) {
   const [open, setOpen] = useState(false);
   const [reporting, setReporting] = useState(false);
   const rows = [
     ...items,
-    share && { label: "Share", icon: <Share2 size={17} />, onClick: async () => { const r = await shareText(share); if (r === "copied" && flash) flash("Copied to share"); } },
-    hide && { label: "Not interested", icon: <EyeOff size={17} />, onClick: hide },
-    report && { label: `Report ${report.what}`, icon: <Flag size={17} />, danger: true, onClick: () => setReporting(true) },
-    block && { label: block.blocked ? `Unblock @${block.handle}` : `Block @${block.handle}`, icon: <Ban size={17} />, danger: !block.blocked, onClick: block.onToggle },
+    share && { label: tr("Share"), icon: <Share2 size={17} />, onClick: async () => { const r = await shareText(share); if (r === "copied" && flash) flash(tr("Copied to share")); } },
+    hide && { label: tr("Not interested"), icon: <EyeOff size={17} />, onClick: hide },
+    report && { label: tr("Report {0}", tr(report.what)), icon: <Flag size={17} />, danger: true, onClick: () => setReporting(true) },
+    block && { label: block.blocked ? tr("Unblock @{0}", block.handle) : tr("Block @{0}", block.handle), icon: <Ban size={17} />, danger: !block.blocked, onClick: block.onToggle },
   ].filter(Boolean);
   if (!rows.length) return null;
   return (
@@ -61,7 +66,7 @@ export function MoreMenu({ label = "More options", testid = "more-menu", items =
         <MoreHorizontal size={overlay ? 28 : size} color={overlay ? "#fff" : T.text} style={overlay ? { filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.5))" } : undefined} />
       </button>
       <ActionMenu open={open} onClose={() => setOpen(false)} items={rows} />
-      {report && <ReportSheet open={reporting} onClose={() => setReporting(false)} what={report.what} onSend={report.onSend} />}
+      {report && <ReportSheet open={reporting} onClose={() => setReporting(false)} what={report.what} onSend={report.onSend} reasons={report.reasons} />}
     </>
   );
 }
@@ -84,9 +89,9 @@ export function PermissionNotice() {
       {info && (
         <div data-testid="permission-notice">
           <div style={{ color: T.text, fontSize: 14.5, lineHeight: 1.5, marginBottom: 14 }}>{info.body}</div>
-          <div className="plate" style={{ fontSize: 10.5, color: T.textDim, marginBottom: 6 }}>To turn it on</div>
+          <div className="plate" style={{ fontSize: 10.5, color: T.textDim, marginBottom: 6 }}>{tr("To turn it on")}</div>
           <div style={{ color: T.text, fontSize: 13.5, lineHeight: 1.5, background: "rgba(255,255,255,0.06)", borderRadius: 14, padding: "10px 12px", marginBottom: 16 }}>{info.steps}</div>
-          <button onClick={() => setKind(null)} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 700, fontSize: 15 }}>OK</button>
+          <button onClick={() => setKind(null)} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 700, fontSize: 15 }}>{tr("OK")}</button>
         </div>
       )}
     </BottomSheet>

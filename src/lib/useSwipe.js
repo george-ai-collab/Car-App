@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { isRTL } from "./i18n";
 
 // Sideways swipe detection that leaves normal up/down scrolling alone.
 //   const sw = useSwipe({ onLeft, onRight });  <div {...sw.bind}>  (sw.dx = live drag distance)
@@ -38,8 +39,10 @@ export function useSwipe({ onLeft, onRight, threshold = 60, enabled = true } = {
     if (!st || st.axis !== "x") { setDx(0); return; }
     const mx = e.clientX - st.x;
     setDx(0);
-    if (mx <= -threshold && onLeft) { swiped.current = true; onLeft(); }
-    else if (mx >= threshold && onRight) { swiped.current = true; onRight(); }
+    // Right-to-left languages show tabs in mirror order, so the swipe directions swap too.
+    const goNext = isRTL ? onRight : onLeft, goPrev = isRTL ? onLeft : onRight;
+    if (mx <= -threshold && goNext) { swiped.current = true; goNext(); }
+    else if (mx >= threshold && goPrev) { swiped.current = true; goPrev(); }
   };
   const cancel = () => { s.current = null; setDx(0); };
   // A swipe shouldn't also count as a tap on whatever the finger started on.
