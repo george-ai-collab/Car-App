@@ -262,14 +262,14 @@ export function useStore(flash) {
   const setupKey = (h) => `lacerta-setup:${h}`;
   const markNewAccount = (h) => window.storage.set(setupKey(h), "pending", false).catch(() => {});
 
-  const updateProfile = async ({ name, bio, avatar, accountType }, quiet) => {
+  const updateProfile = async ({ name, bio, avatar, banner, accountType }, quiet) => {
     const users = get().users;
     const rec = users[me] || { joinedAt: now(), followers: [], following: [] };
     if (refuse(name, bio)) return false;
     const type = ["personal", "club", "business"].includes(accountType) ? accountType : rec.accountType || "personal";
-    const next = { ...rec, name: (name ?? rec.name ?? "").replace(/\s+/g, " ").trim() || me, bio: cleanText(bio ?? rec.bio ?? "", MAX_LINES.bio), avatar: avatar === undefined ? rec.avatar || null : avatar || null, accountType: type };
+    const next = { ...rec, name: (name ?? rec.name ?? "").replace(/\s+/g, " ").trim() || me, bio: cleanText(bio ?? rec.bio ?? "", MAX_LINES.bio), avatar: avatar === undefined ? rec.avatar || null : avatar || null, banner: banner === undefined ? rec.banner || null : banner || null, accountType: type };
     await save("users", { ...users, [me]: next });
-    sync((id) => remote.write.profile(id, { name: next.name.slice(0, 40), bio: next.bio.slice(0, 150), avatar: next.avatar, accountType: type }));
+    sync((id) => remote.write.profile(id, { name: next.name.slice(0, 40), bio: next.bio.slice(0, 150), avatar: next.avatar, ...(banner !== undefined ? { banner: next.banner } : {}), accountType: type }));
     if (!quiet) flash(tr("Profile updated"));
   };
 

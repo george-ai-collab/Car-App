@@ -87,7 +87,8 @@ export function Shell({ store, toast }) {
     : "feed";
 
   const onTab = (id) => {
-    if (id === "feed") tab("feed");
+    // Already on the feed: tapping Feed again goes back to the top.
+    if (id === "feed") { if (cur.view === "feed") window.dispatchEvent(new Event("lacerta:feed-top")); else tab("feed"); }
     else if (id === "discover") tab("discover");
     else if (id === "profile") tab("profile", { username: me });
     else if (id === "add") { if (cur.view !== "addChoice") go("addChoice"); }
@@ -149,7 +150,7 @@ export function Shell({ store, toast }) {
       page = <Feed me={me} cars={cars} posts={posts} users={users} tab={p.feedTab || "foryou"} setTab={(t) => patch({ feedTab: t })}
         openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
         openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs}
-        meets={meets} news={news} openMeet={(id) => openMeet(id, "feed")} openNews={() => go("newsList")} />;
+        meets={meets} news={news} openMeet={(id) => openMeet(id, "feed")} openNews={(id) => go("newsList", id ? { focus: id } : {})} />;
       break;
     case "reports":
       page = store.isAdmin && <AdminReports me={me} reports={store.reports} data={{ posts, users, discussions, meets, communities, cars }}
@@ -213,7 +214,7 @@ export function Shell({ store, toast }) {
       page = meets[p.id] && <MeetInsights meet={meets[p.id]} meets={meets} cars={cars} openProfile={openProfile} />;
       break;
     case "newsList":
-      page = <NewsScreen me={me} news={news} onLike={a.toggleNewsLike} onRefresh={a.reload} />;
+      page = <NewsScreen me={me} news={news} onLike={a.toggleNewsLike} onRefresh={a.reload} focusId={p.focus} />;
       break;
     case "tracks":
       page = <TracksScreen />;

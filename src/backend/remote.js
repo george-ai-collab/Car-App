@@ -145,7 +145,7 @@ export async function load(userId) {
     posts, postLikes, comments, commentLikes, meets, attendees, newsLikes, notifications, blocks, hidden, reports,
     announcements, meetSpots, meetViews, newsItems, joinRequests, myTickets,
   ] = await Promise.all([
-    t("profiles", "id,handle,name,bio,avatar_url,account_type,is_admin,banned,created_at"),
+    t("profiles", "id,handle,name,bio,avatar_url,banner_url,account_type,is_admin,banned,created_at"),
     t("follows", "follower_id,followee_id"),
     t("cars"), t("car_mods"), t("car_events"),
     t("car_follows", "car_id,user_id"), t("car_spots", "car_id,user_id"),
@@ -177,7 +177,7 @@ export async function load(userId) {
   const users = {};
   profiles.forEach((p) => {
     users[p.handle] = {
-      id: p.id, name: p.name || p.handle, bio: p.bio || "", avatar: p.avatar_url || null, accountType: p.account_type || "personal", isAdmin: !!p.is_admin, banned: !!p.banned, joinedAt: p.created_at,
+      id: p.id, name: p.name || p.handle, bio: p.bio || "", avatar: p.avatar_url || null, banner: p.banner_url || null, accountType: p.account_type || "personal", isAdmin: !!p.is_admin, banned: !!p.banned, joinedAt: p.created_at,
       followers: handles(followersOf[p.id] || [], "follower_id"),
       following: handles(followingOf[p.id] || [], "followee_id"),
     };
@@ -323,9 +323,10 @@ export async function load(userId) {
 // `me` is your user id. Other people are passed as their user ids.
 const VIEW_SOURCES = ["feed", "meets", "discover", "profile", "tag", "link", "notification", "search", "chat", "other"];
 export const write = {
-  profile: async (me, { name, bio, avatar, accountType }) => {
+  profile: async (me, { name, bio, avatar, banner, accountType }) => {
     const avatar_url = await uploadIfNeeded(me, avatar);
-    await must(sb().from("profiles").update({ name, bio, avatar_url, ...(accountType ? { account_type: accountType } : {}) }).eq("id", me));
+    const banner_url = banner === undefined ? undefined : await uploadIfNeeded(me, banner);
+    await must(sb().from("profiles").update({ name, bio, avatar_url, ...(banner_url !== undefined ? { banner_url } : {}), ...(accountType ? { account_type: accountType } : {}) }).eq("id", me));
   },
 
   // cars

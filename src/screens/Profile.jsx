@@ -3,6 +3,8 @@ import { useSwipe } from "../lib/useSwipe";
 import { MoreMenu, useSafety } from "../components/Safety";
 import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus, Layers, QrCode, Play } from "lucide-react";
 import { T } from "../theme";
+import { hueForId } from "../lib/utils";
+import { ProfileBanner } from "../components/BannerPicker";
 import { computeBadges, nextBadgeProgress } from "../lib/badges";
 import { Avatar, FollowAvatar, IconTab, IconBadge, EmptyState, BottomSheet, MiniStat, AccountLabel, isDriver } from "../components/ui";
 import { CarCard, SightingCard } from "./Cars";
@@ -33,8 +35,12 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
   const nextBadge = nextBadgeProgress(username, cars, sightings);
 
   return (
-    <div {...sw.bind} style={{ ...sw.bind.style, paddingTop: 40, paddingBottom: 10, minHeight: "75vh" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 22 }}>
+    <div {...sw.bind} style={{ ...sw.bind.style, paddingBottom: 10, minHeight: "75vh" }}>
+      {/* Banner across the top, edge to edge, under the status bar. */}
+      <div style={{ margin: "calc(-18px - var(--inset-top)) -16px 0", paddingTop: "var(--inset-top)", position: "relative", background: user.banner ? "#000" : "transparent" }}>
+        <ProfileBanner url={user.banner} hue={hueForId(username)} />
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 22, marginTop: -30, position: "relative" }}>
         <FollowAvatar username={username} size={76} showFollow={!isMe && !blocked} following={iFollow} onFollow={onToggleFollow} />
         <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
           <div className="display" style={{ fontSize: 20, color: T.text, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name || username}</div>

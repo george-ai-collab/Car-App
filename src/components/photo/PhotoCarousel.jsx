@@ -155,8 +155,10 @@ export function PhotoCarousel({ photos, mode = "feed" }) {
     ? { position: "relative", width: "100%", aspectRatio: String(cardAspect), maxHeight: "78vh", overflow: "hidden", background: "#000" }
     : { position: "relative", width: "100%", aspectRatio: photos[0]?.aspect ? String(photos[0].aspect) : "1", maxHeight: "75vh", borderRadius: 18, overflow: "hidden", background: "#000" };
 
+  // isolation: the photo counter and dots (z-index above the photos) stay inside this post,
+  // so menus and sheets opened over the feed always cover them.
   const deck = (
-    <div style={box}>
+    <div style={{ ...box, isolation: "isolate" }}>
       <div ref={scrollerRef} data-testid="carousel" {...(many ? { "data-noswipe": true } : {})} onScroll={onScroll} style={{
         // Sideways swipes stay here (next photo); up/down swipes must reach the feed, from anywhere
         // on the photo. (Containing both directions made only the caption area scroll the feed.)

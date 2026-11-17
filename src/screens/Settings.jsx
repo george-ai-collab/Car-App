@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { User, Car, Archive, LogOut, Trash2, ChevronRight, Info, Pencil, Image as ImageIcon, Users, ShieldCheck, Globe } from "lucide-react";
 import { T } from "../theme";
+import { hueForId } from "../lib/utils";
+import { BannerPicker, ProfileBanner } from "../components/BannerPicker";
 import { fmtDate } from "../lib/utils";
 import { Avatar, EmptyState, Field, TextInput, TextArea, ConfirmDialog, SectionLabel, BottomSheet, isDriver } from "../components/ui";
 import { CameraCapture } from "../components/photo/CameraCapture";
@@ -121,11 +123,20 @@ export function EditProfile({ me, users, onSave }) {
   const [name, setName] = useState(user.name || "");
   const [bio, setBio] = useState(user.bio || "");
   const [avatar, setAvatar] = useState(user.avatar || null);
+  const [banner, setBanner] = useState(user.banner || null);
   const [busy, setBusy] = useState(false);
 
   return (
     <div style={{ paddingTop: 18, paddingBottom: 10 }}>
       <div className="display" style={{ fontSize: 22, color: T.text, marginBottom: 18 }}>{tr("Edit profile")}</div>
+
+      <Field label={tr("Banner")}>
+        <div style={{ borderRadius: 14, overflow: "hidden", border: `1px solid ${T.lineDark}` }}><ProfileBanner url={banner} hue={hueForId(me)} testid="banner-preview" /></div>
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <BannerPicker onPick={setBanner} label={banner ? tr("Change banner") : tr("Add a banner")} />
+          {banner && <button onClick={() => setBanner(null)} className="press" style={{ padding: "8px 14px", borderRadius: 999, border: `1px solid ${T.lineDark}`, background: "transparent", color: T.textDim, fontSize: 12.5, fontWeight: 600 }}>{tr("Remove")}</button>}
+        </div>
+      </Field>
 
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, marginBottom: 20 }}>
         {avatar
@@ -148,7 +159,7 @@ export function EditProfile({ me, users, onSave }) {
       </Field>
       <Field label={tr("Bio")}><TextArea value={bio} onChange={setBio} placeholder={tr("Your cars, your scene, your plans")} maxLength={150} maxLines={MAX_LINES.bio} rows={3} /></Field>
 
-      <button disabled={busy} className="press" onClick={async () => { setBusy(true); await onSave({ name, bio, avatar }); setBusy(false); }} style={{
+      <button disabled={busy} className="press" onClick={async () => { setBusy(true); await onSave({ name, bio, avatar, banner }); setBusy(false); }} style={{
         width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", marginTop: 6, background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15, opacity: busy ? 0.7 : 1,
       }}>
         {busy ? tr("Saving…") : tr("Save")}

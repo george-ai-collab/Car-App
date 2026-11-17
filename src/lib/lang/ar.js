@@ -1081,4 +1081,12 @@ export const AR = {
   "This page hit a problem. Go back or reload the app.": "واجهت هذه الصفحة مشكلة. ارجع أو أعد تحميل التطبيق.",
   "Go back": "رجوع",
   "Reload": "إعادة التحميل",
+  "Back to the top": "العودة إلى الأعلى",
+  "Change banner": "تغيير الغلاف",
+  "Add a banner": "إضافة غلاف",
+  "Banner": "الغلاف",
+  "Position your banner": "اضبط موضع الغلاف",
+  "Cut off": "سيُقص",
+  "Use this": "استخدم هذا",
+  "Drag to move it. The dark parts won't show on your profile.": "اسحب لتحريكها. الأجزاء الداكنة لن تظهر في ملفك.",
 };
