@@ -42,6 +42,12 @@ if (Capacitor.isNativePlatform()) CapApp.addListener("backButton", handleBack);
 // If the app isn't ready yet, Shell picks it up when it opens.
 const openTag = (text) => {
   if (!text) return;
+  // Sign-in links (Google, "reset password" emails) go to the account code instead.
+  if (/^lacerta:\/\/auth\b/i.test(text)) {
+    window.__pendingAuthLink = text;
+    window.dispatchEvent(new CustomEvent("lacerta-auth-link", { detail: text }));
+    return;
+  }
   window.__pendingTag = text;
   window.dispatchEvent(new CustomEvent("lacerta-open-tag", { detail: text }));
   window.__pendingTag = window.__lacertaBack ? null : text; // Shell mounted: handled now

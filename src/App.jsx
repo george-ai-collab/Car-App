@@ -6,6 +6,7 @@ import { Onboarding } from "./screens/Onboarding";
 import { Shell } from "./Shell";
 import { hasChosenLanguage, tr } from "./lib/i18n";
 import { LanguageScreen } from "./components/LanguagePicker";
+import { PickHandleScreen } from "./components/Accounts";
 
 // Entry point: loads data, then shows sign-up or the app.
 // Screens live in src/screens, shared pieces in src/components, data in src/store.
@@ -37,7 +38,10 @@ export default function App() {
         ) : store.loading ? (
           <LoadingScreen />
         ) : !store.me ? (
-          <Onboarding onSubmit={store.actions.claimUsername} users={store.users} remote={store.remote} actions={store.actions} />
+          <Onboarding onSubmit={store.actions.claimUsername} users={store.users} remote={store.remote} actions={store.actions} adding={store.adding} />
+        ) : store.users[store.me]?.needsHandle ? (
+          // Signed up with Google: pick a handle first.
+          <PickHandleScreen suggestion={(store.users[store.me]?.name || "").replace(/\s+/g, "_")} actions={store.actions} />
         ) : (
           // key: switching accounts starts fresh navigation
           <Shell key={store.me} store={store} toast={toast} />

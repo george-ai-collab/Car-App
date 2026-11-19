@@ -3,7 +3,6 @@ import { T } from "./theme";
 import { useNav } from "./nav/useNav";
 import { useKeyboardOffset } from "./lib/keyboard";
 import { SheetContext, isDriver, SideDrawer, PullRefresh, ErrorScreen } from "./components/ui";
-import { logoWhite } from "./components/Logo";
 import { refreshNews } from "./lib/catalog";
 import { SafetyContext, PermissionNotice } from "./components/Safety";
 import { BottomNav } from "./components/BottomNav";
@@ -20,6 +19,7 @@ import { SpotForm } from "./screens/Add";
 import { ComposerFlow } from "./components/photo/Composer";
 import { AddPage } from "./components/AddMenu";
 import { Tour } from "./components/Tour";
+import { AccountSwitcher, NewPasswordSheet } from "./components/Accounts";
 import { SettingsScreen, EditProfile, ManageCars, ArchivedPosts } from "./screens/Settings";
 import { ShareTagSheet } from "./components/ShareTag";
 import { Welcome } from "./components/Welcome";
@@ -86,8 +86,22 @@ export function Shell({ store, toast }) {
     : stack[1]?.root ? (stack[1].view === "profile" ? "profile" : stack[1].view)
     : "feed";
 
-  const onTab = (id) => {
-    if (id === "feed") tab("feed");
+  // Double-tap Profile: switch to your other account (or pick one, with three or more).
+  const lastProfileTap = useRef(0);
+  const [switcher, setSwitcher] = useState(false);
+  const profileDoubleTap = () => {
+    const others = a.otherAccounts();
+    if (others.length === 1) a.switchAccount(others[0].id);
+    else setSwitcher(true);
+  };
+  const onTab = (id, at) => {
+    if (id === "profile") {
+      const t = at || Date.now();
+      if (t - lastProfileTap.current < 400) { lastProfileTap.current = 0; profileDoubleTap(); return; }
+      lastProfileTap.current = t;
+    }
+    // Already on the feed: tapping Feed again goes back to the top.
+    if (id === "feed") { if (cur.view === "feed") window.dispatchEvent(new Event("lacerta:feed-top")); else tab("feed"); }
     else if (id === "discover") tab("discover");
     else if (id === "profile") tab("profile", { username: me });
     else if (id === "add") { if (cur.view !== "addChoice") go("addChoice"); }
@@ -149,7 +163,7 @@ export function Shell({ store, toast }) {
       page = <Feed me={me} cars={cars} posts={posts} users={users} tab={p.feedTab || "foryou"} setTab={(t) => patch({ feedTab: t })}
         openCar={openCar} openProfile={openProfile} openPost={openPost} toggleLike={a.toggleLike} addComment={a.addComment} addReply={a.addReply}
         openSearch={() => go("search")} openInbox={() => go("inbox")} unreadCount={unread} actions={a} scrollKey={cur.key} onFollow={a.toggleFollow} prefs={store.prefs}
-        meets={meets} news={news} openMeet={(id) => openMeet(id, "feed")} openNews={() => go("newsList")} />;
+        meets={meets} news={news} openMeet={(id) => openMeet(id, "feed")} openNews={(id) => go("newsList", id ? { focus: id } : {})} />;
       break;
     case "reports":
       page = store.isAdmin && <AdminReports me={me} reports={store.reports} data={{ posts, users, discussions, meets, communities, cars }}
@@ -213,7 +227,7 @@ export function Shell({ store, toast }) {
       page = meets[p.id] && <MeetInsights meet={meets[p.id]} meets={meets} cars={cars} openProfile={openProfile} />;
       break;
     case "newsList":
-      page = <NewsScreen me={me} news={news} onLike={a.toggleNewsLike} onRefresh={a.reload} />;
+      page = <NewsScreen me={me} news={news} onLike={a.toggleNewsLike} onRefresh={a.reload} focusId={p.focus} />;
       break;
     case "tracks":
       page = <TracksScreen />;
@@ -269,7 +283,7 @@ export function Shell({ store, toast }) {
       break;
     }
     case "settings":
-      page = <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={go} actions={a} onTour={() => setTour(true)} isAdmin={store.isAdmin} openReports={store.reports.length} />;
+      page = <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={go} actions={a} onTour={() => setTour(true)} isAdmin={store.isAdmin} openReports={store.reports.length} myId={store.myAccountId} flash={store.flash} />;
       break;
     case "editProfile":
       page = <EditProfile me={me} users={users} onSave={async (data) => { if ((await a.updateProfile(data)) !== false) back(); }} />;
@@ -305,7 +319,7 @@ export function Shell({ store, toast }) {
           <ErrorScreen resetKey={cur.key} onBack={stack.length > 1 ? back : null}>{page}</ErrorScreen>
         </div>
         {/* Pull down at the top to refresh (feed, discover, news, meets, notifications, communities). */}
-        <PullRefresh logo={logoWhite} enabled={PULL_VIEWS.includes(cur.view) && sheets === 0 && !settingsOpen}
+        <PullRefresh enabled={PULL_VIEWS.includes(cur.view) && sheets === 0 && !settingsOpen}
           onRefresh={async () => { if (cur.view === "newsList" || cur.view === "discover" || cur.view === "feed") await refreshNews(); await a.reload(); }} />
 
         {/* Pages scroll under the status bar: keep a solid strip behind its icons (the feed shows through). */}
@@ -323,8 +337,10 @@ export function Shell({ store, toast }) {
         <ShareTagSheet open={!!tagFor} onClose={() => setTagFor(null)} {...(tagFor || {})} flash={store.flash} onScan={() => { setTagFor(null); scan(); }} />
         <SideDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} testid="settings-drawer">
           <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={(...x) => { setSettingsOpen(false); go(...x); }} actions={a}
-            onTour={() => { setSettingsOpen(false); setTour(true); }} isAdmin={store.isAdmin} openReports={store.reports.length} />
+            onTour={() => { setSettingsOpen(false); setTour(true); }} isAdmin={store.isAdmin} openReports={store.reports.length} myId={store.myAccountId} flash={store.flash} />
         </SideDrawer>
+        <AccountSwitcher open={switcher} onClose={() => setSwitcher(false)} myId={store.myAccountId} actions={a} />
+        {store.recovery && <NewPasswordSheet open actions={a} flash={store.flash} />}
         <BottomNav active={activeTab} onTab={onTab} onCreate={pickAdd} driver={isDriver(users[me])} hidden={sheets > 0 || kb > 0 || setup} />
       </div>
     </SheetContext.Provider>

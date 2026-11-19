@@ -1,4 +1,6 @@
 import { sb } from "./client";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 import { SEED_NEWS } from "../lib/seedNews";
 import { tr } from "../lib/i18n";
 
@@ -76,15 +78,92 @@ export async function signIn({ email, password }) {
   return { userId: data.user.id };
 }
 
+// "local": only this phone's sign-in ends (your other phones and saved accounts stay signed in).
 export async function signOut() {
-  try { await sb().auth.signOut(); } catch { /* already signed out */ }
+  try { await sb().auth.signOut({ scope: "local" }); } catch { /* already signed out */ }
+}
+
+// ---------- Google, links from emails, switching ----------
+// Links back into the app use the lacerta:// address the app already opens (share tags).
+export const AUTH_LINK = "lacerta://auth";
+
+// Opens Google's sign-in in the phone's browser. When it's done, Google sends the person back
+// to lacerta://auth/callback, which the app picks up (handleAuthLink).
+export async function signInWithGoogle() {
+  const { data, error } = await sb().auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: AUTH_LINK + "/callback", skipBrowserRedirect: true, queryParams: { prompt: "select_account" } },
+  });
+  if (error || !data?.url) return { error: error ? authMessage(error) : tr("Google sign-in isn't set up yet.") };
+  if (Capacitor.isNativePlatform()) await Browser.open({ url: data.url });
+  else window.location.assign(data.url);
+  return { pending: true };
+}
+
+// A lacerta://auth/... link: sign in with what it carries. Returns { userId, recovery } or { error }.
+export async function handleAuthLink(url) {
+  try { if (Capacitor.isNativePlatform()) await Browser.close(); } catch { /* wasn't open */ }
+  const u = new URL(url.replace(/^lacerta:\/\//, "https://lacerta.app/"));
+  const hash = new URLSearchParams(u.hash.replace(/^#/, ""));
+  const q = u.searchParams;
+  const err = hash.get("error_description") || q.get("error_description");
+  if (err) return { error: /expired|invalid/i.test(err) ? tr("That link has expired. Ask for a new one.") : err };
+  const recovery = u.pathname.endsWith("/reset") || hash.get("type") === "recovery";
+  if (hash.get("access_token") && hash.get("refresh_token")) {
+    const { data, error } = await sb().auth.setSession({ access_token: hash.get("access_token"), refresh_token: hash.get("refresh_token") });
+    if (error) return { error: authMessage(error) };
+    return { userId: data.user.id, recovery };
+  }
+  if (q.get("code")) {
+    const { data, error } = await sb().auth.exchangeCodeForSession(q.get("code"));
+    if (error) return { error: authMessage(error) };
+    return { userId: data.user.id, recovery };
+  }
+  return { error: tr("That link didn't work. Try again.") };
+}
+
+export async function currentSession() {
+  const { data } = await sb().auth.getSession();
+  return data?.session || null;
+}
+// Move to another saved account. The current one stays signed in.
+export async function switchSession(a) {
+  if (!a?.refresh) return { needsLogin: true };
+  const { data, error } = await sb().auth.setSession({ access_token: a.access || "", refresh_token: a.refresh });
+  if (error || !data?.user) return { needsLogin: true };
+  return { userId: data.user.id };
+}
+
+// Does this account have a password (or only Google)?
+export async function signInMethods() {
+  const { data } = await sb().auth.getUser();
+  const u = data?.user;
+  return { email: u?.email || "", password: (u?.app_metadata?.providers || [u?.app_metadata?.provider]).includes("email"), google: (u?.app_metadata?.providers || []).includes("google") };
+}
+// Change your password. With a password already, the current one is checked first.
+export async function changePassword({ current, next, fromLink }) {
+  const m = await signInMethods();
+  if (m.password && !fromLink) {
+    const { error } = await sb().auth.signInWithPassword({ email: m.email, password: current || "" });
+    if (error) return { error: tr("Your current password isn't right.") };
+  }
+  const { error } = await sb().auth.updateUser({ password: next });
+  if (error) return { error: authMessage(error) };
+  return {};
+}
+// 'ok' | 'too_soon' | 'taken' | 'reserved' | 'not_allowed' | 'invalid' | null (offline)
+export async function changeHandle(handle) {
+  const { data, error } = await sb().rpc("change_handle", { p_handle: handle });
+  if (error) return null;
+  return data;
 }
 
 // Forgot password, in two steps:
 //  1. we email a short code (the "Reset password" email template shows it as {{ .Token }})
 //  2. the person types the code and a new password; that signs them in with the new password.
 export async function resetPassword(email) {
-  const { error } = await sb().auth.resetPasswordForEmail(email.trim());
+  // The email has a code to type in the app, and a link that opens the app (lacerta://auth/reset).
+  const { error } = await sb().auth.resetPasswordForEmail(email.trim(), { redirectTo: AUTH_LINK + "/reset" });
   return error ? { error: authMessage(error) } : {};
 }
 export async function confirmReset({ email, code, password }) {
@@ -120,7 +199,9 @@ export async function uploadIfNeeded(userId, url) {
   const ext = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov" }[type];
   const bucket = isVideo ? "videos" : "photos";
   const path = `${userId}/${crypto.randomUUID()}.${ext}`;
-  await must(sb().storage.from(bucket).upload(path, blob, { contentType: type, upsert: false }));
+  // Files never change once uploaded (each has a new name), so phones can keep them for a year
+  // instead of downloading them again every hour.
+  await must(sb().storage.from(bucket).upload(path, blob, { contentType: type, upsert: false, cacheControl: "31536000" }));
   if (url.startsWith("blob:")) URL.revokeObjectURL(url);
   return sb().storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
@@ -133,7 +214,8 @@ const group = (rows, key) => {
   return out;
 };
 
-export async function load(userId) {
+// opts.news = false skips the news headlines (the biggest part) and reuses opts.prevNews.
+export async function load(userId, opts = {}) {
   const t = (name, cols = "*", fn) => {
     let q = sb().from(name).select(cols);
     if (fn) q = fn(q);
@@ -145,7 +227,7 @@ export async function load(userId) {
     posts, postLikes, comments, commentLikes, meets, attendees, newsLikes, notifications, blocks, hidden, reports,
     announcements, meetSpots, meetViews, newsItems, joinRequests, myTickets,
   ] = await Promise.all([
-    t("profiles", "id,handle,name,bio,avatar_url,account_type,is_admin,banned,created_at"),
+    t("profiles", "*"),
     t("follows", "follower_id,followee_id"),
     t("cars"), t("car_mods"), t("car_events"),
     t("car_follows", "car_id,user_id"), t("car_spots", "car_id,user_id"),
@@ -161,7 +243,8 @@ export async function load(userId) {
     t("hidden_posts", "post_id", (q) => q.eq("user_id", userId)),
     t("reports", "*", (q) => q.eq("status", "open").order("created_at", { ascending: false }).limit(300)), // admins only (others get none)
     t("meet_announcements"), t("meet_spots"), t("meet_views", "meet_id,user_id,source,created_at"), // views: organizers only
-    t("news_items", "id,url,title,source,summary,image,category,lang,published_at", (q) => q.order("published_at", { ascending: false }).limit(180)).catch(() => []),
+    opts.news === false && opts.prevNews ? Promise.resolve(null)
+      : t("news_items", "id,url,title,source,summary,image,category,lang,published_at", (q) => q.order("published_at", { ascending: false }).limit(180)).catch(() => []),
     t("community_join_requests", "community_id,user_id").catch(() => []), // yours, plus the ones for groups you run
     t("meet_tickets", "meet_id,code").catch(() => []), // only your own tickets
   ]);
@@ -177,7 +260,8 @@ export async function load(userId) {
   const users = {};
   profiles.forEach((p) => {
     users[p.handle] = {
-      id: p.id, name: p.name || p.handle, bio: p.bio || "", avatar: p.avatar_url || null, accountType: p.account_type || "personal", isAdmin: !!p.is_admin, banned: !!p.banned, joinedAt: p.created_at,
+      id: p.id, name: p.name || p.handle, bio: p.bio || "", avatar: p.avatar_url || null, banner: p.banner_url || null,
+      ...(p.needs_handle ? { needsHandle: true } : {}), ...(p.handle_changed_at ? { handleChangedAt: p.handle_changed_at } : {}), accountType: p.account_type || "personal", isAdmin: !!p.is_admin, banned: !!p.banned, joinedAt: p.created_at,
       followers: handles(followersOf[p.id] || [], "follower_id"),
       following: handles(followingOf[p.id] || [], "followee_id"),
     };
@@ -240,7 +324,7 @@ export async function load(userId) {
       admins: handles((membersOf[c.id] || []).filter((m) => m.role === "admin"), "user_id"),
       requests: handles(requestsOf[c.id] || [], "user_id"),
       joinMode: c.join_mode || "open", chatMode: c.chat_mode || "everyone", chatAutoLimit: c.chat_auto_limit || 50,
-      pinnedId: c.pinned_message_id || null,
+      pinnedId: c.pinned_message_id || null, avatar: c.avatar_url || null, banner: c.banner_url || null,
     };
   });
   const repliesOf = group(threadReplies, "thread_id");
@@ -292,7 +376,7 @@ export async function load(userId) {
   // Until the first fetch has happened, the built-in stories show instead.
   const newsLikesOf = group(newsLikes, "news_id");
   const news = {};
-  const newsRows = newsItems.length ? newsItems.map((n) => ({
+  const newsRows = newsItems === null ? Object.values(opts.prevNews).map(({ likes, submittedBy, ...n }) => n) : newsItems.length ? newsItems.map((n) => ({
     id: n.id, title: n.title, url: n.url, source: n.source, note: n.summary, image: n.image,
     category: n.category, lang: n.lang, date: n.published_at,
   })) : SEED_NEWS;
@@ -323,9 +407,10 @@ export async function load(userId) {
 // `me` is your user id. Other people are passed as their user ids.
 const VIEW_SOURCES = ["feed", "meets", "discover", "profile", "tag", "link", "notification", "search", "chat", "other"];
 export const write = {
-  profile: async (me, { name, bio, avatar, accountType }) => {
+  profile: async (me, { name, bio, avatar, banner, accountType }) => {
     const avatar_url = await uploadIfNeeded(me, avatar);
-    await must(sb().from("profiles").update({ name, bio, avatar_url, ...(accountType ? { account_type: accountType } : {}) }).eq("id", me));
+    const banner_url = banner === undefined ? undefined : await uploadIfNeeded(me, banner);
+    await must(sb().from("profiles").update({ name, bio, avatar_url, ...(banner_url !== undefined ? { banner_url } : {}), ...(accountType ? { account_type: accountType } : {}) }).eq("id", me));
   },
 
   // cars
@@ -459,10 +544,15 @@ export const write = {
     await must(sb().from("communities").insert({ id: c.id, name: c.name, description: c.description, kind: "custom", created_by: me }));
     await insertOnce("community_members", { community_id: c.id, user_id: me });
   },
-  editCommunity: (me, id, name, description, s = {}) => must(sb().from("communities").update({
-    name, description,
-    ...(s.joinMode ? { join_mode: s.joinMode } : {}), ...(s.chatMode ? { chat_mode: s.chatMode } : {}), ...(s.chatAutoLimit ? { chat_auto_limit: s.chatAutoLimit } : {}),
-  }).eq("id", id)),
+  editCommunity: async (me, id, name, description, s = {}) => {
+    const looks = {};
+    if (s.avatar !== undefined) looks.avatar_url = await uploadIfNeeded(me, s.avatar);
+    if (s.banner !== undefined) looks.banner_url = await uploadIfNeeded(me, s.banner);
+    await must(sb().from("communities").update({
+      name, description, ...looks,
+      ...(s.joinMode ? { join_mode: s.joinMode } : {}), ...(s.chatMode ? { chat_mode: s.chatMode } : {}), ...(s.chatAutoLimit ? { chat_auto_limit: s.chatAutoLimit } : {}),
+    }).eq("id", id));
+  },
   joinRequest: (me, id, on) => on
     ? insertOnce("community_join_requests", { community_id: id, user_id: me })
     : must(sb().from("community_join_requests").delete().eq("community_id", id).eq("user_id", me)),
@@ -493,6 +583,8 @@ export function writeMessage(error) {
   if (m.includes("unknown car model")) return tr("Pick the make and model from the list.");
   if (m.includes("not your car")) return tr("You can only bring your own car.");
   if (m.includes("drivers only")) return tr("That's for driver accounts.");
+  if (m.includes("join the community first")) return tr("Join the community before posting there.");
+  if (m.includes("media") || m.includes("posts_media_limits")) return tr("That post has too much video. Clips with photos: up to 15 seconds each, 1 minute in total.");
   if (m.includes("admins only") || m.includes("owner only") || (m.includes("row-level security") && m.includes("community"))) return tr("Only the group's admins can do that.");
   if (m.includes("communities_name_unique") || (error?.code === "23505" && m.includes("communit"))) return tr("A community with that name already exists");
   if (m.includes("not allowed words")) return tr("That includes words we don't allow on Lacerta. Please keep it respectful.");

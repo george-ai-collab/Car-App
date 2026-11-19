@@ -1,6 +1,7 @@
 import { useState, useRef, useLayoutEffect, useEffect } from "react";
 import { Car, Compass, Heart, MessageCircle, Search, Bell, MapPin, Share2, Maximize2, ChevronLeft } from "lucide-react";
 import { T } from "../theme";
+import { useSwipe } from "../lib/useSwipe";
 import { LogoIntro, logoWhite } from "../components/Logo";
 import { hueForId, timeAgo } from "../lib/utils";
 import { Avatar, FollowAvatar, EmptyState, TextInput, BottomSheet, AccountLabel, TabSlide } from "../components/ui";
@@ -48,6 +49,16 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
   }, [memoKey, list.length > 0]);
   const tabs = [["foryou", tr("For You")], ["following", tr("Following")]];
   const [tabsHidden, setTabsHidden] = useState(false);
+  // Swipe sideways anywhere on the posts to switch For You / Following
+  // (not on photo decks, the What's on strip, the header or the nav).
+  const sw = useSwipe({ onLeft: () => setTab("following"), onRight: () => setTab("foryou"), enabled: !onlyUser });
+  // Tap the logo, or the Feed button while already on the feed: back to the top.
+  const toTop = () => { scroller.current?.scrollTo({ top: 0, behavior: "smooth" }); setTabsHidden(false); };
+  useEffect(() => {
+    if (onlyUser) return;
+    window.addEventListener("lacerta:feed-top", toTop);
+    return () => window.removeEventListener("lacerta:feed-top", toTop);
+  }, [onlyUser]);
   const lastY = useRef(0);
   const onScroll = (e) => {
     const y = e.currentTarget.scrollTop;
@@ -62,13 +73,13 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
   return (
     <div data-testid="feed" style={{ position: "relative", height: "100dvh", overflow: "hidden" }}>
       {!onlyUser && <LogoIntro />}
-      <div ref={scroller} data-testid="feed-scroller" onScroll={onScroll}
-        style={{ height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain" }}>
+      <div ref={scroller} data-testid="feed-scroller" onScroll={onScroll} {...sw.bind}
+        style={{ ...sw.bind.style, height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehaviorY: "contain" }}>
         {/* room for the header, which floats above the list */}
         <div style={{ height: `calc(${onlyUser ? 58 : 58 + TABS_H}px + var(--inset-top))` }} />
         {/* Header: always reachable, posts scroll underneath it. For You / Following tuck away
             while you scroll down (more room for posts) and come back as soon as you scroll up. */}
-        <div data-feed-header style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 9, background: "rgba(12,13,16,0.88)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${T.lineDark}` }}>
+        <div data-feed-header data-noswipe style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 9, background: "rgba(12,13,16,0.88)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", borderBottom: `1px solid ${T.lineDark}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "calc(10px + var(--inset-top)) 14px 6px" }}>
             {onlyUser ? (
               <>
@@ -77,9 +88,11 @@ export function Feed({ me, cars, posts, users, tab, setTab, openCar, openProfile
               </>
             ) : (
               <>
-                <div data-testid="brand" style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>
-                  <img src={logoWhite} alt="" style={{ width: 30, height: 30 }} />
-                  <span className="display" style={{ color: T.text, fontSize: 21, letterSpacing: "0.12em" }}>LACERTA</span>
+                <div style={{ flex: 1, display: "flex" }}>
+                  <button data-testid="brand" onClick={toTop} aria-label={tr("Back to the top")} className="press" style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0 }}>
+                    <img src={logoWhite} alt="" style={{ width: 30, height: 30 }} />
+                    <span className="display" style={{ color: T.text, fontSize: 21, letterSpacing: "0.12em" }}>LACERTA</span>
+                  </button>
                 </div>
                 <button onClick={openSearch} aria-label={tr("Search")} className="press" style={iconBtn}><Search size={22} color={T.text} /></button>
                 <NotifBell count={unreadCount} onClick={openInbox} style={iconBtn} />
@@ -343,7 +356,7 @@ function LiveBar({ meets, news, openMeet, openNews }) {
           const img = !meet && it.n.image;
           return (
             <button key={(meet ? "m" : "n") + (meet ? it.m.id : it.n.id)} data-testid={meet ? "live-meet" : "live-news"}
-              onClick={() => (meet ? openMeet?.(it.m.id) : openNews?.())} className="press"
+              onClick={() => (meet ? openMeet?.(it.m.id) : openNews?.(it.n.id))} className="press"
               style={{ flex: "0 0 auto", width: 236, height: 72, borderRadius: 18, border: `1px solid ${T.lineDark}`, padding: "10px 12px", display: "flex", alignItems: "center", gap: 11, textAlign: "start", scrollSnapAlign: "start", overflow: "hidden",
                 background: meet ? `linear-gradient(135deg, rgba(212,67,77,0.16), ${T.surface} 70%)` : T.surface }}>
               {img ? <img src={img} alt="" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = "none"; }} style={{ width: 50, height: 50, borderRadius: 12, objectFit: "cover", flexShrink: 0, background: T.surface2 }} />

@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useSwipe } from "../lib/useSwipe";
 import { MoreMenu, useSafety } from "../components/Safety";
-import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus, Layers, QrCode, Play } from "lucide-react";
+import { Car, Compass, MapPin, Image as ImageIcon, Check, ExternalLink, Award, Settings, Plus, Layers, QrCode, Play, UserPlus, UserCheck } from "lucide-react";
 import { T } from "../theme";
+import { hueForId } from "../lib/utils";
+import { ProfileBanner } from "../components/BannerPicker";
 import { computeBadges, nextBadgeProgress } from "../lib/badges";
 import { Avatar, FollowAvatar, IconTab, IconBadge, EmptyState, BottomSheet, MiniStat, AccountLabel, isDriver } from "../components/ui";
 import { CarCard, SightingCard } from "./Cars";
@@ -24,6 +26,7 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
   const driver = isDriver(user);
   const view = driver ? tab : "posts";
   const iFollow = (users[me]?.following || []).includes(username);
+  const followsMe = (user.following || []).includes(me);
 
   const myPosts = Object.values(posts).filter((p) => p.authorUsername === username && !p.archived).sort((a, b) => new Date(b.date) - new Date(a.date));
   const myCars = Object.values(cars).filter((c) => c.ownerUsername === username);
@@ -33,9 +36,13 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
   const nextBadge = nextBadgeProgress(username, cars, sightings);
 
   return (
-    <div {...sw.bind} style={{ ...sw.bind.style, paddingTop: 40, paddingBottom: 10, minHeight: "75vh" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 22 }}>
-        <FollowAvatar username={username} size={76} showFollow={!isMe && !blocked} following={iFollow} onFollow={onToggleFollow} />
+    <div {...sw.bind} style={{ ...sw.bind.style, paddingBottom: 10, minHeight: "75vh" }}>
+      {/* Banner across the top, edge to edge, under the status bar. */}
+      <div style={{ margin: "calc(-18px - var(--inset-top)) -16px 0", paddingTop: "var(--inset-top)", position: "relative", background: user.banner ? "#000" : "transparent" }}>
+        <ProfileBanner url={user.banner} hue={hueForId(username)} />
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 22, marginTop: -30, position: "relative" }}>
+        <FollowAvatar username={username} size={76} showFollow={false} />
         <div style={{ flex: 1, minWidth: 0, paddingTop: 2 }}>
           <div className="display" style={{ fontSize: 20, color: T.text, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name || username}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
@@ -73,6 +80,19 @@ export function Profile({ username, me, cars, posts, users, sightings, tab = "po
             block={{ handle: username, blocked, onToggle: () => safety.actions.toggleBlock(username) }} />
         )}
       </div>
+
+      {/* A clear Follow button for other people's profiles. */}
+      {!isMe && !blocked && (
+        <div style={{ display: "flex", gap: 8, margin: "-8px 0 18px" }}>
+          <button data-testid="profile-follow" onClick={onToggleFollow} className="press" style={{
+            flex: 1, padding: "10px 0", borderRadius: 14, fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            border: iFollow ? `1px solid ${T.lineDark}` : "none", background: iFollow ? T.surface : T.accent, color: "#fff", boxShadow: iFollow ? "none" : T.shadowAccent,
+          }}>
+            {iFollow ? <><UserCheck size={16} /> {tr("Following")}</> : <><UserPlus size={16} /> {followsMe ? tr("Follow back") : tr("Follow")}</>}
+          </button>
+        </div>
+      )}
+      {!isMe && !blocked && followsMe && <div data-testid="follows-you" style={{ color: T.textDim, fontSize: 11.5, margin: "-12px 2px 14px" }}>{tr("Follows you")}</div>}
 
       {blocked && (
         <div style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 18, padding: 16, textAlign: "center", marginBottom: 14 }}>

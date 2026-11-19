@@ -9,4 +9,12 @@ export const SUPABASE_KEY = "sb_publishable_z_D-pnJ-8VwOR0algdFVOg_nupbJVec";
 export const REMOTE = (import.meta.env?.VITE_BACKEND || "supabase") !== "local";
 
 // How often to check for new posts, likes, notifications… while the app is open.
-export const REFRESH_MS = 20000;
+// Each check downloads a lot, so not too often: also on opening the app, pull-to-refresh,
+// and a moment after you change something.
+export const REFRESH_MS = 120000;
+// News headlines are the biggest part of a check; they only change every few hours.
+export const NEWS_REFRESH_MS = 30 * 60 * 1000;
+
+// Google sign-in is built but switched off until there's a website (Google needs a privacy
+// policy and home page on our own domain) and it's set up in Google Cloud and Supabase.
+export const GOOGLE_SIGN_IN = false;

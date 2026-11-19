@@ -9,12 +9,16 @@ import { Avatar, BottomSheet, ChipPicker, Section, TextArea, TextInput } from ".
 import { searchPlaces } from "../../lib/geo";
 import { MAX_LINES } from "../../lib/text";
 import { VideoTrim } from "./VideoTrim";
-import { readVideo, processVideo, MAX_SECONDS, fmtSecs } from "../../lib/video";
+import { readVideo, processVideo, MAX_SECONDS, CLIP_MAX, CLIP_TOTAL, fmtSecs } from "../../lib/video";
 import { REMOTE } from "../../backend/config";
 import { tr , AT } from "../../lib/i18n";
 
 const MAX_PHOTOS = 10;
 const blobToDataUrl = (b) => new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(b); });
+// A post's items are photos (with their edits) or short clips: { kind: "clip", url, start, end, … }.
+const isClip = (x) => x?.kind === "clip";
+const clipSecs = (list) => list.filter(isClip).reduce((n, c) => n + (c.end - c.start), 0);
+const flash = (msg) => window.dispatchEvent(new CustomEvent("lacerta-flash", { detail: msg }));
 const alertVideo = () => window.dispatchEvent(new CustomEvent("lacerta-flash", { detail: tr("Couldn't open that video.") }));
 
 // Posting, in three steps like the big apps:
@@ -22,7 +26,6 @@ const alertVideo = () => window.dispatchEvent(new CustomEvent("lacerta-flash", {
 export function ComposerFlow({ me, cars, communities, users, initialCommunityId, onSubmit, onCancel }) {
   const [step, setStep] = useState("pick");
   const [edits, setEdits] = useState([]);
-  const [shape, setShape] = useState("original");
   const [busy, setBusy] = useState(false);
   const [video, setVideo] = useState(null); // { url, duration, w, h, start, end, muted }
   const [preparing, setPreparing] = useState(null); // 0..1 while the video is being prepared
@@ -35,6 +38,26 @@ export function ComposerFlow({ me, cars, communities, users, initialCommunityId,
       setVideo({ ...v, start: 0, end: Math.min(v.duration, MAX_SECONDS), muted: false });
       setStep("video");
     } catch { alertVideo(); }
+  };
+
+  // Add a short clip to a post with photos (each up to 15 s, all of them up to 60 s).
+  const addClip = async (file) => {
+    if (!file || edits.length >= MAX_PHOTOS) return false;
+    const left = CLIP_TOTAL - clipSecs(edits);
+    if (left < 1) { flash(tr("A post can have up to {0} of video in total.", fmtSecs(CLIP_TOTAL))); return false; }
+    try {
+      const v = await readVideo(file);
+      if (!(v.duration > 0.5)) throw new Error("too short");
+      const clip = { kind: "clip", id: uid("cl"), ...v, start: 0, end: Math.min(v.duration, CLIP_MAX, left), muted: false };
+      setEdits((prev) => [...prev, clip].slice(0, MAX_PHOTOS));
+      setStep("edit");
+      return true;
+    } catch { alertVideo(); return false; }
+  };
+  const mixVideo = () => {
+    const v = video;
+    setEdits([{ kind: "clip", id: uid("cl"), url: v.url, duration: v.duration, w: v.w, h: v.h, muted: v.muted, start: v.start, end: Math.min(v.end, v.start + CLIP_MAX) }]);
+    setVideo(null); setStep("edit");
   };
 
   const addFiles = async (files) => {
@@ -63,9 +86,27 @@ export function ComposerFlow({ me, cars, communities, users, initialCommunityId,
       setBusy(false);
       return;
     }
-    const ratio = shapeRatio(shape, edits[0]);
+    // Each photo keeps its own shape; clips are shrunk one after another.
+    const total = clipSecs(edits);
     const photos = [];
-    for (const e of edits) photos.push(await bakeEdit(e, ratio));
+    try {
+      let done = 0;
+      if (total) setPreparing(0);
+      for (const e of edits) {
+        if (isClip(e)) {
+          const len = e.end - e.start;
+          const out = await processVideo(e.url, e.start, e.end, { muted: e.muted, onProgress: (p) => setPreparing(Math.min(1, (done + p * len) / total)) });
+          done += len;
+          const url = REMOTE ? URL.createObjectURL(out.blob) : await blobToDataUrl(out.blob);
+          photos.push({ type: "video", url, poster: out.poster, aspect: out.aspect, duration: out.duration, mime: out.type });
+        } else photos.push(await bakeEdit(e, shapeRatio(e.shape, e)));
+      }
+    } catch (err) {
+      setPreparing(null); setBusy(false);
+      if (err?.message !== "cancelled") flash(tr("Couldn't prepare that video. Try a shorter part."));
+      return;
+    }
+    setPreparing(null);
     await onSubmit({ ...details, photos });
     setBusy(false);
   };
@@ -74,7 +115,7 @@ export function ComposerFlow({ me, cars, communities, users, initialCommunityId,
     <div data-testid={`compose-${step}`} style={{ paddingBottom: 10 }}>
       {step === "pick" && <PickStep onFiles={addFiles} onVideo={addVideo} onCancel={onCancel} />}
       {step === "video" && video && (
-        <VideoTrim video={video} setVideo={setVideo} onBack={() => { setVideo(null); setStep("pick"); }} onNext={() => setStep("details")} />
+        <VideoTrim video={video} setVideo={setVideo} onBack={() => { setVideo(null); setStep("pick"); }} onNext={() => setStep("details")} onMix={mixVideo} />
       )}
       {preparing !== null && (
         <div data-testid="video-preparing" style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(6,6,7,0.9)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 30 }}>
@@ -87,12 +128,12 @@ export function ComposerFlow({ me, cars, communities, users, initialCommunityId,
         </div>
       )}
       {step === "edit" && (
-        <EditStep edits={edits} setEdits={setEdits} shape={shape} setShape={setShape} onFiles={addFiles}
+        <EditStep edits={edits} setEdits={setEdits} onFiles={addFiles} onClip={addClip}
           onBack={() => { setEdits([]); setStep("pick"); }} onNext={() => setStep("details")} />
       )}
       {step === "details" && (
         <DetailsStep me={me} cars={cars} communities={communities} users={users} initialCommunityId={initialCommunityId}
-          edits={edits} shape={shape} busy={busy} video={video} onBack={() => setStep(video ? "video" : "edit")} onShare={share} />
+          edits={edits} busy={busy} video={video} onBack={() => setStep(video ? "video" : "edit")} onShare={share} />
       )}
     </div>
   );
@@ -154,14 +195,18 @@ const TOOLS = [
   { id: "plate", label: tr("Plates"), icon: Square },
 ];
 
-function EditStep({ edits, setEdits, shape, setShape, onFiles, onBack, onNext }) {
+function EditStep({ edits, setEdits, onFiles, onClip, onBack, onNext }) {
   const [i, setI] = useState(0);
   const [tool, setTool] = useState("crop");
   const [selText, setSelText] = useState(null);
   const [textSheet, setTextSheet] = useState(false);
-  const more = useRef(null);
+  const more = useRef(null), clipIn = useRef(null);
   const e = edits[Math.min(i, edits.length - 1)];
-  const ratio = shapeRatio(shape, edits[0]);
+  const clip = isClip(e);
+  const ratio = clip ? 1 : shapeRatio(e?.shape, e);
+  const shape = e?.shape || "original";
+  const photoCount = edits.filter((x) => !isClip(x)).length;
+  const videoLeft = CLIP_TOTAL - clipSecs(edits);
   const update = (patch) => setEdits((all) => all.map((x, k) => (k === i ? { ...x, ...(typeof patch === "function" ? patch(x) : patch) } : x)));
   const remove = (k) => {
     const next = edits.filter((_, n) => n !== k);
@@ -169,23 +214,32 @@ function EditStep({ edits, setEdits, shape, setShape, onFiles, onBack, onNext })
     setEdits(next); setI(Math.max(0, Math.min(i, next.length - 1)));
   };
   if (!e) return null;
-  const selected = e.texts.find((t) => t.id === selText);
+  const selected = clip ? null : e.texts.find((t) => t.id === selText);
 
   return (
     <div>
       <TopRow title={tr("Edit")} left={<IconBtn label={tr("Back")} onClick={onBack}><ChevronLeft size={22} /></IconBtn>}
         right={<button onClick={onNext} className="press" style={nextBtn}>{tr("Next")}</button>} />
 
-      <Frame e={e} ratio={ratio} update={update} tool={tool} selText={selText} setSelText={setSelText} />
+      {clip
+        ? <VideoTrim key={e.id} embedded video={e} setVideo={(v) => update(v)} max={Math.min(CLIP_MAX, videoLeft + (e.end - e.start))} />
+        : <Frame e={e} ratio={ratio} update={update} tool={tool} selText={selText} setSelText={setSelText} />}
 
       {/* photos in this post */}
       <div data-noswipe style={{ display: "flex", gap: 8, overflowX: "auto", margin: "12px 0", paddingBottom: 2 }}>
         {edits.map((x, k) => (
           <div key={k} style={{ position: "relative", flexShrink: 0 }}>
-            <button data-testid="thumb" onClick={() => { setI(k); setSelText(null); }} style={{
-              width: 56, height: 56, borderRadius: 12, padding: 0, overflow: "hidden", border: `2px solid ${k === i ? T.accent : "transparent"}`,
-              background: `url(${x.src}) center/cover`, filter: cssFilter(x),
-            }} />
+            {isClip(x) ? (
+              <button data-testid="thumb" data-clip onClick={() => { setI(k); setSelText(null); }} style={{ position: "relative", width: 56, height: 56, borderRadius: 12, padding: 0, overflow: "hidden", border: `2px solid ${k === i ? T.accent : "transparent"}`, background: "#000" }}>
+                <video src={`${x.url}#t=${x.start}`} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+                <span style={{ position: "absolute", left: 3, bottom: 3, display: "flex", alignItems: "center", gap: 2, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 9.5, fontWeight: 700, padding: "1px 4px", borderRadius: 999 }}><Film size={9} /> {fmtSecs(x.end - x.start)}</span>
+              </button>
+            ) : (
+              <button data-testid="thumb" onClick={() => { setI(k); setSelText(null); }} style={{
+                width: 56, height: 56, borderRadius: 12, padding: 0, overflow: "hidden", border: `2px solid ${k === i ? T.accent : "transparent"}`,
+                background: `url(${x.src}) center/cover`, filter: cssFilter(x),
+              }} />
+            )}
             {edits.length > 0 && (
               <button aria-label={tr("Remove photo {0}", k + 1)} onClick={() => remove(k)} style={{ position: "absolute", top: -6, right: -6, width: 20, height: 20, borderRadius: 999, border: "none", background: T.surface2, display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
                 <X size={12} color={T.text} />
@@ -198,18 +252,35 @@ function EditStep({ edits, setEdits, shape, setShape, onFiles, onBack, onNext })
             <Plus size={20} color={T.textDim} />
           </button>
         )}
+        {edits.length < MAX_PHOTOS && (
+          <button aria-label={tr("Add a short clip")} data-testid="add-clip" onClick={() => clipIn.current.click()} style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 12, border: `1.5px dashed ${T.lineDark}`, background: T.surface, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2, color: T.textDim, fontSize: 9.5, fontWeight: 700 }}>
+            <Film size={18} color={T.textDim} /> {tr("Clip")}
+          </button>
+        )}
         <input ref={more} type="file" accept="image/*" multiple style={{ display: "none" }} data-testid="pick-more" onChange={(ev) => { onFiles(ev.target.files); ev.target.value = ""; }} />
+        <input ref={clipIn} type="file" accept="video/*" style={{ display: "none" }} data-testid="pick-clip" onChange={async (ev) => { const f = ev.target.files?.[0]; ev.target.value = ""; const n = edits.length; if (await onClip(f)) setI(n); }} />
       </div>
 
+      {clip && (
+        <div data-testid="clip-info" style={{ color: T.textDim, fontSize: 12, lineHeight: 1.45, marginTop: -4 }}>
+          {tr("Clips in a post with photos can be up to {0} each, and {1} of video in total.", fmtSecs(CLIP_MAX), fmtSecs(CLIP_TOTAL))} <b style={{ color: T.text }}>{tr("{0} left", fmtSecs(Math.max(0, videoLeft)))}</b>
+        </div>
+      )}
+      {!clip && <>
       {/* tool panel */}
       <div style={{ background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 20, padding: 14, minHeight: 112 }}>
         {tool === "crop" && (
           <>
             <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
               {SHAPES.map((sh) => (
-                <button key={sh.id} onClick={() => setShape(sh.id)} className="press" style={chip(shape === sh.id)}>{sh.label}</button>
+                <button key={sh.id} data-testid={`shape-${sh.id}`} onClick={() => update({ shape: sh.id, panX: 0, panY: 0 })} className="press" style={chip(shape === sh.id)}>{sh.label}</button>
               ))}
             </div>
+            {photoCount > 1 && (
+              <button data-testid="shape-all" onClick={() => setEdits((all) => all.map((x) => (isClip(x) ? x : { ...x, shape, panX: 0, panY: 0 })))} style={{ background: "none", border: "none", padding: "0 0 10px", color: T.accent, fontSize: 12, fontWeight: 700 }}>
+                {tr("Use this shape for every photo")}
+              </button>
+            )}
             <Slider label={tr("Zoom")} min={1} max={4} step={0.01} value={e.zoom} onChange={(v) => update((x) => ({ zoom: v, ...clampPan({ ...x, zoom: v }, 1, 1 / ratio, x.panX, x.panY) }))} />
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ flex: 1 }}>
@@ -274,6 +345,8 @@ function EditStep({ edits, setEdits, shape, setShape, onFiles, onBack, onNext })
           </button>
         ))}
       </div>
+
+      </>}
 
       <TextSheet open={textSheet} onClose={() => setTextSheet(false)} onAdd={(text) => {
         const id = uid("tx");
@@ -386,7 +459,7 @@ function TextSheet({ open, onClose, onAdd }) {
 }
 
 // ---------- 3. details ----------
-function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, shape, busy, video, onBack, onShare }) {
+function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, busy, video, onBack, onShare }) {
   const byName = (a, b) => a.make.localeCompare(b.make);
   const myCars = Object.values(cars).filter((c) => c.ownerUsername === me).sort(byName);
   const spotted = Object.values(cars).filter((c) => c.ownerUsername !== me && c.hasPage !== false && c.spotterUsernames.includes(me)).sort(byName);
@@ -398,7 +471,8 @@ function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, 
   const [location, setLocation] = useState(null);
   const [tags, setTags] = useState([]);
   const canShare = !busy && (edits.length > 0 || !!video);
-  const ratio = shapeRatio(shape, edits[0]);
+  const first = edits[0];
+  const ratio = first && !isClip(first) ? shapeRatio(first.shape, first) : 1;
 
   const carOptions = [
     ...myCars.map((c) => ({ id: c.id, label: c.nickname || `${c.make} ${c.model}`, sub: tr("Your car · '{0}", c.year) })),
@@ -423,7 +497,8 @@ function DetailsStep({ me, cars, communities, users, initialCommunityId, edits, 
           </div>
         )}
         {edits.length > 0 && !video && (
-          <div style={{ position: "relative", width: 84, flexShrink: 0, aspectRatio: String(ratio), borderRadius: 14, overflow: "hidden", background: `url(${edits[0].src}) center/cover`, filter: cssFilter(edits[0]), alignSelf: "flex-start" }}>
+          <div style={{ position: "relative", width: 84, flexShrink: 0, aspectRatio: String(ratio), borderRadius: 14, overflow: "hidden", background: isClip(first) ? "#000" : `url(${first.src}) center/cover`, filter: isClip(first) ? undefined : cssFilter(first), alignSelf: "flex-start" }}>
+            {isClip(first) && <video src={`${first.url}#t=${first.start}`} muted playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
             {edits.length > 1 && <span style={{ position: "absolute", right: 4, top: 4, background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: 10.5, fontWeight: 700, padding: "2px 6px", borderRadius: 999 }}>{edits.length}</span>}
           </div>
         )}

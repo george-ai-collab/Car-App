@@ -6,6 +6,8 @@ import { Avatar } from "../components/ui";
 import { useKeyboardOffset } from "../lib/keyboard";
 import { findBanned, handleProblem } from "../lib/moderation";
 import { tr , AT } from "../lib/i18n";
+import { listAccounts } from "../lib/accounts";
+import { GOOGLE_SIGN_IN } from "../backend/config";
 
 const HANDLE_MSG = {
   taken: tr("Taken. Try another."),
@@ -15,8 +17,29 @@ const HANDLE_MSG = {
 
 // Sign up / log in. Same look as the rest of the app: dark, red accent, glass card.
 // Online: email + password accounts. (Test builds without a backend keep accounts on the phone.)
-export function Onboarding({ onSubmit, users = {}, remote, actions }) {
-  return remote ? <OnlineOnboarding actions={actions} /> : <LocalOnboarding onSubmit={onSubmit} users={users} />;
+export function Onboarding({ onSubmit, users = {}, remote, actions, adding }) {
+  const back = adding ? listAccounts().find((x) => x.id === adding) : null;
+  return (
+    <>
+      {back && (
+        <button data-testid="back-to-account" onClick={actions.cancelAdding} className="press" style={{ position: "fixed", top: "calc(14px + var(--inset-top))", left: 14, zIndex: 5, padding: "8px 14px", borderRadius: 999, border: `1px solid ${T.lineDark}`, background: "rgba(12,13,16,0.7)", color: T.text, fontSize: 13, fontWeight: 600 }}>
+          ‹ {tr("Back to {0}{1}", AT, back.handle)}
+        </button>
+      )}
+      {remote ? <OnlineOnboarding actions={actions} adding={adding} /> : <LocalOnboarding onSubmit={onSubmit} users={users} />}
+    </>
+  );
+}
+
+function GoogleMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z" />
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
+    </svg>
+  );
 }
 
 function LocalOnboarding({ onSubmit, users }) {
@@ -125,8 +148,9 @@ function Frame({ children, note }) {
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
-function OnlineOnboarding({ actions }) {
-  const [mode, setMode] = useState("create");
+function OnlineOnboarding({ actions, adding }) {
+  const saved = listAccounts().filter((x) => x.id !== adding);
+  const [mode, setMode] = useState(saved.length ? "login" : "create");
   const [displayName, setDisplayName] = useState("");
   const [handle, setHandle] = useState("");
   const [email, setEmail] = useState("");
@@ -175,6 +199,12 @@ function OnlineOnboarding({ actions }) {
     return res;
   });
   const login = () => run(() => actions.signIn({ email, password }));
+  const google = () => run(() => actions.signInWithGoogle());
+  // A saved account: straight in if it's still signed in, otherwise fill in its handle.
+  const useSaved = (x) => {
+    if (x.refresh) run(async () => { const ok = await actions.switchAccount(x.id); if (!ok) { setEmail(x.handle); setPassword(""); } return {}; });
+    else { setEmail(x.handle); setPassword(""); }
+  };
   const [code, setCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const sendCode = () => {
@@ -213,13 +243,30 @@ function OnlineOnboarding({ actions }) {
           <Input icon={<User size={16} />} value={displayName} onChange={setDisplayName} placeholder={tr("e.g. George Q")} label={tr("Your name")} maxLength={40}
             status={nameBad ? { bad: true, text: tr("Please pick a respectful name") } : null} />
           <Input icon={<AtSign size={16} />} value={handle} onChange={(v) => setHandle(v.toLowerCase().replace(/[^a-z0-9_.]/g, ""))} placeholder={tr("e.g. george_q")} label={tr("Handle")} maxLength={24} status={handleStatus} />
-          <div style={{ fontSize: 11.5, color: T.textDim, margin: "-4px 2px 14px" }}>{tr("Lowercase letters, numbers, _ and . only. Handles can't be changed later.")}</div>
+          <div style={{ fontSize: 11.5, color: T.textDim, margin: "-4px 2px 14px" }}>{tr("Lowercase letters, numbers, _ and . only. You can change it later (once a month).")}</div>
           <Input icon={<Mail size={16} />} value={email} onChange={setEmail} placeholder={tr("you@example.com")} label={tr("Email")} maxLength={120} type="email" testid="email"
             status={email && !emailOk ? { bad: true, text: tr("That email doesn't look right") } : null} />
           {passField}
         </>
       ) : mode === "login" && (
         <>
+          {saved.length > 0 && (
+            <>
+              <div className="plate" style={{ fontSize: 10.5, color: T.textDim, marginBottom: 8 }}>{tr("Accounts on this phone")}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                {saved.map((x) => (
+                  <button key={x.id} data-testid="saved-account" disabled={busy} onClick={() => useSaved(x)} className="press" style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 12px", borderRadius: 16, background: "rgba(255,255,255,0.05)", border: `1px solid ${T.lineDark}`, textAlign: "start" }}>
+                    {x.avatar ? <img src={x.avatar} alt="" style={{ width: 34, height: 34, borderRadius: 999, objectFit: "cover" }} /> : <Avatar username={x.handle} size={34} />}
+                    <span style={{ flex: 1 }}>
+                      <span style={{ display: "block", color: T.text, fontSize: 14, fontWeight: 700 }}>{x.name || x.handle}</span>
+                      <span className="plate handle" style={{ display: "block", color: T.textDim, fontSize: 10.5 }}>{AT}{x.handle}{x.refresh ? "" : ` · ${tr("password needed")}`}</span>
+                    </span>
+                    <ChevronRight size={16} color={T.textDim} />
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           <Input icon={<AtSign size={16} />} value={email} onChange={setEmail} placeholder={tr("Email or handle")} label={tr("Email or handle")} maxLength={120} type="email" testid="email" />
           {passField}
           <button type="button" data-testid="forgot" onClick={() => switchMode("reset")} disabled={busy} style={{ background: "none", border: "none", color: T.textDim, fontSize: 12.5, padding: "0 2px", margin: "-6px 0 14px", textDecoration: "underline" }}>{tr("Forgot password?")}</button>
@@ -266,6 +313,16 @@ function OnlineOnboarding({ actions }) {
         <button data-testid="submit-login" disabled={!canLogin || busy} onClick={login} className="press" style={primary(canLogin && !busy)}>
           {busy ? tr("Logging in…") : tr("Log in")} <ChevronRight size={17} />
         </button>
+      )}
+      {mode !== "reset" && GOOGLE_SIGN_IN && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0", color: T.textDim, fontSize: 11.5 }}>
+            <span style={{ flex: 1, height: 1, background: T.lineDark }} />{tr("or")}<span style={{ flex: 1, height: 1, background: T.lineDark }} />
+          </div>
+          <button data-testid="google-signin" disabled={busy} onClick={google} className="press" style={{ width: "100%", padding: "13px 16px", borderRadius: 16, border: "none", background: "#fff", color: "#1F1F1F", fontWeight: 700, fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+            <GoogleMark /> {tr("Continue with Google")}
+          </button>
+        </>
       )}
     </Frame>
   );

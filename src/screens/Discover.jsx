@@ -301,8 +301,19 @@ export function CommunitiesScreen({ me, communities, onToggle, onOpen, onCreate 
 }
 
 const NEWS_TABS = ["general", "racing", "gulf"];
-export function NewsScreen({ me, news, onLike, onRefresh }) {
-  const [tab, setTab] = useState("general");
+export function NewsScreen({ me, news, onLike, onRefresh, focusId }) {
+  // Opened from a story (What's on): start on that story's tab, scroll to it and light it up.
+  const [tab, setTab] = useState(() => (focusId && NEWS_TABS.includes(news[focusId]?.category) ? news[focusId].category : "general"));
+  useEffect(() => {
+    if (!focusId) return;
+    const t = setTimeout(() => {
+      const el = document.querySelector(`[data-news-id="${CSS.escape(focusId)}"]`);
+      if (!el) return;
+      el.scrollIntoView({ block: "center" });
+      el.animate([{ backgroundColor: "rgba(212,67,77,0.22)" }, { backgroundColor: "rgba(212,67,77,0)" }], { duration: 1800, easing: "ease-out" });
+    }, 80);
+    return () => clearTimeout(t);
+  }, [focusId]);
   const i = NEWS_TABS.indexOf(tab);
   const sw = useSwipe({ onLeft: () => setTab(NEWS_TABS[Math.min(i + 1, 2)]), onRight: () => setTab(NEWS_TABS[Math.max(i - 1, 0)]) });
   // Opening News asks the server for fresh headlines (it only fetches if they're 3+ hours old).
@@ -329,7 +340,7 @@ export function NewsCard({ item, me, onLike, compact }) {
   const [pop, setPop] = useState(false);
   const doLike = () => { onLike(item.id); if (!liked) { setPop(true); setTimeout(() => setPop(false), 350); } };
   return (
-    <div data-testid="news-card" dir={item.lang === "ar" ? "rtl" : undefined} style={{ marginBottom: compact ? 10 : 14, paddingBottom: compact ? 10 : 14, borderBottom: compact ? "none" : `1px solid ${T.lineDark}` }}>
+    <div data-testid="news-card" data-news-id={item.id} dir={item.lang === "ar" ? "rtl" : undefined} style={{ borderRadius: 14, marginBottom: compact ? 10 : 14, paddingBottom: compact ? 10 : 14, borderBottom: compact ? "none" : `1px solid ${T.lineDark}` }}>
       {!compact && item.image && (
         <a href={item.url} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: 10 }}>
           <img src={item.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.parentElement.style.display = "none"; }}
