@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { User, Car, Archive, LogOut, Trash2, ChevronRight, Info, Pencil, Image as ImageIcon, Users, ShieldCheck, Globe } from "lucide-react";
+import { useEffect, useState } from "react";
+import { User, Car, Archive, LogOut, Trash2, ChevronRight, Info, Pencil, Image as ImageIcon, Users, ShieldCheck, Globe, AtSign, KeyRound, Repeat } from "lucide-react";
 import { T } from "../theme";
 import { hueForId } from "../lib/utils";
 import { BannerPicker, ProfileBanner } from "../components/BannerPicker";
@@ -10,6 +10,8 @@ import { REMOTE } from "../backend/config";
 import { MAX_LINES } from "../lib/text";
 import { tr, LANGS, lang , AT } from "../lib/i18n";
 import { LanguageSettings } from "../components/LanguagePicker";
+import { AccountSwitcher, PasswordSheet, HandleSheet } from "../components/Accounts";
+import { otherAccounts } from "../lib/accounts";
 
 export const APP_VERSION = `0.2${import.meta.env?.VITE_BUILD ? `.${import.meta.env.VITE_BUILD}` : ".0"} beta`;
 
@@ -39,11 +41,14 @@ function Group({ children }) {
   );
 }
 
-export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, isAdmin, openReports = 0 }) {
+export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, isAdmin, openReports = 0, myId, flash }) {
   const remote = REMOTE;
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [sheet, setSheet] = useState(null); // "language"
+  const [sheet, setSheet] = useState(null); // "language" | "accounts" | "password" | "handle"
+  const [methods, setMethods] = useState({ password: true });
+  useEffect(() => { if (remote) actions.signInMethods().then(setMethods).catch(() => {}); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const others = otherAccounts(myId);
   const user = users[me] || {};
   const carCount = Object.values(cars).filter((c) => c.ownerUsername === me).length;
   const archivedCount = Object.values(posts).filter((p) => p.authorUsername === me && p.archived).length;
@@ -67,6 +72,7 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, is
       <SectionLabel>{tr("Account")}</SectionLabel>
       <Group>
         <Row icon={<User size={16} />} label={tr("Edit profile")} sub={tr("Photo, name, bio")} onClick={() => go("editProfile")} />
+        <Row icon={<AtSign size={16} />} label={tr("Handle")} sub={`${AT}${me} · ${tr("change once every 30 days")}`} onClick={() => setSheet("handle")} />
         {(isDriver(user) || carCount > 0) && <Row icon={<Car size={16} />} label={tr("My cars")} sub={tr("{0} {1} · edit or delete", carCount, carCount === 1 ? tr("car") : tr("cars"))} onClick={() => go("manageCars")} />}
         {/* Chosen once when the account is made; it can't be changed (make a new account instead). */}
         <Row icon={<Users size={16} />} label={tr("Account type: {0}", tr({ personal: "Driver", club: "Club", business: "Business" }[user.accountType || "personal"]))} sub={tr("Set when the account was made")} disabled right={null} />
@@ -84,8 +90,9 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, is
 
       <SectionLabel>{tr("Sign-in")}</SectionLabel>
       <Group>
-        <Row icon={<span style={{ fontWeight: 800, fontSize: 15 }}>G</span>} label={tr("Connect Google")} sub={tr("Coming soon")} disabled right={null} />
-        <Row icon={<LogOut size={16} />} label={remote ? tr("Log out") : tr("Switch account / Log out")} sub={remote ? tr("Log in again with your email and password") : tr("Pick a different handle on this phone")} onClick={() => setConfirmLogout(true)} />
+        <Row icon={<Repeat size={16} />} label={tr("Switch account")} sub={others.length ? tr("{0} more on this phone · or double-tap Profile", others.length) : tr("Add another account to this phone")} onClick={() => setSheet("accounts")} />
+        {remote && <Row icon={<KeyRound size={16} />} label={methods.password ? tr("Change password") : tr("Set a password")} sub={methods.email || (methods.google ? tr("Signed in with Google") : "")} onClick={() => setSheet("password")} />}
+        <Row icon={<LogOut size={16} />} label={tr("Log out")} sub={others.length ? tr("Your other accounts stay signed in") : remote ? tr("Log in again with your email and password") : tr("Pick a different handle on this phone")} onClick={() => setConfirmLogout(true)} />
       </Group>
 
       <SectionLabel>{tr("App")}</SectionLabel>
@@ -106,6 +113,9 @@ export function SettingsScreen({ me, users, cars, posts, go, actions, onTour, is
         <Info size={12} /> {tr("Lacerta")} {APP_VERSION}{user.joinedAt ? tr(" · joined {0}", fmtDate(user.joinedAt)) : ""}
       </div>
 
+      <AccountSwitcher open={sheet === "accounts"} onClose={() => setSheet(null)} myId={myId} actions={actions} />
+      <PasswordSheet open={sheet === "password"} onClose={() => setSheet(null)} actions={actions} flash={flash || (() => {})} hasPassword={methods.password} />
+      <HandleSheet open={sheet === "handle"} onClose={() => setSheet(null)} me={me} actions={actions} lastChanged={user.handleChangedAt} />
       <BottomSheet open={sheet === "language"} onClose={() => setSheet(null)} title={tr("Language")}>
         <LanguageSettings />
       </BottomSheet>

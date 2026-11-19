@@ -10,7 +10,8 @@ import { uploadIfNeeded } from "../backend/remote";
 export const CHAT_LIMIT = 200;      // newest messages shown
 export const MAX_MESSAGE = 1000;    // characters
 const KEY = "lacerta-chat";
-const POLL_MS = REMOTE ? 6000 : 1200;
+// New messages arrive live; this slower check only catches deleted ones and missed updates.
+const POLL_MS = REMOTE ? 30000 : 1200;
 
 // What each person can do in a community.
 export function roleIn(c, handle, isAppAdmin = false) {
@@ -58,7 +59,10 @@ export async function loadMessages(communityId, byId, pinnedId) {
 }
 
 // Calls onChange whenever the chat may have changed. Returns a stop function.
-export function watchChat(communityId, onChange) {
+export function watchChat(communityId, onChangeNow) {
+  // Several live updates in a row cause one reload, not one each.
+  let t = null;
+  const onChange = () => { clearTimeout(t); t = setTimeout(onChangeNow, 400); };
   const timer = setInterval(() => { if (document.visibilityState === "visible") onChange(); }, POLL_MS);
   let channel = null;
   if (REMOTE) {
@@ -68,7 +72,7 @@ export function watchChat(communityId, onChange) {
         .subscribe();
     } catch { /* the regular check still runs */ }
   }
-  return () => { clearInterval(timer); if (channel) sb().removeChannel(channel).catch(() => {}); };
+  return () => { clearInterval(timer); clearTimeout(t); if (channel) sb().removeChannel(channel).catch(() => {}); };
 }
 
 export async function sendMessage({ communityId, me, myId, body, photoUrl, replyTo, meetId }) {

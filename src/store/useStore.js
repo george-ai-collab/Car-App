@@ -3,7 +3,8 @@ import { localTicket, normalizeCode } from "../lib/ticket";
 import { roleIn, isGroupAdmin, dropChat, removeMessageLocal } from "../lib/chat";
 import { uid } from "../lib/utils";
 import { SEED_NEWS } from "../lib/seedNews";
-import { REMOTE, REFRESH_MS } from "../backend/config";
+import { listAccounts, rememberAccount, forgetAccount, dropTokens, otherAccounts, trackSignIns } from "../lib/accounts";
+import { REMOTE, REFRESH_MS, NEWS_REFRESH_MS } from "../backend/config";
 import { cleanText, MAX_LINES } from "../lib/text";
 import { findBanned, handleProblem, RESPECT_MESSAGE } from "../lib/moderation";
 import * as remote from "../backend/remote";
@@ -44,6 +45,8 @@ function normalizeMeets(raw) {
 export function useStore(flash) {
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(null);     // while adding another account: the one to go back to
+  const [recovery, setRecovery] = useState(false); // opened from a "reset password" email link
   const [data, setData] = useState({
     cars: {}, posts: {}, users: {}, news: {}, meets: {}, communities: {}, notifications: {}, sightings: {}, discussions: {}, reports: [], tickets: {},
   });
@@ -67,6 +70,7 @@ export function useStore(flash) {
   // ---------- online sync ----------
   const meId = useRef(null);          // your account id (online only)
   const queue = useRef(Promise.resolve());
+  const afterWrite = useRef(null);
   const pending = useRef(0);
   const version = useRef(0);          // goes up with every change made on this phone
   const newId = (prefix) => (REMOTE ? crypto.randomUUID() : uid(prefix));
@@ -81,11 +85,15 @@ export function useStore(flash) {
   };
   // Reload everything from the backend. Skipped if you changed something meanwhile
   // (your change is still on its way, and the next reload will include it).
+  const lastLoad = useRef(0), lastNews = useRef(0);
   const refresh = useCallback(async () => {
     if (!REMOTE || !meId.current || pending.current) return;
     const started = version.current;
     try {
-      const res = await remote.load(meId.current);
+      const withNews = Date.now() - lastNews.current > NEWS_REFRESH_MS || !Object.keys(ref.current.news || {}).length;
+      lastLoad.current = Date.now();
+      const res = await remote.load(meId.current, { news: withNews, prevNews: ref.current.news });
+      if (withNews) lastNews.current = Date.now();
       if (version.current !== started || pending.current || !meId.current) return;
       if (!res.me) { meId.current = null; setMe(null); return; }
       apply(res);
@@ -101,14 +109,26 @@ export function useStore(flash) {
     queue.current = queue.current
       .then(() => fn(id))
       .catch((e) => { flash(remote.writeMessage(e)); })
-      .finally(() => { pending.current -= 1; if (!pending.current) { version.current += 1; refresh(); } });
+      .finally(() => {
+        pending.current -= 1;
+        if (!pending.current) {
+          version.current += 1;
+          // Wait a moment: likes, follows… often come in a row; one reload covers them all.
+          clearTimeout(afterWrite.current);
+          afterWrite.current = setTimeout(refresh, 2500);
+        }
+      });
   };
 
   const startSession = async (userId) => {
     meId.current = userId;
     const res = await remote.load(userId);
+    lastLoad.current = lastNews.current = Date.now();
     if (!res.me) throw new Error("no profile");
     apply(res);
+    setAdding(null);
+    const u = res.data.users[res.me] || {};
+    rememberAccount({ id: userId, handle: res.me, name: u.name, avatar: u.avatar }, await remote.currentSession().catch(() => null));
     window.storage.set(CACHE, JSON.stringify({ userId, ...res }), false).catch(() => {});
   };
 
@@ -134,7 +154,9 @@ export function useStore(flash) {
   // Pick up other people's changes while the app is open.
   useEffect(() => {
     if (!REMOTE || !me) return;
-    const tick = () => { if (document.visibilityState === "visible") refresh(); };
+    // While the app is on screen: every couple of minutes, and when you come back to it
+    // (unless it was only a moment ago).
+    const tick = () => { if (document.visibilityState === "visible" && Date.now() - lastLoad.current > 45000) refresh(); };
     const timer = setInterval(tick, REFRESH_MS);
     document.addEventListener("visibilitychange", tick);
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", tick); };
@@ -158,6 +180,7 @@ export function useStore(flash) {
       ref.current = next;
       setData(next);
       setMe(meRes ? meRes.value : null);
+      if (meRes?.value) rememberAccount({ id: meRes.value, handle: meRes.value, name: next.users[meRes.value]?.name });
       setLoading(false);
     })();
   }, []);
@@ -213,6 +236,8 @@ export function useStore(flash) {
           ? { ...existing, name: displayName.trim() || existing.name || clean }
           : { name: displayName.trim() || clean, joinedAt: now(), followers: [], following: [], ...((window.__localAdmins || []).includes(clean) ? { isAdmin: true } : {}) },
       });
+      rememberAccount({ id: clean, handle: clean, name: displayName.trim() || existing?.name || clean });
+      setAdding(null);
       setMe(clean);
     } catch { flash(tr("Couldn't save your name. Try again.")); }
   };
@@ -273,11 +298,113 @@ export function useStore(flash) {
     if (!quiet) flash(tr("Profile updated"));
   };
 
+  const myAccountId = () => (REMOTE ? meId.current : me);
   const logout = async () => {
+    forgetAccount(myAccountId());
     if (REMOTE) { await queue.current; await remote.signOut(); resetToSignedOut(); return; }
     try { await window.storage.delete(KEYS.me, false); } catch { /* ignore */ }
     setMe(null);
   };
+
+  // ---------- several accounts on one phone ----------
+  // Switch to another saved account. Online it uses that account's saved sign-in.
+  const switchAccount = async (id) => {
+    const a = listAccounts().find((x) => x.id === id);
+    if (!a || id === myAccountId()) return false;
+    if (!REMOTE) {
+      await window.storage.set(KEYS.me, a.handle, false).catch(() => {});
+      rememberAccount({ id: a.id, handle: a.handle, name: get().users[a.handle]?.name || a.name });
+      setAdding(null); setMe(a.handle);
+      flash(tr("Switched to {0}{1}", "@", a.handle));
+      return true;
+    }
+    await queue.current;
+    const r = await remote.switchSession(a);
+    if (r.needsLogin) {
+      dropTokens(a.id);
+      flash(tr("Log in to {0}{1} again to switch to it.", "@", a.handle));
+      return false;
+    }
+    resetToSignedOut();
+    setLoading(true);
+    try { await startSession(r.userId); flash(tr("Switched to {0}{1}", "@", a.handle)); }
+    catch { flash(tr("Couldn't open that account. Check your connection.")); }
+    setLoading(false);
+    return true;
+  };
+  // Add an account: show the sign-in screen, keeping this one signed in to come back to.
+  const addAccount = async () => {
+    const from = myAccountId();
+    if (REMOTE) await queue.current;
+    else await window.storage.delete(KEYS.me, false).catch(() => {});
+    if (REMOTE) resetToSignedOut(); else setMe(null);
+    setAdding(from);
+  };
+  const cancelAdding = async () => { const back = adding; if (back) await switchAccount(back); };
+
+  // ---------- password and handle ----------
+  const changePassword = async (f) => (REMOTE ? remote.changePassword(f) : { error: tr("Passwords are for online accounts.") });
+  const signInMethods = async () => (REMOTE ? remote.signInMethods() : { email: "", password: false, google: false });
+  // 'ok' | 'too_soon' | 'taken' | 'reserved' | 'not_allowed' | 'invalid' | null
+  const changeHandle = async (raw) => {
+    const h = (raw || "").trim().replace(/^@/, "").toLowerCase();
+    if (h === me) return "ok";
+    if (!/^[a-z0-9_.]{2,24}$/.test(h)) return "invalid";
+    if (REMOTE) {
+      await queue.current;
+      const wasNew = !!get().users[me]?.needsHandle;
+      const st = await remote.changeHandle(h);
+      if (st === "ok") {
+        if (wasNew) await markNewAccount(h); // then the welcome steps (account type, first car…)
+        await startSession(meId.current);
+        flash(tr("You're now {0}{1}", "@", h));
+      }
+      return st;
+    }
+    // On-device test accounts: rename everywhere.
+    const problem = handleProblem(h) || (get().users[h] ? "taken" : null);
+    if (problem) return problem;
+    const d = get(), old = me;
+    const sw = (x) => (x === old ? h : x), swl = (l) => (l || []).map(sw);
+    const users = {};
+    Object.entries(d.users).forEach(([k, u]) => { users[sw(k)] = { ...u, followers: swl(u.followers), following: swl(u.following), ...(k === old ? { handleChangedAt: now() } : {}) }; });
+    const posts = {};
+    Object.values(d.posts).forEach((p) => { posts[p.id] = { ...p, authorUsername: sw(p.authorUsername), likes: swl(p.likes), tags: swl(p.tags), comments: (p.comments || []).map((c) => ({ ...c, author: sw(c.author), likes: swl(c.likes) })) }; });
+    const cars = {};
+    Object.values(d.cars).forEach((c) => { cars[c.id] = { ...c, ownerUsername: sw(c.ownerUsername), spotterUsernames: swl(c.spotterUsernames), followers: swl(c.followers) }; });
+    const communities = {};
+    Object.values(d.communities).forEach((c) => { communities[c.id] = { ...c, createdBy: sw(c.createdBy), members: swl(c.members), admins: swl(c.admins), requests: swl(c.requests) }; });
+    await save("users", users); await save("posts", posts); await save("cars", cars); await save("communities", communities);
+    await window.storage.set(KEYS.me, h, false).catch(() => {});
+    forgetAccount(old);
+    rememberAccount({ id: h, handle: h, name: users[h]?.name });
+    setMe(h);
+    flash(tr("You're now {0}{1}", "@", h));
+    return "ok";
+  };
+
+  // ---------- Google, and links from emails ----------
+  const signInWithGoogle = async () => {
+    if (!REMOTE) return { error: tr("Google sign-in works in the online app.") };
+    return remote.signInWithGoogle();
+  };
+  const openAuthLink = useCallback(async (url) => {
+    if (!REMOTE) return;
+    const r = await remote.handleAuthLink(url);
+    if (r.error) { flash(r.error); return; }
+    setLoading(true);
+    try { await startSession(r.userId); if (r.recovery) setRecovery(true); }
+    catch { flash(tr("Couldn't load your account. Check your connection and try again.")); }
+    setLoading(false);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Sign-in links (Google, password reset) arrive from main.jsx.
+  useEffect(() => {
+    trackSignIns();
+    const on = (e) => { window.__pendingAuthLink = null; openAuthLink(e.detail); };
+    window.addEventListener("lacerta-auth-link", on);
+    if (window.__pendingAuthLink) { const u = window.__pendingAuthLink; window.__pendingAuthLink = null; openAuthLink(u); }
+    return () => window.removeEventListener("lacerta-auth-link", on);
+  }, [openAuthLink]);
 
   // Removes everything this account made, then logs out.
   const deleteAccount = async () => {
@@ -466,6 +593,13 @@ export function useStore(flash) {
     const caption = cleanText(rawCaption, MAX_LINES.caption);
     if (refuse(caption, carLabel)) return null;
     const car = carId ? get().cars[carId] : null;
+    // Posting into a community: you have to be in it. Open ones you join on the way.
+    const cm = communityId ? get().communities[communityId] : null;
+    if (communityId && !cm) communityId = null;
+    if (cm && !cm.members.includes(me) && cm.createdBy !== me) {
+      if (cm.kind === "custom" && cm.joinMode === "approval") { flash(tr("Ask to join {0} before posting there.", cm.name)); return null; }
+      await joinIfNeeded(cm.id);
+    }
     const pics = photos.length ? photos.slice(0, 10) : photoUrl ? [{ url: photoUrl, aspect: photoAspect || null }] : [];
     if (!pics.length && !caption.trim()) return null;
     const id = newId("post");
@@ -830,7 +964,7 @@ export function useStore(flash) {
     return id;
   };
 
-  const editCommunity = async (id, { name, description, joinMode, chatMode, chatAutoLimit }) => {
+  const editCommunity = async (id, { name, description, joinMode, chatMode, chatAutoLimit, avatar, banner }) => {
     const c = get().communities[id];
     if (!c || c.createdBy !== me || !name.trim()) return false;
     if (refuse(name, description)) return false;
@@ -841,8 +975,9 @@ export function useStore(flash) {
       chatMode: ["everyone", "admins", "auto"].includes(chatMode) ? chatMode : c.chatMode || "everyone",
       chatAutoLimit: Math.min(5000, Math.max(5, +chatAutoLimit || c.chatAutoLimit || 50)),
     };
-    await save("communities", { ...get().communities, [id]: { ...c, name: name.trim(), description: desc, ...settings } });
-    sync((uid2) => remote.write.editCommunity(uid2, id, name.trim().slice(0, 40), desc, settings));
+    const looks = { ...(avatar !== undefined ? { avatar: avatar || null } : {}), ...(banner !== undefined ? { banner: banner || null } : {}) };
+    await save("communities", { ...get().communities, [id]: { ...c, name: name.trim(), description: desc, ...settings, ...looks } });
+    sync((uid2) => remote.write.editCommunity(uid2, id, name.trim().slice(0, 40), desc, { ...settings, ...looks }));
     flash(tr("Community updated"));
     return true;
   };
@@ -867,6 +1002,8 @@ export function useStore(flash) {
     const c = get().communities[id];
     if (!c) return;
     const inIt = c.members.includes(me);
+    // The owner stays in their own community (they can delete it instead).
+    if (inIt && c.createdBy === me) { flash(tr("You run this community, so you can't leave it. You can delete it from its menu.")); return; }
     // Groups that approve members: ask to join (or take the request back).
     if (!inIt && c.kind === "custom" && c.joinMode === "approval" && c.createdBy !== me) {
       const asked = (c.requests || []).includes(me);
@@ -1139,7 +1276,10 @@ export function useStore(flash) {
   });
   return {
     me, loading, flash, prefs, remote: REMOTE, isAdmin, ...data, posts: visiblePosts, discussions: visibleDiscussions,
+    myAccountId: REMOTE ? meId.current : me, adding, recovery,
     actions: {
+      switchAccount, addAccount, cancelAdding, changePassword, signInMethods, changeHandle, signInWithGoogle,
+      endRecovery: () => setRecovery(false), otherAccounts: () => otherAccounts(REMOTE ? meId.current : me),
       claimUsername, updateProfile, logout, deleteAccount, checkHandle, signUp, signIn, resetPassword, confirmReset,
       addCar, editCar, deleteCar, addMod, toggleFollowCar, spotCar, logSighting,
       createPost, editPost, setArchived, deletePost, toggleLike, addComment, addReply,

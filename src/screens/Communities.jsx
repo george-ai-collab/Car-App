@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2, Pencil, Layers, Clock, UserPlus, UserMinus, X, MoreHorizontal } from "lucide-react";
+import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2, Pencil, Layers, Clock, UserPlus, UserMinus, X, MoreHorizontal, BadgeCheck, Lock, Users } from "lucide-react";
 import { T } from "../theme";
 import { hueForId, timeAgo } from "../lib/utils";
 import { useSwipe } from "../lib/useSwipe";
@@ -10,14 +10,58 @@ import { RichText } from "../components/RichText";
 import { tr , AT } from "../lib/i18n";
 import { CrewChat } from "./CrewChat";
 import { roleIn, isGroupAdmin } from "../lib/chat";
+import { BannerPicker, ProfileBanner } from "../components/BannerPicker";
+import { AvatarPicker } from "./Settings";
 
 // "Join" / "Joined", or for groups that approve members: "Ask to join" / "Requested".
 export function joinState(c, me) {
+  if (c.kind === "custom" && c.createdBy === me) return "owner";
   if (c.members.includes(me)) return "joined";
   if ((c.requests || []).includes(me)) return "requested";
   return c.kind === "custom" && c.joinMode === "approval" ? "ask" : "join";
 }
-const JOIN_LABEL = { joined: "Joined", requested: "Requested", ask: "Ask to join", join: "Join" };
+const JOIN_LABEL = { owner: "Your community", joined: "Joined", requested: "Requested", ask: "Ask to join", join: "Join" };
+
+// A community's picture: its photo, or its initials on a colour of its own.
+export function CommunityAvatar({ c, size = 40, ring }) {
+  const hue = hueForId(c.id || c.name || "?");
+  const r = Math.round(size * 0.3);
+  const box = { width: size, height: size, borderRadius: r, flexShrink: 0, ...(ring ? { border: `3px solid ${T.bg}`, boxShadow: "0 6px 18px rgba(0,0,0,0.45)" } : {}) };
+  if (c.avatar) return <img data-testid="community-avatar" src={c.avatar} alt="" style={{ ...box, objectFit: "cover", display: "block", background: T.surface2 }} />;
+  const initials = (c.name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  return (
+    <div data-testid="community-avatar" style={{ ...box, background: `linear-gradient(140deg, hsl(${hue},55%,38%), hsl(${(hue + 40) % 360},45%,20%))`, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontWeight: 800, fontSize: size * 0.36, letterSpacing: "0.02em" }}>
+      {initials}
+    </div>
+  );
+}
+const kindChip = (c) => c.kind === "brand"
+  ? <span data-testid="official-chip" style={chipStyle(T.accentWarm)}><BadgeCheck size={11} /> {tr("Official")}</span>
+  : c.joinMode === "approval" ? <span style={chipStyle(T.accent2)}><Lock size={10} /> {tr("Approval to join")}</span> : null;
+const chipStyle = (color) => ({ display: "inline-flex", alignItems: "center", gap: 4, color, fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 999, background: "rgba(255,255,255,0.06)", border: `1px solid ${T.lineDark}` });
+function JoinButton({ state, onClick, big }) {
+  if (state === "owner") return <span data-testid="join-button" style={{ padding: big ? "8px 14px" : "6px 12px", borderRadius: 999, background: "rgba(203,176,131,0.14)", color: T.accentWarm, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap" }}><Crown size={12} /> {tr("Owner")}</span>;
+  const joined = state === "joined" || state === "requested";
+  return (
+    <button data-testid="join-button" onClick={onClick} className="press" style={{
+      padding: big ? "9px 18px" : "7px 14px", borderRadius: 999, border: `1px solid ${joined ? T.lineDark : T.accent}`,
+      background: joined ? "transparent" : T.accent, color: joined ? T.text : "#fff", fontSize: 12.5, fontWeight: 700,
+      display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", boxShadow: joined ? "none" : T.shadowAccent,
+    }}>
+      {state === "joined" && <Check size={12} />}{state === "requested" && <Clock size={12} />} {tr(JOIN_LABEL[state])}
+    </button>
+  );
+}
+// A few member faces, like "who's in it".
+function FacePile({ members, size = 22 }) {
+  const shown = members.slice(0, 5);
+  if (!shown.length) return null;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center" }}>
+      {shown.map((u, i) => <span key={u} style={{ marginInlineStart: i ? -size * 0.35 : 0, borderRadius: 999, border: `2px solid ${T.bg}`, display: "inline-flex" }}><Avatar username={u} size={size} /></span>)}
+    </span>
+  );
+}
 
 export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
   const state = joinState(community, me);
@@ -26,44 +70,40 @@ export function CommunityCard({ community, me, onToggle, onOpen, compact }) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0" }}>
         <button onClick={() => onOpen(community.id)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, background: "none", border: "none", padding: 0, textAlign: "start" }}>
-          <Avatar username={community.name} size={38} />
+          <CommunityAvatar c={community} size={38} />
           <div style={{ flex: 1 }}>
             <div style={{ color: T.text, fontSize: 14, fontWeight: 600 }}>{community.name}</div>
             <div style={{ color: T.textDim, fontSize: 12 }}>{community.members.length} {community.members.length === 1 ? tr("member") : tr("members")}</div>
           </div>
         </button>
-        <button onClick={() => onToggle(community.id)} className="press" style={{
-          padding: "7px 14px", borderRadius: 999, border: `1px solid ${joined ? T.lineDark : T.accent}`,
-          background: joined ? "transparent" : T.accent, color: joined ? T.text : "#fff", fontSize: 12.5, fontWeight: 600,
-          display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
-        }}>
-          {state === "joined" && <Check size={12} />}{state === "requested" && <Clock size={12} />} {tr(JOIN_LABEL[state])}
-        </button>
+        <JoinButton state={state} onClick={() => onToggle(community.id)} />
       </div>
     );
   }
+  // A card with the community's banner across the top and its photo on it.
+  const hue = hueForId(community.id || community.name);
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 12, padding: 14, marginBottom: 10,
-      background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 20, boxShadow: T.shadowCard,
-    }}>
-      <button onClick={() => onOpen(community.id)} style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, background: "none", border: "none", padding: 0, textAlign: "start" }}>
-        <Avatar username={community.name} size={40} />
-        <div style={{ flex: 1 }}>
-          <div style={{ color: T.text, fontSize: 14.5, fontWeight: 700 }}>{community.name}</div>
-          <div style={{ color: T.textDim, fontSize: 12, marginTop: 1 }}>
+    <div data-testid="community-card" style={{ marginBottom: 12, background: T.surface, border: `1px solid ${T.lineDark}`, borderRadius: 20, boxShadow: T.shadowCard, overflow: "hidden" }}>
+      <button onClick={() => onOpen(community.id)} style={{ display: "block", width: "100%", background: "none", border: "none", padding: 0, textAlign: "start" }}>
+        <div style={{ height: 64, background: community.banner ? `url(${community.banner}) center/cover` : `radial-gradient(120% 160% at 85% 0%, hsla(${hue},55%,45%,0.55), transparent 60%), linear-gradient(135deg, hsl(${hue},25%,16%), ${T.surface})` }} />
+        <div style={{ padding: "0 14px", marginTop: -24 }}><CommunityAvatar c={community} size={48} ring /></div>
+      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 14px 0" }}>
+        <button onClick={() => onOpen(community.id)} style={{ flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, textAlign: "start" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: T.text, fontSize: 15, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{community.name}</span>
+            {community.kind === "brand" && <BadgeCheck size={14} color={T.accentWarm} />}
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, color: T.textDim, fontSize: 12, marginTop: 4 }}>
+            <FacePile members={community.members} size={18} />
             {community.members.length} {community.members.length === 1 ? tr("member") : tr("members")}
-            {community.description ? ` · ${community.description}` : ""}
-          </div>
-        </div>
-      </button>
-      <button onClick={() => onToggle(community.id)} className="press" style={{
-        padding: "7px 14px", borderRadius: 999, border: `1px solid ${joined ? T.lineDark : T.accent}`,
-        background: joined ? "transparent" : T.accent, color: joined ? T.text : "#fff", fontSize: 12.5, fontWeight: 600,
-        display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap", boxShadow: joined ? "none" : T.shadowAccent,
-      }}>
-        {state === "joined" && <Check size={12} />}{state === "requested" && <Clock size={12} />} {tr(JOIN_LABEL[state])}
-      </button>
+          </span>
+        </button>
+        <JoinButton state={state} onClick={() => onToggle(community.id)} />
+      </div>
+      {community.description
+        ? <div style={{ padding: "8px 14px 14px", color: T.textDim, fontSize: 12.5, lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{community.description}</div>
+        : <div style={{ height: 14 }} />}
     </div>
   );
 }
@@ -118,30 +158,42 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
 
   return (
     <div {...sw.bind} style={{ ...sw.bind.style, paddingBottom: 10, minHeight: "75vh" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 12 }}>
-        <Avatar username={community.name} size={60} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="display" style={{ fontSize: 21, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{community.name}</div>
-          <div style={{ color: T.textDim, fontSize: 12.5, marginTop: 2 }}>{community.members.length} {community.members.length === 1 ? tr("member") : tr("members")}{community.kind === "brand" ? tr(" · brand") : ""}</div>
-        </div>
-        <button onClick={() => onToggle(community.id)} className="press" style={{
-          padding: "8px 16px", borderRadius: 999, border: `1px solid ${joined ? T.lineDark : T.accent}`,
-          background: joined ? "transparent" : T.accent, color: joined ? T.text : "#fff",
-          fontSize: 12.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
-          boxShadow: joined ? "none" : T.shadowAccent,
-        }}>
-          {state === "joined" && <Check size={12} />}{state === "requested" && <Clock size={12} />} {tr(JOIN_LABEL[state])}
-        </button>
-        {safety && (
-          <MoreMenu label={tr("Community options")} testid="community-menu" flash={safety.flash}
-            share={{ title: community.name, text: tr("Join {0} on Lacerta", community.name) }}
-            items={isOwner ? [
-              { label: tr("Edit community"), icon: <Pencil size={17} />, onClick: () => setEditing(true) },
-              { label: tr("Delete community"), icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },
-            ] : []}
-            report={isOwner ? null : { what: "community", onSend: (reason, note) => safety.actions.report({ kind: "community", id: community.id, reason, note }) }} />
-        )}
+      {/* Banner edge to edge, the community's photo on it, then its name and who's in it. */}
+      <div style={{ margin: "calc(-18px - var(--inset-top)) -16px 0", paddingTop: "var(--inset-top)", background: community.banner ? "#000" : "transparent", position: "relative" }}>
+        <ProfileBanner url={community.banner} hue={hueForId(community.id || community.name)} testid="community-banner" />
       </div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 12, marginTop: -34, position: "relative" }}>
+        <CommunityAvatar c={community} size={76} ring />
+        <span style={{ flex: 1 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 6, paddingBottom: 4 }}>
+          <JoinButton big state={state} onClick={() => onToggle(community.id)} />
+          {safety && (
+            <MoreMenu label={tr("Community options")} testid="community-menu" flash={safety.flash}
+              share={{ title: community.name, text: tr("Join {0} on Lacerta", community.name) }}
+              items={isOwner ? [
+                { label: tr("Edit community"), icon: <Pencil size={17} />, onClick: () => setEditing(true) },
+                { label: tr("Delete community"), icon: <Trash2 size={17} />, danger: true, onClick: () => setConfirm(true) },
+              ] : []}
+              report={isOwner ? null : { what: "community", onSend: (reason, note) => safety.actions.report({ kind: "community", id: community.id, reason, note }) }} />
+          )}
+        </div>
+      </div>
+      <div style={{ marginTop: 10, marginBottom: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div className="display" data-testid="community-name" style={{ fontSize: 23, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{community.name}</div>
+          {kindChip(community)}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, color: T.textDim, fontSize: 12.5, marginTop: 6 }}>
+          <FacePile members={community.members} />
+          <span><b style={{ color: T.text }}>{community.members.length}</b> {community.members.length === 1 ? tr("member") : tr("members")}</span>
+          {cPosts.length > 0 && <span>· <b style={{ color: T.text }}>{cPosts.length}</b> {cPosts.length === 1 ? tr("post") : tr("posts")}</span>}
+        </div>
+      </div>
+      {community.kind === "brand" && (
+        <div data-testid="brand-note" style={{ color: T.textDim, fontSize: 12, lineHeight: 1.45, marginBottom: 8 }}>
+          {tr("Made automatically for everyone who adds a {0} to their garage. It has no owner; Lacerta's moderators look after it.", community.name)}
+        </div>
+      )}
       {community.description && <RichText text={community.description} maxLines={MAX_LINES.description} style={{ color: T.textDim, fontSize: 13, lineHeight: 1.5, marginBottom: 8 }} />}
       {isOwner && <EditCommunitySheet open={editing} onClose={() => setEditing(false)} community={community} onSave={onEdit} />}
       <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title={tr("Delete {0}?", community.name)}
@@ -152,7 +204,9 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
       <TabSlide index={order.indexOf(tab)} fadeOnly={tab === "chat"}>
       {tab === "posts" && (
         <>
-          <button onClick={onNewPost} className="press" style={dashedBtn}><Plus size={14} /> {tr("Post to")} {community.name}</button>
+          {state === "ask" || state === "requested"
+            ? <div data-testid="post-locked" style={{ ...dashedBtn, color: T.textDim, fontWeight: 500 }}><Lock size={13} /> {state === "ask" ? tr("Ask to join to post here.") : tr("You can post once an admin lets you in.")}</div>
+            : <button data-testid="post-to-community" onClick={onNewPost} className="press" style={dashedBtn}><Plus size={14} /> {state === "join" ? tr("Join and post to {0}", community.name) : tr("Post to {0}", community.name)}</button>}
           {cPosts.length === 0
             ? <EmptyState icon={<ImageIcon size={20} color={T.textDim} />} title={tr("No posts yet")} body={tr("Post a photo of your car here and it shows up for everyone in the community.")} />
             : <Mosaic posts={cPosts} openPost={openPost} />}
@@ -181,8 +235,24 @@ function EditCommunitySheet({ open, onClose, community, onSave }) {
   const [joinMode, setJoinMode] = useState(community.joinMode || "open");
   const [chatMode, setChatMode] = useState(community.chatMode || "everyone");
   const [limit, setLimit] = useState(community.chatAutoLimit || 50);
+  const [avatar, setAvatar] = useState(community.avatar || null);
+  const [banner, setBanner] = useState(community.banner || null);
+  const preview = { ...community, avatar, banner };
   return (
     <BottomSheet open={open} onClose={onClose} title={tr("Edit community")} maxHeight="88vh">
+      <Field label={tr("Photo and banner")}>
+        <div style={{ borderRadius: 16, overflow: "hidden", border: `1px solid ${T.lineDark}` }}>
+          <ProfileBanner url={banner} hue={hueForId(community.id || community.name)} testid="community-banner-preview" />
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 10, marginTop: -26, padding: "0 12px", position: "relative" }}>
+          <CommunityAvatar c={preview} size={56} ring />
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+          <AvatarPicker onPick={setAvatar} />
+          <BannerPicker onPick={setBanner} label={banner ? tr("Change banner") : tr("Add a banner")} />
+          {(avatar || banner) && <button data-testid="community-looks-clear" onClick={() => { setAvatar(null); setBanner(null); }} style={{ background: "none", border: "none", color: T.textDim, fontSize: 12.5, fontWeight: 600 }}>{tr("Remove both")}</button>}
+        </div>
+      </Field>
       <Field label={tr("Name")}><TextInput value={name} onChange={setName} maxLength={40} /></Field>
       <Field label={tr("Description")}><TextArea value={description} onChange={setDescription} maxLength={150} rows={3} maxLines={MAX_LINES.description} /></Field>
       <Field label={tr("Who can join")}>
@@ -202,7 +272,7 @@ function EditCommunitySheet({ open, onClose, community, onSave }) {
           </div>
         )}
       </Field>
-      <button disabled={!name.trim()} onClick={async () => { if (await onSave(community.id, { name, description, joinMode, chatMode, chatAutoLimit: limit })) onClose(); }} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>{tr("Save")}</button>
+      <button disabled={!name.trim()} onClick={async () => { if (await onSave(community.id, { name, description, joinMode, chatMode, chatAutoLimit: limit, avatar, banner })) onClose(); }} className="press" style={{ width: "100%", padding: 13, borderRadius: 16, border: "none", background: T.accent, color: "#fff", fontWeight: 600, fontSize: 15 }}>{tr("Save")}</button>
     </BottomSheet>
   );
 }
@@ -328,8 +398,8 @@ function People({ community: c, me, isAppAdmin, users, posts, openProfile, onAns
           <div style={{ height: 14 }} />
         </>
       )}
-      <SectionLabel>{c.kind === "custom" ? tr("Owner and admins") : tr("Run by Lacerta")}</SectionLabel>
-      {leaders.length ? leaders.map((u) => row(u, <div style={{ display: "flex", alignItems: "center", gap: 4 }}>{tag(u)}{manageBtn(u)}</div>)) : <div style={{ color: T.textDim, fontSize: 13 }}>{tr("Lacerta's team keeps this one tidy.")}</div>}
+      <SectionLabel>{c.kind === "custom" ? tr("Owner and admins") : tr("Looked after by")}</SectionLabel>
+      {leaders.length ? leaders.map((u) => row(u, <div style={{ display: "flex", alignItems: "center", gap: 4 }}>{tag(u)}{manageBtn(u)}</div>)) : <div style={{ color: T.textDim, fontSize: 13 }}>{tr("Lacerta's moderators. Official brand communities have no owner.")}</div>}
       <div style={{ height: 14 }} />
       {top.length > 0 && (
         <>

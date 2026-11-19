@@ -19,6 +19,7 @@ import { SpotForm } from "./screens/Add";
 import { ComposerFlow } from "./components/photo/Composer";
 import { AddPage } from "./components/AddMenu";
 import { Tour } from "./components/Tour";
+import { AccountSwitcher, NewPasswordSheet } from "./components/Accounts";
 import { SettingsScreen, EditProfile, ManageCars, ArchivedPosts } from "./screens/Settings";
 import { ShareTagSheet } from "./components/ShareTag";
 import { Welcome } from "./components/Welcome";
@@ -85,7 +86,20 @@ export function Shell({ store, toast }) {
     : stack[1]?.root ? (stack[1].view === "profile" ? "profile" : stack[1].view)
     : "feed";
 
+  // Double-tap Profile: switch to your other account (or pick one, with three or more).
+  const lastProfileTap = useRef(0);
+  const [switcher, setSwitcher] = useState(false);
+  const profileDoubleTap = () => {
+    const others = a.otherAccounts();
+    if (others.length === 1) a.switchAccount(others[0].id);
+    else setSwitcher(true);
+  };
   const onTab = (id) => {
+    if (id === "profile") {
+      const t = Date.now();
+      if (t - lastProfileTap.current < 350) { lastProfileTap.current = 0; profileDoubleTap(); return; }
+      lastProfileTap.current = t;
+    }
     // Already on the feed: tapping Feed again goes back to the top.
     if (id === "feed") { if (cur.view === "feed") window.dispatchEvent(new Event("lacerta:feed-top")); else tab("feed"); }
     else if (id === "discover") tab("discover");
@@ -269,7 +283,7 @@ export function Shell({ store, toast }) {
       break;
     }
     case "settings":
-      page = <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={go} actions={a} onTour={() => setTour(true)} isAdmin={store.isAdmin} openReports={store.reports.length} />;
+      page = <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={go} actions={a} onTour={() => setTour(true)} isAdmin={store.isAdmin} openReports={store.reports.length} myId={store.myAccountId} flash={store.flash} />;
       break;
     case "editProfile":
       page = <EditProfile me={me} users={users} onSave={async (data) => { if ((await a.updateProfile(data)) !== false) back(); }} />;
@@ -323,8 +337,10 @@ export function Shell({ store, toast }) {
         <ShareTagSheet open={!!tagFor} onClose={() => setTagFor(null)} {...(tagFor || {})} flash={store.flash} onScan={() => { setTagFor(null); scan(); }} />
         <SideDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} testid="settings-drawer">
           <SettingsScreen me={me} users={users} cars={cars} posts={posts} go={(...x) => { setSettingsOpen(false); go(...x); }} actions={a}
-            onTour={() => { setSettingsOpen(false); setTour(true); }} isAdmin={store.isAdmin} openReports={store.reports.length} />
+            onTour={() => { setSettingsOpen(false); setTour(true); }} isAdmin={store.isAdmin} openReports={store.reports.length} myId={store.myAccountId} flash={store.flash} />
         </SideDrawer>
+        <AccountSwitcher open={switcher} onClose={() => setSwitcher(false)} myId={store.myAccountId} actions={a} />
+        {store.recovery && <NewPasswordSheet open actions={a} flash={store.flash} />}
         <BottomNav active={activeTab} onTab={onTab} onCreate={pickAdd} driver={isDriver(users[me])} hidden={sheets > 0 || kb > 0 || setup} />
       </div>
     </SheetContext.Provider>
