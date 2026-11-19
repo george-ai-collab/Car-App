@@ -94,10 +94,10 @@ export function Shell({ store, toast }) {
     if (others.length === 1) a.switchAccount(others[0].id);
     else setSwitcher(true);
   };
-  const onTab = (id) => {
+  const onTab = (id, at) => {
     if (id === "profile") {
-      const t = Date.now();
-      if (t - lastProfileTap.current < 350) { lastProfileTap.current = 0; profileDoubleTap(); return; }
+      const t = at || Date.now();
+      if (t - lastProfileTap.current < 400) { lastProfileTap.current = 0; profileDoubleTap(); return; }
       lastProfileTap.current = t;
     }
     // Already on the feed: tapping Feed again goes back to the top.

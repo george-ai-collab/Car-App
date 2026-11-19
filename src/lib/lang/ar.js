@@ -1155,4 +1155,8 @@ export const AR = {
   "Join the community before posting there.": "انضم إلى المجتمع قبل النشر فيه.",
   "That post has too much video. Clips with photos: up to 15 seconds each, 1 minute in total.": "في هذا المنشور فيديو كثير. المقاطع مع الصور: حتى 15 ثانية لكل مقطع، ودقيقة إجمالًا.",
   "Your community": "مجتمعك",
+  "Follow back": "تابِع بالمثل",
+  "Follows you": "يتابعك",
+  "New": "الأحدث",
+  "Top": "الأكثر تفاعلًا",
 };

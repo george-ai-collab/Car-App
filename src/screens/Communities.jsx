@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2, Pencil, Layers, Clock, UserPlus, UserMinus, X, MoreHorizontal, BadgeCheck, Lock, Users } from "lucide-react";
+import { Car, Image as ImageIcon, Heart, MessageCircle, Check, Plus, MessagesSquare, Shield, Crown, Trash2, Pencil, Layers, Clock, UserPlus, UserMinus, X, MoreHorizontal, BadgeCheck, Lock, Users, Play, Flame, Sparkles } from "lucide-react";
 import { T } from "../theme";
 import { hueForId, timeAgo } from "../lib/utils";
 import { useSwipe } from "../lib/useSwipe";
@@ -145,6 +145,7 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
   const safety = useSafety();
   const [editing, setEditing] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [sort, setSort] = useState("new");
   const isOwner = community.kind === "custom" && community.createdBy === me;
   const hidden = safety?.prefs.hidden || [], blocked = safety?.prefs.blocked || [];
   if (tab === "discuss") tab = "chat"; // old links
@@ -209,7 +210,16 @@ export function CommunityPage({ community, me, users, cars, posts, discussions, 
             : <button data-testid="post-to-community" onClick={onNewPost} className="press" style={dashedBtn}><Plus size={14} /> {state === "join" ? tr("Join and post to {0}", community.name) : tr("Post to {0}", community.name)}</button>}
           {cPosts.length === 0
             ? <EmptyState icon={<ImageIcon size={20} color={T.textDim} />} title={tr("No posts yet")} body={tr("Post a photo of your car here and it shows up for everyone in the community.")} />
-            : <Mosaic posts={cPosts} openPost={openPost} />}
+            : <>
+                {cPosts.length > 2 && (
+                  <div data-testid="post-sort" style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                    {[["new", tr("New"), <Sparkles key="i" size={12} />], ["top", tr("Top"), <Flame key="i" size={12} />]].map(([id, label, icon]) => (
+                      <button key={id} data-testid={`sort-${id}`} onClick={() => setSort(id)} className="press" style={{ display: "flex", alignItems: "center", gap: 5, padding: "6px 12px", borderRadius: 999, border: `1px solid ${sort === id ? T.accent : T.lineDark}`, background: sort === id ? "rgba(212,67,77,0.14)" : "transparent", color: sort === id ? T.text : T.textDim, fontSize: 12, fontWeight: 700 }}>{icon} {label}</button>
+                    ))}
+                  </div>
+                )}
+                <Mosaic key={sort} posts={sort === "top" ? [...cPosts].sort((x, y) => score(y) - score(x)) : cPosts} openPost={openPost} />
+              </>}
         </>
       )}
 
@@ -295,36 +305,73 @@ function Choice({ value, onChange, options, testid }) {
   );
 }
 
-// Instagram-explore style grid: the most-liked/commented posts get big tiles.
-function Mosaic({ posts, openPost }) {
-  const ranked = [...posts].sort((a, b) => score(b) - score(a));
-  const bigCount = Math.min(3, Math.ceil(posts.length / 5));
-  const big = new Set(ranked.slice(0, bigCount).filter((p) => score(p) >= 2).map((p) => p.id));
+// The Posts grid. Built row by row from a fixed pattern, so tiles always line up:
+//   [ big | 2 small ]   [ 3 small ]   [ 2 small | big ]   [ 3 small ] ...
+// In each "big" row the most liked/commented post of that row gets the big tile.
+// Leftovers fill the last row edge to edge (one wide tile, or two halves).
+const GAP = 6;
+export function Mosaic({ posts, openPost }) {
+  const rows = [];
+  let i = 0, k = 0;
+  while (i < posts.length) {
+    const left = posts.length - i;
+    if (left < 3) { rows.push({ kind: left === 1 ? "one" : "two", items: posts.slice(i) }); break; }
+    const items = posts.slice(i, i + 3);
+    const kind = ["bigL", "three", "bigR", "three"][k % 4];
+    if (kind !== "three") {
+      const top = items.reduce((best, p, j) => (score(p) > score(items[best]) ? j : best), 0);
+      items.unshift(items.splice(top, 1)[0]);
+    }
+    rows.push({ kind, items });
+    i += 3; k += 1;
+  }
+  let n = 0;
+  const tile = (p, big, style) => <Tile key={p.id} p={p} big={big} openPost={openPost} delay={Math.min(n++, 12) * 35} style={style} />;
   return (
-    <div data-testid="mosaic" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridAutoRows: "clamp(96px, calc((100vw - 44px) / 3), 145px)", gridAutoFlow: "dense", gap: 6 }}>
-      {posts.map((p, i) => {
-        const isBig = big.has(p.id);
-        const hue = hueForId(p.id);
-        // Alternate big tiles left and right, like your sketch.
-        const col = isBig ? ([...big].indexOf(p.id) % 2 === 0 ? "2 / span 2" : "1 / span 2") : undefined;
-        return (
-          <button key={p.id} data-testid={isBig ? "tile-big" : "tile"} onClick={() => openPost(p.id)} style={{
-            gridColumn: col, gridRow: isBig ? "span 2" : undefined,
-            position: "relative", borderRadius: 14, overflow: "hidden", border: "none", padding: 0,
-            background: p.photoUrl ? `url(${p.photoUrl}) center/cover` : `linear-gradient(135deg, hsl(${hue},45%,24%), hsl(${hue},35%,12%))`,
-          }}>
-            {!p.photoUrl && <span style={{ position: "absolute", inset: 8, color: "#fff", fontSize: isBig ? 15 : 11.5, fontWeight: 600, textAlign: "start", overflow: "hidden", lineHeight: 1.35 }}>{p.caption || ""}</span>}
-            {(p.photos || []).length > 1 && <Layers size={14} color="#fff" style={{ position: "absolute", top: 7, right: 7, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }} />}
-            {isBig && (
-              <span style={{ position: "absolute", left: 8, bottom: 8, display: "flex", gap: 8, color: "#fff", fontSize: 12, fontWeight: 700, textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Heart size={12} fill="#fff" /> {p.likes.length}</span>
-                <span style={{ display: "flex", alignItems: "center", gap: 3 }}><MessageCircle size={12} /> {p.comments.length}</span>
-              </span>
-            )}
-          </button>
+    <div data-testid="mosaic" style={{ display: "flex", flexDirection: "column", gap: GAP }}>
+      {rows.map((r, ri) => {
+        if (r.kind === "three") return <div key={ri} style={{ display: "flex", gap: GAP }}>{r.items.map((p) => tile(p, false, { flex: 1, aspectRatio: "1" }))}</div>;
+        if (r.kind === "one") return <div key={ri} style={{ display: "flex" }}>{tile(r.items[0], true, { flex: 1, aspectRatio: "16 / 10" })}</div>;
+        if (r.kind === "two") return <div key={ri} style={{ display: "flex", gap: GAP }}>{r.items.map((p) => tile(p, false, { flex: 1, aspectRatio: "1" }))}</div>;
+        const [big, a2, b2] = r.items;
+        const bigEl = tile(big, true, { flex: `0 0 calc((100% - ${GAP * 2}px) * 2 / 3 + ${GAP}px)`, aspectRatio: "1" });
+        const side = (
+          <div key="side" style={{ flex: 1, display: "flex", flexDirection: "column", gap: GAP }}>
+            {tile(a2, false, { flex: 1, minHeight: 0 })}
+            {tile(b2, false, { flex: 1, minHeight: 0 })}
+          </div>
         );
+        return <div key={ri} data-row={r.kind} style={{ display: "flex", gap: GAP }}>{r.kind === "bigL" ? [bigEl, side] : [side, bigEl]}</div>;
       })}
     </div>
+  );
+}
+
+function Tile({ p, big, openPost, delay, style }) {
+  const hue = hueForId(p.id);
+  const first = (p.photos || [])[0];
+  const video = first?.type === "video";
+  return (
+    <button data-testid={big ? "tile-big" : "tile"} onClick={() => openPost(p.id)} className="press" style={{
+      ...style, position: "relative", borderRadius: big ? 18 : 14, overflow: "hidden", border: "none", padding: 0, minWidth: 0,
+      background: p.photoUrl ? `url(${p.photoUrl}) center/cover, ${T.surface2}` : `linear-gradient(135deg, hsl(${hue},45%,24%), hsl(${hue},35%,12%))`,
+      animation: `tileIn .45s ${delay}ms backwards cubic-bezier(.2,.8,.2,1)`,
+    }}>
+      {!p.photoUrl && <span style={{ position: "absolute", inset: 10, color: "#fff", fontSize: big ? 16 : 12, fontWeight: 600, textAlign: "start", overflow: "hidden", lineHeight: 1.35 }}>{p.caption || ""}</span>}
+      {(video || (p.photos || []).length > 1) && (
+        <span style={{ position: "absolute", top: 7, right: 7, display: "flex", gap: 4, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.7))" }}>
+          {video && <Play size={13} color="#fff" fill="#fff" />}
+          {(p.photos || []).length > 1 && <Layers size={13} color="#fff" />}
+        </span>
+      )}
+      {(big || score(p) > 0) && p.photoUrl && (
+        <span style={{ position: "absolute", left: 0, right: 0, bottom: 0, padding: big ? "22px 10px 9px" : "16px 7px 6px", background: "linear-gradient(180deg, transparent, rgba(0,0,0,0.6))", display: "flex", gap: 9, color: "#fff", fontSize: big ? 12.5 : 11, fontWeight: 700 }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 3 }}><Heart size={big ? 13 : 11} fill="#fff" /> {p.likes.length}</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 3 }}><MessageCircle size={big ? 13 : 11} /> {p.comments.length}</span>
+          {big && p.authorUsername && <span style={{ marginInlineStart: "auto", opacity: 0.85, fontWeight: 600 }}>{AT}{p.authorUsername}</span>}
+        </span>
+      )}
+    </button>
   );
 }
 

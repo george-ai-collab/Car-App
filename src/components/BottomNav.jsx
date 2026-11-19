@@ -91,10 +91,11 @@ export function BottomNav({ active, onTab, onCreate, driver = true, hidden, rais
       else if (target !== active) { setMenu(false); onTab(target); }
     }
   };
-  const tap = (id) => {
+  // (The tap's own time travels along, so a double-tap still counts when the first tap's page is slow to open.)
+  const tap = (id, e) => {
     if (id === "add") { setMenu((m) => !m); return; }
     setMenu(false);
-    onTab(id);
+    onTab(id, e?.timeStamp != null ? performance.timeOrigin + e.timeStamp : Date.now());
   };
   const lit = menu ? "add" : preview || active;
 
@@ -137,7 +138,7 @@ export function BottomNav({ active, onTab, onCreate, driver = true, hidden, rais
         {ITEMS.map(({ id, label, aria, icon: Icon }) => {
           const on = lit === id;
           return (
-            <button key={id} aria-label={aria || label} data-tab={id} aria-current={on ? "page" : undefined} onClick={() => tap(id)}
+            <button key={id} aria-label={aria || label} data-tab={id} aria-current={on ? "page" : undefined} onClick={(e) => tap(id, e)}
               style={{
                 height: 46, minWidth: 46, padding: on ? "0 16px 0 13px" : "0 12px", borderRadius: 999, border: "none",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: on ? 7 : 0,

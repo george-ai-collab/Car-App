@@ -26,6 +26,7 @@ export function GlobalStyle() {
       @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes logoPulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.94); opacity: 0.85; } }
       @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes tileIn { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
       @keyframes tabInEnd { from { opacity: 0; transform: translateX(var(--slide-from, 44px)); } to { opacity: 1; transform: none; } }
       @keyframes tabInStart { from { opacity: 0; transform: translateX(calc(var(--slide-from, 44px) * -1)); } to { opacity: 1; transform: none; } }
       [dir=rtl] { --slide-from: -44px; }

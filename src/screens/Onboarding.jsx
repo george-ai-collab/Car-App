@@ -7,6 +7,7 @@ import { useKeyboardOffset } from "../lib/keyboard";
 import { findBanned, handleProblem } from "../lib/moderation";
 import { tr , AT } from "../lib/i18n";
 import { listAccounts } from "../lib/accounts";
+import { GOOGLE_SIGN_IN } from "../backend/config";
 
 const HANDLE_MSG = {
   taken: tr("Taken. Try another."),
@@ -313,7 +314,7 @@ function OnlineOnboarding({ actions, adding }) {
           {busy ? tr("Logging in…") : tr("Log in")} <ChevronRight size={17} />
         </button>
       )}
-      {mode !== "reset" && (
+      {mode !== "reset" && GOOGLE_SIGN_IN && (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0", color: T.textDim, fontSize: 11.5 }}>
             <span style={{ flex: 1, height: 1, background: T.lineDark }} />{tr("or")}<span style={{ flex: 1, height: 1, background: T.lineDark }} />
